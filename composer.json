@@ -1,0 +1,34 @@
+{
+    "name": "ikromjon/nativephp-mobile-local-notifications",
+    "description": "Local notifications plugin for NativePHP Mobile - schedule, cancel, and manage local notifications with channels, badges, sounds, and repeat intervals",
+    "type": "nativephp-plugin",
+    "license": "MIT",
+    "keywords": [
+        "nativephp",
+        "mobile",
+        "local-notifications",
+        "notifications",
+        "schedule",
+        "reminders",
+        "laravel"
+    ],
+    "require": {
+        "php": "^8.2",
+        "nativephp/mobile": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Ikromjon\\LocalNotifications\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Ikromjon\\LocalNotifications\\LocalNotificationsServiceProvider"
+            ]
+        },
+        "nativephp": {
+            "manifest": "nativephp.json"
+        }
+    }
+}

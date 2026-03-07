@@ -1,0 +1,88 @@
+{
+    "namespace": "LocalNotifications",
+
+    "bridge_functions": [
+        {
+            "name": "LocalNotifications.Schedule",
+            "android": "com.ikromjon.localnotifications.LocalNotificationsFunctions.Schedule",
+            "ios": "LocalNotificationsFunctions.Schedule",
+            "description": "Schedule a local notification at a specific time or after a delay"
+        },
+        {
+            "name": "LocalNotifications.Cancel",
+            "android": "com.ikromjon.localnotifications.LocalNotificationsFunctions.Cancel",
+            "ios": "LocalNotificationsFunctions.Cancel",
+            "description": "Cancel a scheduled notification by its identifier"
+        },
+        {
+            "name": "LocalNotifications.CancelAll",
+            "android": "com.ikromjon.localnotifications.LocalNotificationsFunctions.CancelAll",
+            "ios": "LocalNotificationsFunctions.CancelAll",
+            "description": "Cancel all scheduled notifications"
+        },
+        {
+            "name": "LocalNotifications.GetPending",
+            "android": "com.ikromjon.localnotifications.LocalNotificationsFunctions.GetPending",
+            "ios": "LocalNotificationsFunctions.GetPending",
+            "description": "Get a list of all pending scheduled notifications"
+        },
+        {
+            "name": "LocalNotifications.RequestPermission",
+            "android": "com.ikromjon.localnotifications.LocalNotificationsFunctions.RequestPermission",
+            "ios": "LocalNotificationsFunctions.RequestPermission",
+            "description": "Request permission to show notifications"
+        },
+        {
+            "name": "LocalNotifications.CheckPermission",
+            "android": "com.ikromjon.localnotifications.LocalNotificationsFunctions.CheckPermission",
+            "ios": "LocalNotificationsFunctions.CheckPermission",
+            "description": "Check current notification permission status"
+        }
+    ],
+
+    "android": {
+        "min_version": 33,
+        "permissions": [
+            "android.permission.POST_NOTIFICATIONS",
+            "android.permission.SCHEDULE_EXACT_ALARM",
+            "android.permission.USE_EXACT_ALARM",
+            "android.permission.RECEIVE_BOOT_COMPLETED",
+            "android.permission.VIBRATE"
+        ],
+        "dependencies": {
+            "implementation": []
+        },
+        "receivers": [
+            {
+                "name": ".LocalNotificationReceiver",
+                "exported": false
+            },
+            {
+                "name": ".BootReceiver",
+                "exported": true,
+                "intent_filters": [
+                    {
+                        "action": "android.intent.action.BOOT_COMPLETED"
+                    }
+                ]
+            }
+        ]
+    },
+
+    "ios": {
+        "min_version": "18.2",
+        "info_plist": {},
+        "dependencies": {
+            "swift_packages": [],
+            "pods": []
+        }
+    },
+
+    "events": [
+        "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled",
+        "Ikromjon\\LocalNotifications\\Events\\NotificationReceived",
+        "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
+        "Ikromjon\\LocalNotifications\\Events\\PermissionGranted",
+        "Ikromjon\\LocalNotifications\\Events\\PermissionDenied"
+    ]
+}
