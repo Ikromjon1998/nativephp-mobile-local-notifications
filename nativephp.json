@@ -59,12 +59,7 @@
             },
             {
                 "name": ".BootReceiver",
-                "exported": true,
-                "intent_filters": [
-                    {
-                        "action": "android.intent.action.BOOT_COMPLETED"
-                    }
-                ]
+                "exported": true
             }
         ]
     },

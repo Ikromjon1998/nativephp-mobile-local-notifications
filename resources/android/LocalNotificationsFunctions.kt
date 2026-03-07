@@ -13,7 +13,7 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.nativephp.mobile.bridge.BridgeFunction
-import com.nativephp.mobile.NativeActionCoordinator
+import com.nativephp.mobile.utils.NativeActionCoordinator
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -59,7 +59,7 @@ object LocalNotificationsFunctions {
      * Returns:
      *   - success: boolean
      */
-    class Schedule(private val context: Context) : BridgeFunction {
+    class Schedule(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
             val id = parameters["id"] as? String
                 ?: return mapOf("success" to false, "error" to "Missing required parameter: id")
@@ -75,6 +75,7 @@ object LocalNotificationsFunctions {
             val badge = (parameters["badge"] as? Number)?.toInt()
             val data = parameters["data"] as? Map<*, *>
 
+            val context = activity as Context
             ensureNotificationChannel(context)
 
             return try {
@@ -147,7 +148,7 @@ object LocalNotificationsFunctions {
                     put("body", body)
                 }
                 dispatchEvent(
-                    context,
+                    activity,
                     "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled",
                     payload.toString()
                 )
@@ -390,13 +391,9 @@ object LocalNotificationsFunctions {
             .apply()
     }
 
-    private fun dispatchEvent(context: Context, event: String, payloadJson: String) {
+    private fun dispatchEvent(activity: FragmentActivity, event: String, payloadJson: String) {
         try {
-            NativeActionCoordinator.dispatchEvent(
-                context as? FragmentActivity ?: return,
-                event,
-                payloadJson
-            )
+            NativeActionCoordinator.dispatchEvent(activity, event, payloadJson)
         } catch (e: Exception) {
             Log.e(TAG, "Error dispatching event: ${e.message}", e)
         }
