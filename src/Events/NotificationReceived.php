@@ -9,6 +9,9 @@ class NotificationReceived
 {
     use Dispatchable, SerializesModels;
 
+    /**
+     * @param  array<string, mixed>|null  $data
+     */
     public function __construct(
         public readonly string $id,
         public readonly string $title,

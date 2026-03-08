@@ -16,9 +16,25 @@
         "php": "^8.2",
         "nativephp/mobile": "*"
     },
+    "require-dev": {
+        "orchestra/testbench": "^9.0",
+        "pestphp/pest": "^3.0",
+        "phpstan/phpstan": "^2.0",
+        "larastan/larastan": "^3.0"
+    },
     "autoload": {
         "psr-4": {
             "Ikromjon\\LocalNotifications\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Ikromjon\\LocalNotifications\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
         }
     },
     "extra": {
@@ -30,5 +46,9 @@
         "nativephp": {
             "manifest": "nativephp.json"
         }
+    },
+    "scripts": {
+        "test": "pest",
+        "analyse": "phpstan analyse"
     }
 }

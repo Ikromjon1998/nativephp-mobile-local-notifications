@@ -3,3 +3,4 @@ composer.lock
 .idea/
 .DS_Store
 *.swp
+.phpunit.cache/
