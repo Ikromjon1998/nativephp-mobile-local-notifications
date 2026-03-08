@@ -99,6 +99,9 @@ enum LocalNotificationsFunctions {
     ///   - sound: (optional) boolean - Play sound (default: true)
     ///   - badge: (optional) int - Badge number to set on app icon
     ///   - data: (optional) object - Custom data to attach to the notification
+    ///   - subtitle: (optional) string - Notification subtitle
+    ///   - image: (optional) string - URL of an image to attach
+    ///   - bigText: (optional) string - Expanded body text
     /// Returns:
     ///   - success: boolean
     /// Events:
@@ -122,10 +125,17 @@ enum LocalNotificationsFunctions {
             let badge = parameters["badge"] as? Int
             let data = parameters["data"] as? [String: Any]
             let repeatInterval = parameters["repeat"] as? String
+            let subtitle = parameters["subtitle"] as? String
+            let imageUrl = parameters["image"] as? String
+            let bigText = parameters["bigText"] as? String
 
             let content = UNMutableNotificationContent()
             content.title = title
-            content.body = body
+            content.body = bigText ?? body
+
+            if let subtitle = subtitle {
+                content.subtitle = subtitle
+            }
 
             if sound {
                 content.sound = .default
@@ -142,6 +152,15 @@ enum LocalNotificationsFunctions {
                 }
             }
             content.userInfo = userInfo
+
+            // Attach image if provided
+            if let imageUrl = imageUrl, let url = URL(string: imageUrl) {
+                if let attachment = Self.downloadAndAttachImage(from: url) {
+                    content.attachments = [attachment]
+                } else {
+                    print("⚠️ Failed to download image, sending notification without image")
+                }
+            }
 
             // Determine trigger
             var trigger: UNNotificationTrigger?
@@ -213,6 +232,41 @@ enum LocalNotificationsFunctions {
 
             semaphore.wait()
             return result
+        }
+
+        /// Downloads an image from a URL and creates a UNNotificationAttachment.
+        private static func downloadAndAttachImage(from url: URL) -> UNNotificationAttachment? {
+            let semaphore = DispatchSemaphore(value: 0)
+            var attachment: UNNotificationAttachment?
+
+            let task = URLSession.shared.downloadTask(with: url) { localUrl, response, error in
+                defer { semaphore.signal() }
+
+                guard let localUrl = localUrl, error == nil else {
+                    print("❌ Image download failed: \(error?.localizedDescription ?? "unknown error")")
+                    return
+                }
+
+                // Determine file extension from response or URL
+                let ext = url.pathExtension.isEmpty ? "jpg" : url.pathExtension
+                let tmpDir = FileManager.default.temporaryDirectory
+                let tmpFile = tmpDir.appendingPathComponent(UUID().uuidString + "." + ext)
+
+                do {
+                    try FileManager.default.moveItem(at: localUrl, to: tmpFile)
+                    attachment = try UNNotificationAttachment(
+                        identifier: UUID().uuidString,
+                        url: tmpFile,
+                        options: nil
+                    )
+                } catch {
+                    print("❌ Failed to create attachment: \(error.localizedDescription)")
+                }
+            }
+            task.resume()
+            semaphore.wait()
+
+            return attachment
         }
     }
 

@@ -1,7 +1,7 @@
 # Epic 3: Rich Notification Content
 
 **Priority:** High
-**Status:** Not Started
+**Status:** Done
 
 ## Description
 
