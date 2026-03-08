@@ -28,7 +28,7 @@ object LocalNotificationsFunctions {
     const val CHANNEL_ID = "nativephp_local_notifications"
     private const val CHANNEL_NAME = "Local Notifications"
     const val PREFS_NAME = "nativephp_local_notifications_prefs"
-    private const val PENDING_TAP_KEY = "pending_tap_event"
+    private const val PENDING_EVENTS_KEY = "pending_events"
 
     /** Holds a weak reference to the current activity for event dispatch. */
     object ActivityHolder {
@@ -76,30 +76,43 @@ object LocalNotificationsFunctions {
     }
 
     /**
-     * Store a pending tap event in SharedPreferences for dispatch when the bridge is available.
+     * Store a pending event in SharedPreferences for dispatch when the bridge is available.
+     * Events are stored as a JSON array queue to prevent overwrites.
      */
-    fun storePendingTapEvent(context: Context, payload: JSONObject) {
+    fun storePendingEvent(context: Context, eventClass: String, payload: JSONObject) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putString(PENDING_TAP_KEY, payload.toString()).apply()
-        Log.d(TAG, "Stored pending tap event for later dispatch")
+        val existing = prefs.getString(PENDING_EVENTS_KEY, null)
+        val queue = if (existing != null) JSONArray(existing) else JSONArray()
+
+        val entry = JSONObject().apply {
+            put("event", eventClass)
+            put("payload", payload)
+        }
+        queue.put(entry)
+
+        prefs.edit().putString(PENDING_EVENTS_KEY, queue.toString()).apply()
+        Log.d(TAG, "Stored pending event ($eventClass), queue size: ${queue.length()}")
     }
 
     /**
-     * Check for and dispatch any pending tap event that was stored while the app was inactive.
+     * Check for and dispatch any pending events that were stored while the app was inactive.
      */
-    private fun dispatchPendingTapEvent(activity: FragmentActivity) {
+    private fun dispatchPendingEvents(activity: FragmentActivity) {
         val prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val pendingPayload = prefs.getString(PENDING_TAP_KEY, null) ?: return
+        val eventsJson = prefs.getString(PENDING_EVENTS_KEY, null) ?: return
 
         // Remove immediately to prevent duplicate dispatch
-        prefs.edit().remove(PENDING_TAP_KEY).apply()
+        prefs.edit().remove(PENDING_EVENTS_KEY).apply()
 
-        Log.d(TAG, "Dispatching pending tap event")
-        dispatchEvent(
-            activity,
-            "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
-            pendingPayload
-        )
+        val queue = JSONArray(eventsJson)
+        Log.d(TAG, "Dispatching ${queue.length()} pending event(s)")
+
+        for (i in 0 until queue.length()) {
+            val entry = queue.getJSONObject(i)
+            val eventClass = entry.getString("event")
+            val payload = entry.getJSONObject("payload")
+            dispatchEvent(activity, eventClass, payload.toString())
+        }
     }
 
     /**
@@ -109,7 +122,7 @@ object LocalNotificationsFunctions {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
             // Store activity reference and dispatch any pending tap events
             ActivityHolder.set(activity)
-            dispatchPendingTapEvent(activity)
+            dispatchPendingEvents(activity)
 
             val id = parameters["id"] as? String
                 ?: return mapOf("success" to false, "error" to "Missing required parameter: id")
@@ -167,17 +180,7 @@ object LocalNotificationsFunctions {
                     if (imageUrl != null) putExtra("image", imageUrl)
                     if (bigText != null) putExtra("big_text", bigText)
                     if (actions != null) {
-                        val actionsJson = JSONArray()
-                        for (action in actions.take(3)) {
-                            val actionMap = action as? Map<*, *> ?: continue
-                            actionsJson.put(JSONObject().apply {
-                                put("id", actionMap["id"]?.toString() ?: "")
-                                put("title", actionMap["title"]?.toString() ?: "")
-                                put("destructive", actionMap["destructive"] as? Boolean ?: false)
-                                put("input", actionMap["input"] as? Boolean ?: false)
-                            })
-                        }
-                        putExtra("actions", actionsJson.toString())
+                        putExtra("actions", serializeActions(actions).toString())
                     }
                 }
 
@@ -347,7 +350,7 @@ object LocalNotificationsFunctions {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
             // Store activity reference and dispatch any pending tap events
             ActivityHolder.set(activity)
-            dispatchPendingTapEvent(activity)
+            dispatchPendingEvents(activity)
 
             return try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -422,6 +425,23 @@ object LocalNotificationsFunctions {
 
     // -- Helper functions --
 
+    /**
+     * Serialize a list of action maps into a JSONArray.
+     */
+    private fun serializeActions(actions: List<*>): JSONArray {
+        val actionsJson = JSONArray()
+        for (action in actions.take(3)) {
+            val actionMap = action as? Map<*, *> ?: continue
+            actionsJson.put(JSONObject().apply {
+                put("id", actionMap["id"]?.toString() ?: "")
+                put("title", actionMap["title"]?.toString() ?: "")
+                put("destructive", actionMap["destructive"] as? Boolean ?: false)
+                put("input", actionMap["input"] as? Boolean ?: false)
+            })
+        }
+        return actionsJson
+    }
+
     private fun saveNotificationInfo(
         context: Context,
         id: String,
@@ -454,17 +474,7 @@ object LocalNotificationsFunctions {
             if (imageUrl != null) put("image", imageUrl)
             if (bigText != null) put("bigText", bigText)
             if (actions != null) {
-                val actionsJson = JSONArray()
-                for (action in actions.take(3)) {
-                    val actionMap = action as? Map<*, *> ?: continue
-                    actionsJson.put(JSONObject().apply {
-                        put("id", actionMap["id"]?.toString() ?: "")
-                        put("title", actionMap["title"]?.toString() ?: "")
-                        put("destructive", actionMap["destructive"] as? Boolean ?: false)
-                        put("input", actionMap["input"] as? Boolean ?: false)
-                    })
-                }
-                put("actions", actionsJson)
+                put("actions", serializeActions(actions))
             }
         }
 

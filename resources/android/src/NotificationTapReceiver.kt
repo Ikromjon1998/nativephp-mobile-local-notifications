@@ -44,7 +44,11 @@ class NotificationTapReceiver : BroadcastReceiver() {
             )
         } else {
             // App is not active — store the event for dispatch when the bridge becomes available
-            LocalNotificationsFunctions.storePendingTapEvent(context, payload)
+            LocalNotificationsFunctions.storePendingEvent(
+                context,
+                "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
+                payload
+            )
         }
 
         // Launch the app
