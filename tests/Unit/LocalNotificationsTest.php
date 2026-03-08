@@ -117,6 +117,33 @@ describe('schedule', function () {
             ->and($capturedData)->not->toHaveKey('bigText');
     });
 
+    it('passes action buttons to the bridge', function () {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'actions-test',
+            'title' => 'Actions Test',
+            'body' => 'With actions',
+            'delay' => 60,
+            'actions' => [
+                ['id' => 'reply', 'title' => 'Reply', 'input' => true],
+                ['id' => 'snooze', 'title' => 'Snooze'],
+                ['id' => 'delete', 'title' => 'Delete', 'destructive' => true],
+            ],
+        ]);
+
+        expect($capturedData['actions'])->toHaveCount(3)
+            ->and($capturedData['actions'][0])->toBe(['id' => 'reply', 'title' => 'Reply', 'input' => true])
+            ->and($capturedData['actions'][1])->toBe(['id' => 'snooze', 'title' => 'Snooze'])
+            ->and($capturedData['actions'][2])->toBe(['id' => 'delete', 'title' => 'Delete', 'destructive' => true]);
+    });
+
     it('returns empty array when bridge returns null', function () {
         stubNativephpCallReturnsNull();
 

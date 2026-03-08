@@ -9,6 +9,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.RemoteInput
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -34,6 +36,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         val subtitle = intent.getStringExtra("subtitle")
         val imageUrl = intent.getStringExtra("image")
         val bigText = intent.getStringExtra("big_text")
+        val actionsJson = intent.getStringExtra("actions")
 
         Log.d(TAG, "Notification received: $id - $title")
 
@@ -95,6 +98,47 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             val style = NotificationCompat.BigTextStyle()
                 .bigText(bigText)
             builder.setStyle(style)
+        }
+
+        // Add action buttons if provided
+        if (actionsJson != null) {
+            try {
+                val actions = JSONArray(actionsJson)
+                for (i in 0 until minOf(actions.length(), 3)) {
+                    val action = actions.getJSONObject(i)
+                    val actionId = action.getString("id")
+                    val actionTitle = action.getString("title")
+                    val isInput = action.optBoolean("input", false)
+
+                    val actionIntent = Intent(context, NotificationActionReceiver::class.java).apply {
+                        this.action = "com.ikromjon.localnotifications.ACTION"
+                        putExtra("notification_id", id)
+                        putExtra("action_id", actionId)
+                        if (dataJson != null) putExtra("notification_data", dataJson)
+                    }
+
+                    val actionPendingIntent = PendingIntent.getBroadcast(
+                        context,
+                        (id + actionId).hashCode(),
+                        actionIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                    )
+
+                    if (isInput) {
+                        val remoteInput = RemoteInput.Builder(NotificationActionReceiver.REMOTE_INPUT_KEY)
+                            .setLabel(actionTitle)
+                            .build()
+                        val notifAction = NotificationCompat.Action.Builder(0, actionTitle, actionPendingIntent)
+                            .addRemoteInput(remoteInput)
+                            .build()
+                        builder.addAction(notifAction)
+                    } else {
+                        builder.addAction(0, actionTitle, actionPendingIntent)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error parsing actions: ${e.message}")
+            }
         }
 
         notificationManager.notify(id.hashCode(), builder.build())

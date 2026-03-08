@@ -127,6 +127,7 @@ object LocalNotificationsFunctions {
             val subtitle = parameters["subtitle"] as? String
             val imageUrl = parameters["image"] as? String
             val bigText = parameters["bigText"] as? String
+            val actions = parameters["actions"] as? List<*>
 
             val context = activity as Context
             ensureNotificationChannel(context)
@@ -165,6 +166,19 @@ object LocalNotificationsFunctions {
                     if (subtitle != null) putExtra("subtitle", subtitle)
                     if (imageUrl != null) putExtra("image", imageUrl)
                     if (bigText != null) putExtra("big_text", bigText)
+                    if (actions != null) {
+                        val actionsJson = JSONArray()
+                        for (action in actions.take(3)) {
+                            val actionMap = action as? Map<*, *> ?: continue
+                            actionsJson.put(JSONObject().apply {
+                                put("id", actionMap["id"]?.toString() ?: "")
+                                put("title", actionMap["title"]?.toString() ?: "")
+                                put("destructive", actionMap["destructive"] as? Boolean ?: false)
+                                put("input", actionMap["input"] as? Boolean ?: false)
+                            })
+                        }
+                        putExtra("actions", actionsJson.toString())
+                    }
                 }
 
                 val requestCode = id.hashCode()
@@ -193,7 +207,7 @@ object LocalNotificationsFunctions {
                 }
 
                 // Persist notification info for getPending and boot restoration
-                saveNotificationInfo(context, id, title, body, triggerTimeMs, repeatMs, sound, badge, data, subtitle, imageUrl, bigText)
+                saveNotificationInfo(context, id, title, body, triggerTimeMs, repeatMs, sound, badge, data, subtitle, imageUrl, bigText, actions)
 
                 Log.d(TAG, "✅ Notification scheduled: $id at $triggerTimeMs")
 
@@ -420,7 +434,8 @@ object LocalNotificationsFunctions {
         data: Map<*, *>?,
         subtitle: String? = null,
         imageUrl: String? = null,
-        bigText: String? = null
+        bigText: String? = null,
+        actions: List<*>? = null
     ) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
@@ -438,6 +453,19 @@ object LocalNotificationsFunctions {
             if (subtitle != null) put("subtitle", subtitle)
             if (imageUrl != null) put("image", imageUrl)
             if (bigText != null) put("bigText", bigText)
+            if (actions != null) {
+                val actionsJson = JSONArray()
+                for (action in actions.take(3)) {
+                    val actionMap = action as? Map<*, *> ?: continue
+                    actionsJson.put(JSONObject().apply {
+                        put("id", actionMap["id"]?.toString() ?: "")
+                        put("title", actionMap["title"]?.toString() ?: "")
+                        put("destructive", actionMap["destructive"] as? Boolean ?: false)
+                        put("input", actionMap["input"] as? Boolean ?: false)
+                    })
+                }
+                put("actions", actionsJson)
+            }
         }
 
         prefs.edit()
