@@ -54,6 +54,9 @@ describe('schedule', function () {
             'sound' => true,
             'badge' => 5,
             'data' => ['key' => 'value'],
+            'subtitle' => 'A subtitle',
+            'image' => 'https://example.com/image.jpg',
+            'bigText' => 'This is a much longer body text for the expanded view.',
         ]);
 
         expect($capturedData)->toBe([
@@ -66,7 +69,52 @@ describe('schedule', function () {
             'sound' => true,
             'badge' => 5,
             'data' => ['key' => 'value'],
+            'subtitle' => 'A subtitle',
+            'image' => 'https://example.com/image.jpg',
+            'bigText' => 'This is a much longer body text for the expanded view.',
         ]);
+    });
+
+    it('passes rich content parameters independently', function () {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'image-only',
+            'title' => 'Image Notification',
+            'body' => 'Check this out',
+            'image' => 'https://example.com/photo.png',
+        ]);
+
+        expect($capturedData['image'])->toBe('https://example.com/photo.png')
+            ->and($capturedData)->not->toHaveKey('subtitle')
+            ->and($capturedData)->not->toHaveKey('bigText');
+    });
+
+    it('passes subtitle without other rich content', function () {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'subtitle-only',
+            'title' => 'Subtitle Test',
+            'body' => 'Body text',
+            'subtitle' => 'My subtitle',
+        ]);
+
+        expect($capturedData['subtitle'])->toBe('My subtitle')
+            ->and($capturedData)->not->toHaveKey('image')
+            ->and($capturedData)->not->toHaveKey('bigText');
     });
 
     it('returns empty array when bridge returns null', function () {

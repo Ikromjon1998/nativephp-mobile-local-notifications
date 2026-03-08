@@ -56,6 +56,9 @@ class BootReceiver : BroadcastReceiver() {
                     putExtra("channel_id", "nativephp_local_notifications")
                     if (repeatMs > 0) putExtra("repeat_ms", repeatMs)
                     if (info.has("data")) putExtra("data", info.getString("data"))
+                    if (info.has("subtitle")) putExtra("subtitle", info.getString("subtitle"))
+                    if (info.has("image")) putExtra("image", info.getString("image"))
+                    if (info.has("bigText")) putExtra("big_text", info.getString("bigText"))
                 }
 
                 val pendingIntent = PendingIntent.getBroadcast(

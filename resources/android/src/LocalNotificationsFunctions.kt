@@ -124,6 +124,9 @@ object LocalNotificationsFunctions {
             val sound = parameters["sound"] as? Boolean ?: true
             val badge = (parameters["badge"] as? Number)?.toInt()
             val data = parameters["data"] as? Map<*, *>
+            val subtitle = parameters["subtitle"] as? String
+            val imageUrl = parameters["image"] as? String
+            val bigText = parameters["bigText"] as? String
 
             val context = activity as Context
             ensureNotificationChannel(context)
@@ -159,6 +162,9 @@ object LocalNotificationsFunctions {
                         val dataJson = JSONObject(data.mapKeys { it.key.toString() }).toString()
                         putExtra("data", dataJson)
                     }
+                    if (subtitle != null) putExtra("subtitle", subtitle)
+                    if (imageUrl != null) putExtra("image", imageUrl)
+                    if (bigText != null) putExtra("big_text", bigText)
                 }
 
                 val requestCode = id.hashCode()
@@ -187,7 +193,7 @@ object LocalNotificationsFunctions {
                 }
 
                 // Persist notification info for getPending and boot restoration
-                saveNotificationInfo(context, id, title, body, triggerTimeMs, repeatMs, sound, badge, data)
+                saveNotificationInfo(context, id, title, body, triggerTimeMs, repeatMs, sound, badge, data, subtitle, imageUrl, bigText)
 
                 Log.d(TAG, "✅ Notification scheduled: $id at $triggerTimeMs")
 
@@ -411,7 +417,10 @@ object LocalNotificationsFunctions {
         repeatMs: Long,
         sound: Boolean,
         badge: Int?,
-        data: Map<*, *>?
+        data: Map<*, *>?,
+        subtitle: String? = null,
+        imageUrl: String? = null,
+        bigText: String? = null
     ) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
@@ -426,6 +435,9 @@ object LocalNotificationsFunctions {
             put("sound", sound)
             if (badge != null) put("badge", badge)
             if (data != null) put("data", JSONObject(data.mapKeys { it.key.toString() }))
+            if (subtitle != null) put("subtitle", subtitle)
+            if (imageUrl != null) put("image", imageUrl)
+            if (bigText != null) put("bigText", bigText)
         }
 
         prefs.edit()
