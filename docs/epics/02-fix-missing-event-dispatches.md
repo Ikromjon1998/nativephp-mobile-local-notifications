@@ -1,7 +1,7 @@
 # Epic 2: Fix Missing Event Dispatches
 
 **Priority:** Critical
-**Status:** Not Started
+**Status:** Done
 
 ## Description
 
