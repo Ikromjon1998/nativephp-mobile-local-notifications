@@ -240,6 +240,10 @@ public function onActionPressed($data)
 - NativePHP Mobile v3+
 - iOS 18.2+ / Android API 33+
 
+## Support
+
+For questions or issues, contact: ikromjon98.98@icloud.com
+
 ## License
 
 MIT
