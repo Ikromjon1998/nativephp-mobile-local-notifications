@@ -15,7 +15,7 @@ See individual epic files in [`docs/epics/`](docs/epics/) for full details.
 
 | # | Epic | File | Status |
 |---|------|------|--------|
-| 3 | Rich Notification Content | [03-rich-notification-content.md](docs/epics/03-rich-notification-content.md) | Not Started |
+| 3 | Rich Notification Content | [03-rich-notification-content.md](docs/epics/03-rich-notification-content.md) | Done |
 | 4 | Action Buttons | [04-action-buttons.md](docs/epics/04-action-buttons.md) | Not Started |
 | 5 | Custom Repeat Intervals & Advanced Scheduling | [05-custom-repeat-intervals.md](docs/epics/05-custom-repeat-intervals.md) | Not Started |
 | 6 | Notification Channels & Categories | [06-notification-channels.md](docs/epics/06-notification-channels.md) | Not Started |

@@ -5,12 +5,17 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * BroadcastReceiver that fires local notifications when the AlarmManager triggers.
+ * Supports rich content: images (BigPictureStyle), big text (BigTextStyle), and subtitles.
  * After displaying the notification, dispatches a NotificationReceived event.
  */
 class LocalNotificationReceiver : BroadcastReceiver() {
@@ -26,6 +31,9 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         val sound = intent.getBooleanExtra("sound", true)
         val channelId = intent.getStringExtra("channel_id") ?: LocalNotificationsFunctions.CHANNEL_ID
         val dataJson = intent.getStringExtra("data")
+        val subtitle = intent.getStringExtra("subtitle")
+        val imageUrl = intent.getStringExtra("image")
+        val bigText = intent.getStringExtra("big_text")
 
         Log.d(TAG, "Notification received: $id - $title")
 
@@ -64,8 +72,29 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
 
+        if (subtitle != null) {
+            builder.setSubText(subtitle)
+        }
+
         if (!sound) {
             builder.setSilent(true)
+        }
+
+        // Apply rich content styles
+        val imageBitmap = if (imageUrl != null) downloadImage(imageUrl) else null
+
+        if (imageBitmap != null) {
+            // BigPictureStyle for image notifications
+            val style = NotificationCompat.BigPictureStyle()
+                .bigPicture(imageBitmap)
+                .setSummaryText(bigText ?: body)
+            builder.setStyle(style)
+                .setLargeIcon(imageBitmap)
+        } else if (bigText != null) {
+            // BigTextStyle for expanded text
+            val style = NotificationCompat.BigTextStyle()
+                .bigText(bigText)
+            builder.setStyle(style)
         }
 
         notificationManager.notify(id.hashCode(), builder.build())
@@ -100,6 +129,28 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                 .putStringSet("notification_ids", ids)
                 .remove("notification_$id")
                 .apply()
+        }
+    }
+
+    /**
+     * Downloads an image from a URL. Returns null on failure.
+     */
+    private fun downloadImage(urlString: String): Bitmap? {
+        return try {
+            val url = URL(urlString)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 10_000
+            connection.doInput = true
+            connection.connect()
+            val inputStream = connection.inputStream
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream.close()
+            connection.disconnect()
+            bitmap
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to download image: ${e.message}")
+            null
         }
     }
 }

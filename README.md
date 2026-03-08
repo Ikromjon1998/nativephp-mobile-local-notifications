@@ -104,6 +104,17 @@ LocalNotifications::schedule([
     'badge' => 1,
     'data' => ['task_id' => 42, 'priority' => 'high'],
 ]);
+
+// With rich content (image, subtitle, expanded text)
+LocalNotifications::schedule([
+    'id' => 'promo',
+    'title' => 'New Arrival',
+    'body' => 'Check out our latest product',
+    'subtitle' => 'Limited time offer',
+    'image' => 'https://example.com/product.jpg',
+    'bigText' => 'We just launched an amazing new product that you will love. Tap to learn more and get 20% off your first order!',
+    'delay' => 60,
+]);
 ```
 
 ### Schedule Parameters
@@ -119,6 +130,9 @@ LocalNotifications::schedule([
 | `sound` | bool | No | Play sound (default: `true`) |
 | `badge` | int | No | Badge number on app icon (iOS) |
 | `data` | array | No | Custom data payload (available in tapped event) |
+| `subtitle` | string | No | Subtitle text (iOS: subtitle, Android: subtext) |
+| `image` | string | No | Image URL to display in the notification |
+| `bigText` | string | No | Expanded body text shown when notification is expanded |
 
 Either `delay` or `at` should be provided. If neither is set, the notification fires after 1 second.
 

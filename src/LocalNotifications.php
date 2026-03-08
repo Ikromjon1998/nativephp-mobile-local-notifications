@@ -17,6 +17,9 @@ class LocalNotifications
      *     sound?: bool,
      *     badge?: int,
      *     data?: array<string, mixed>,
+     *     subtitle?: string,
+     *     image?: string,
+     *     bigText?: string,
      * }  $options
      * @return array<string, mixed>
      */
