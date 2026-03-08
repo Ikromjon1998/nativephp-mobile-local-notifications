@@ -2,6 +2,86 @@ import Foundation
 import UserNotifications
 import UIKit
 
+// MARK: - Notification Delegate
+
+/// Handles notification delivery and user interaction events.
+/// Set as the UNUserNotificationCenter delegate to dispatch
+/// NotificationReceived and NotificationTapped events.
+class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = LocalNotificationDelegate()
+    private static var isRegistered = false
+
+    static func ensureRegistered() {
+        if !isRegistered {
+            UNUserNotificationCenter.current().delegate = shared
+            isRegistered = true
+        }
+    }
+
+    /// Called when a notification is delivered while the app is in the foreground.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        let content = notification.request.content
+        let userInfo = content.userInfo
+        let id = userInfo["notification_id"] as? String ?? notification.request.identifier
+
+        let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationReceived"
+        var payload: [String: Any] = ["id": id, "title": content.title, "body": content.body]
+
+        let customData = extractCustomData(from: userInfo)
+        if !customData.isEmpty {
+            payload["data"] = customData
+        }
+
+        LaravelBridge.shared.send?(eventClass, payload)
+
+        // Show the notification banner even when the app is in the foreground
+        completionHandler([.banner, .sound, .badge])
+    }
+
+    /// Called when the user taps a notification.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier else {
+            completionHandler()
+            return
+        }
+
+        let content = response.notification.request.content
+        let userInfo = content.userInfo
+        let id = userInfo["notification_id"] as? String ?? response.notification.request.identifier
+
+        let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationTapped"
+        var payload: [String: Any] = ["id": id, "title": content.title, "body": content.body]
+
+        let customData = extractCustomData(from: userInfo)
+        if !customData.isEmpty {
+            payload["data"] = customData
+        }
+
+        LaravelBridge.shared.send?(eventClass, payload)
+
+        completionHandler()
+    }
+
+    /// Extracts custom data from userInfo, excluding internal keys.
+    private func extractCustomData(from userInfo: [AnyHashable: Any]) -> [String: Any] {
+        var customData: [String: Any] = [:]
+        for (key, value) in userInfo {
+            if let key = key as? String, key != "notification_id" {
+                customData[key] = value
+            }
+        }
+        return customData
+    }
+}
+
 // MARK: - LocalNotifications Function Namespace
 
 enum LocalNotificationsFunctions {
@@ -25,6 +105,9 @@ enum LocalNotificationsFunctions {
     ///   - Fires NotificationScheduled when notification is successfully scheduled
     class Schedule: BridgeFunction {
         func execute(parameters: [String: Any]) throws -> [String: Any] {
+            // Ensure the notification delegate is registered
+            LocalNotificationDelegate.ensureRegistered()
+
             guard let id = parameters["id"] as? String else {
                 return ["success": false, "error": "Missing required parameter: id"]
             }
@@ -231,6 +314,9 @@ enum LocalNotificationsFunctions {
     ///   - Fires PermissionGranted or PermissionDenied
     class RequestPermission: BridgeFunction {
         func execute(parameters: [String: Any]) throws -> [String: Any] {
+            // Ensure the notification delegate is registered
+            LocalNotificationDelegate.ensureRegistered()
+
             let center = UNUserNotificationCenter.current()
             let semaphore = DispatchSemaphore(value: 0)
             var result: [String: Any] = [:]
