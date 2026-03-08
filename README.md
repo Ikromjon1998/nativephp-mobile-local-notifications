@@ -2,6 +2,14 @@
 
 Schedule, manage, and cancel local notifications in your NativePHP Mobile app — no server or Firebase required.
 
+## How is this different?
+
+| Plugin | What it does | Requires |
+|--------|-------------|----------|
+| **nativephp/mobile-dialog** | Toast/snackbar messages (in-app only, disappear when app closes) | Nothing |
+| **nativephp/mobile-firebase** | Push notifications from a server via FCM/APNs | Firebase project, server, internet |
+| **This plugin** | Local notifications scheduled on-device | Nothing — works offline |
+
 ## Features
 
 - Schedule notifications with a delay or at a specific time
@@ -9,9 +17,10 @@ Schedule, manage, and cancel local notifications in your NativePHP Mobile app �
 - Custom sounds, badges, and data payloads
 - Cancel individual or all notifications
 - List pending notifications
-- Permission management
+- Permission management (Android 13+, iOS)
 - Survives device reboot (Android)
 - Events for notification lifecycle (scheduled, received, tapped)
+- Works completely offline — no server or Firebase needed
 
 ## Installation
 
@@ -19,32 +28,44 @@ Schedule, manage, and cancel local notifications in your NativePHP Mobile app �
 composer require ikromjon/nativephp-mobile-local-notifications
 ```
 
-Register the plugin:
+Register the plugin in your `app/Providers/NativeServiceProvider.php`:
 
-```bash
-php artisan native:plugin:register ikromjon/nativephp-mobile-local-notifications
+```php
+use Native\Mobile\Facades\System;
+
+public function boot(): void
+{
+    System::enablePlugins([
+        \Ikromjon\LocalNotifications\LocalNotificationsServiceProvider::class,
+    ]);
+}
 ```
 
-Rebuild your app:
+Build your app (plugin requires a native build — it does not work with Jump):
 
 ```bash
-php artisan native:run
+php artisan native:run android
+# or
+php artisan native:run ios
 ```
 
 ## Usage
 
 ### Request Permission
 
+Required on Android 13+ and iOS before notifications can be shown.
+
 ```php
 use Ikromjon\LocalNotifications\Facades\LocalNotifications;
 
-LocalNotifications::requestPermission();
+$result = LocalNotifications::requestPermission();
+// Returns: ['granted' => true] or ['granted' => false, 'status' => 'pending']
 ```
 
 ### Schedule a Notification
 
 ```php
-// Fire after a delay
+// Fire after a delay (seconds)
 LocalNotifications::schedule([
     'id' => 'reminder-1',
     'title' => 'Reminder',
@@ -65,11 +86,11 @@ LocalNotifications::schedule([
     'id' => 'daily-checkin',
     'title' => 'Daily Check-in',
     'body' => 'How are you feeling today?',
-    'at' => now()->setTime(9, 0)->timestamp,
+    'delay' => 60,
     'repeat' => 'daily',
 ]);
 
-// With custom data
+// With custom data and options
 LocalNotifications::schedule([
     'id' => 'task-due',
     'title' => 'Task Due',
@@ -80,6 +101,22 @@ LocalNotifications::schedule([
     'data' => ['task_id' => 42, 'priority' => 'high'],
 ]);
 ```
+
+### Schedule Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | Yes | Unique identifier for the notification |
+| `title` | string | Yes | Notification title |
+| `body` | string | Yes | Notification body text |
+| `delay` | int | No | Delay in seconds from now |
+| `at` | int | No | Unix timestamp to fire at |
+| `repeat` | string | No | Repeat interval (see table below) |
+| `sound` | bool | No | Play sound (default: `true`) |
+| `badge` | int | No | Badge number on app icon (iOS) |
+| `data` | array | No | Custom data payload (available in tapped event) |
+
+Either `delay` or `at` should be provided. If neither is set, the notification fires after 1 second.
 
 ### Cancel Notifications
 
@@ -112,6 +149,7 @@ Use the `#[OnNative]` attribute in your Livewire components:
 ```php
 use Native\Mobile\Attributes\OnNative;
 use Ikromjon\LocalNotifications\Events\NotificationScheduled;
+use Ikromjon\LocalNotifications\Events\NotificationReceived;
 use Ikromjon\LocalNotifications\Events\NotificationTapped;
 use Ikromjon\LocalNotifications\Events\PermissionGranted;
 use Ikromjon\LocalNotifications\Events\PermissionDenied;
@@ -120,6 +158,12 @@ use Ikromjon\LocalNotifications\Events\PermissionDenied;
 public function onScheduled($data)
 {
     // Notification was scheduled: $data['id'], $data['title'], $data['body']
+}
+
+#[OnNative(NotificationReceived::class)]
+public function onReceived($data)
+{
+    // Notification was delivered to the device
 }
 
 #[OnNative(NotificationTapped::class)]
@@ -131,24 +175,24 @@ public function onTapped($data)
 #[OnNative(PermissionGranted::class)]
 public function onPermissionGranted()
 {
-    // Permission was granted, schedule your notifications
+    // Permission was granted
 }
 
 #[OnNative(PermissionDenied::class)]
 public function onPermissionDenied()
 {
-    // Permission was denied, show a message to the user
+    // Permission was denied
 }
 ```
 
 ## Repeat Intervals
 
-| Value      | Description            |
-|------------|------------------------|
-| `minute`   | Every minute           |
-| `hourly`   | Every hour             |
-| `daily`    | Every day              |
-| `weekly`   | Every week             |
+| Value | Description |
+|-------|-------------|
+| `minute` | Every minute |
+| `hourly` | Every hour |
+| `daily` | Every day |
+| `weekly` | Every week |
 
 ## Requirements
 
