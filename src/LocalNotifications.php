@@ -16,8 +16,9 @@ class LocalNotifications
      *     repeat?: string,
      *     sound?: bool,
      *     badge?: int,
-     *     data?: array,
+     *     data?: array<string, mixed>,
      * }  $options
+     * @return array<string, mixed>
      */
     public function schedule(array $options): array
     {
@@ -26,6 +27,8 @@ class LocalNotifications
 
     /**
      * Cancel a scheduled notification by its identifier.
+     *
+     * @return array<string, mixed>
      */
     public function cancel(string $id): array
     {
@@ -34,6 +37,8 @@ class LocalNotifications
 
     /**
      * Cancel all scheduled notifications.
+     *
+     * @return array<string, mixed>
      */
     public function cancelAll(): array
     {
@@ -42,6 +47,8 @@ class LocalNotifications
 
     /**
      * Get a list of all pending scheduled notifications.
+     *
+     * @return array<string, mixed>
      */
     public function getPending(): array
     {
@@ -50,6 +57,8 @@ class LocalNotifications
 
     /**
      * Request permission to show notifications.
+     *
+     * @return array<string, mixed>
      */
     public function requestPermission(): array
     {
@@ -58,6 +67,8 @@ class LocalNotifications
 
     /**
      * Check current notification permission status.
+     *
+     * @return array<string, mixed>
      */
     public function checkPermission(): array
     {
@@ -66,6 +77,9 @@ class LocalNotifications
 
     /**
      * Make a bridge call to the native layer.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
      */
     private function call(string $function, array $data = []): array
     {

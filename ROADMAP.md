@@ -8,7 +8,7 @@ See individual epic files in [`docs/epics/`](docs/epics/) for full details.
 
 | # | Epic | File | Status |
 |---|------|------|--------|
-| 1 | Test Suite | [01-test-suite.md](docs/epics/01-test-suite.md) | Not Started |
+| 1 | Test Suite | [01-test-suite.md](docs/epics/01-test-suite.md) | Done |
 | 2 | Fix Missing Event Dispatches | [02-fix-missing-event-dispatches.md](docs/epics/02-fix-missing-event-dispatches.md) | Not Started |
 
 ## High
