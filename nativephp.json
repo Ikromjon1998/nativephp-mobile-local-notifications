@@ -58,6 +58,10 @@
                 "exported": false
             },
             {
+                "name": ".NotificationTapReceiver",
+                "exported": false
+            },
+            {
                 "name": ".BootReceiver",
                 "exported": true
             }

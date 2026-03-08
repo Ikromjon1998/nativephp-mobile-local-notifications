@@ -16,6 +16,7 @@ import com.nativephp.mobile.bridge.BridgeFunction
 import com.nativephp.mobile.utils.NativeActionCoordinator
 import org.json.JSONArray
 import org.json.JSONObject
+import java.lang.ref.WeakReference
 
 /**
  * Functions related to local notification operations
@@ -24,9 +25,21 @@ import org.json.JSONObject
 object LocalNotificationsFunctions {
 
     private const val TAG = "LocalNotifications"
-    private const val CHANNEL_ID = "nativephp_local_notifications"
+    const val CHANNEL_ID = "nativephp_local_notifications"
     private const val CHANNEL_NAME = "Local Notifications"
-    private const val PREFS_NAME = "nativephp_local_notifications_prefs"
+    const val PREFS_NAME = "nativephp_local_notifications_prefs"
+    private const val PENDING_TAP_KEY = "pending_tap_event"
+
+    /** Holds a weak reference to the current activity for event dispatch. */
+    object ActivityHolder {
+        private var ref: WeakReference<FragmentActivity>? = null
+
+        fun set(activity: FragmentActivity) {
+            ref = WeakReference(activity)
+        }
+
+        fun get(): FragmentActivity? = ref?.get()
+    }
 
     private fun ensureNotificationChannel(context: Context) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -45,22 +58,59 @@ object LocalNotificationsFunctions {
     }
 
     /**
+     * Dispatch an event to the PHP layer via the bridge.
+     * Requires an active activity reference.
+     */
+    fun dispatchEvent(activity: FragmentActivity, event: String, payloadJson: String) {
+        try {
+            activity.runOnUiThread {
+                try {
+                    NativeActionCoordinator.dispatchEvent(activity, event, payloadJson)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error dispatching event on UI thread: ${e.message}", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error dispatching event: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Store a pending tap event in SharedPreferences for dispatch when the bridge is available.
+     */
+    fun storePendingTapEvent(context: Context, payload: JSONObject) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(PENDING_TAP_KEY, payload.toString()).apply()
+        Log.d(TAG, "Stored pending tap event for later dispatch")
+    }
+
+    /**
+     * Check for and dispatch any pending tap event that was stored while the app was inactive.
+     */
+    private fun dispatchPendingTapEvent(activity: FragmentActivity) {
+        val prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val pendingPayload = prefs.getString(PENDING_TAP_KEY, null) ?: return
+
+        // Remove immediately to prevent duplicate dispatch
+        prefs.edit().remove(PENDING_TAP_KEY).apply()
+
+        Log.d(TAG, "Dispatching pending tap event")
+        dispatchEvent(
+            activity,
+            "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
+            pendingPayload
+        )
+    }
+
+    /**
      * Schedule a local notification
-     * Parameters:
-     *   - id: string - Unique identifier for this notification
-     *   - title: string - Notification title
-     *   - body: string - Notification body text
-     *   - delay: (optional) int - Delay in seconds from now
-     *   - at: (optional) int - Unix timestamp to fire at
-     *   - repeat: (optional) string - Repeat interval: "minute", "hourly", "daily", "weekly"
-     *   - sound: (optional) boolean - Play sound (default: true)
-     *   - badge: (optional) int - Badge number
-     *   - data: (optional) object - Custom data payload
-     * Returns:
-     *   - success: boolean
      */
     class Schedule(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Store activity reference and dispatch any pending tap events
+            ActivityHolder.set(activity)
+            dispatchPendingTapEvent(activity)
+
             val id = parameters["id"] as? String
                 ?: return mapOf("success" to false, "error" to "Missing required parameter: id")
             val title = parameters["title"] as? String
@@ -275,6 +325,10 @@ object LocalNotificationsFunctions {
      */
     class RequestPermission(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Store activity reference and dispatch any pending tap events
+            ActivityHolder.set(activity)
+            dispatchPendingTapEvent(activity)
+
             return try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val hasPermission = ContextCompat.checkSelfPermission(
@@ -389,19 +443,5 @@ object LocalNotificationsFunctions {
             .putStringSet("notification_ids", ids)
             .remove("notification_$id")
             .apply()
-    }
-
-    private fun dispatchEvent(activity: FragmentActivity, event: String, payloadJson: String) {
-        try {
-            activity.runOnUiThread {
-                try {
-                    NativeActionCoordinator.dispatchEvent(activity, event, payloadJson)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error dispatching event on UI thread: ${e.message}", e)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error dispatching event: ${e.message}", e)
-        }
     }
 }
