@@ -59,6 +59,7 @@ class BootReceiver : BroadcastReceiver() {
                     if (info.has("subtitle")) putExtra("subtitle", info.getString("subtitle"))
                     if (info.has("image")) putExtra("image", info.getString("image"))
                     if (info.has("bigText")) putExtra("big_text", info.getString("bigText"))
+                    if (info.has("actions")) putExtra("actions", info.getJSONArray("actions").toString())
                 }
 
                 val pendingIntent = PendingIntent.getBroadcast(

@@ -5,6 +5,7 @@ use Ikromjon\LocalNotifications\Events\NotificationReceived;
 use Ikromjon\LocalNotifications\Events\NotificationTapped;
 use Ikromjon\LocalNotifications\Events\PermissionGranted;
 use Ikromjon\LocalNotifications\Events\PermissionDenied;
+use Ikromjon\LocalNotifications\Events\NotificationActionPressed;
 
 describe('NotificationScheduled', function () {
     it('stores id, title, and body', function () {
@@ -87,5 +88,28 @@ describe('PermissionDenied', function () {
         $event = new PermissionDenied;
 
         expect($event)->toBeInstanceOf(PermissionDenied::class);
+    });
+});
+
+describe('NotificationActionPressed', function () {
+    it('stores notificationId, actionId, data, and inputText', function () {
+        $event = new NotificationActionPressed(
+            notificationId: 'notif-1',
+            actionId: 'reply',
+            data: ['key' => 'value'],
+            inputText: 'Hello!',
+        );
+
+        expect($event->notificationId)->toBe('notif-1')
+            ->and($event->actionId)->toBe('reply')
+            ->and($event->data)->toBe(['key' => 'value'])
+            ->and($event->inputText)->toBe('Hello!');
+    });
+
+    it('defaults data and inputText to null', function () {
+        $event = new NotificationActionPressed('notif-1', 'snooze');
+
+        expect($event->data)->toBeNull()
+            ->and($event->inputText)->toBeNull();
     });
 });

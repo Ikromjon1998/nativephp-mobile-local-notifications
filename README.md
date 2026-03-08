@@ -115,6 +115,19 @@ LocalNotifications::schedule([
     'bigText' => 'We just launched an amazing new product that you will love. Tap to learn more and get 20% off your first order!',
     'delay' => 60,
 ]);
+
+// With action buttons (max 3)
+LocalNotifications::schedule([
+    'id' => 'message-1',
+    'title' => 'New Message',
+    'body' => 'Hey, are you free tonight?',
+    'delay' => 5,
+    'actions' => [
+        ['id' => 'reply', 'title' => 'Reply', 'input' => true],
+        ['id' => 'like', 'title' => 'Like'],
+        ['id' => 'delete', 'title' => 'Delete', 'destructive' => true],
+    ],
+]);
 ```
 
 ### Schedule Parameters
@@ -133,6 +146,7 @@ LocalNotifications::schedule([
 | `subtitle` | string | No | Subtitle text (iOS: subtitle, Android: subtext) |
 | `image` | string | No | Image URL to display in the notification |
 | `bigText` | string | No | Expanded body text shown when notification is expanded |
+| `actions` | array | No | Action buttons (max 3), each with `id`, `title`, optional `destructive` and `input` |
 
 Either `delay` or `at` should be provided. If neither is set, the notification fires after 1 second.
 
@@ -171,6 +185,7 @@ use Ikromjon\LocalNotifications\Events\NotificationReceived;
 use Ikromjon\LocalNotifications\Events\NotificationTapped;
 use Ikromjon\LocalNotifications\Events\PermissionGranted;
 use Ikromjon\LocalNotifications\Events\PermissionDenied;
+use Ikromjon\LocalNotifications\Events\NotificationActionPressed;
 
 #[OnNative(NotificationScheduled::class)]
 public function onScheduled($data)
@@ -201,6 +216,13 @@ public function onPermissionDenied()
 {
     // Permission was denied
 }
+
+#[OnNative(NotificationActionPressed::class)]
+public function onActionPressed($data)
+{
+    // Action button pressed: $data['notificationId'], $data['actionId']
+    // Text input (if input action): $data['inputText']
+}
 ```
 
 ## Repeat Intervals
@@ -214,7 +236,7 @@ public function onPermissionDenied()
 
 ## Requirements
 
-- PHP 8.2+
+- PHP 8.3+
 - NativePHP Mobile v3+
 - iOS 18.2+ / Android API 33+
 

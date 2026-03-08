@@ -20,6 +20,7 @@ class LocalNotifications
      *     subtitle?: string,
      *     image?: string,
      *     bigText?: string,
+     *     actions?: array<int, array{id: string, title: string, destructive?: bool, input?: bool}>,
      * }  $options
      * @return array<string, mixed>
      */
