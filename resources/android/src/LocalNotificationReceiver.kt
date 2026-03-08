@@ -48,14 +48,20 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             )
         } else null
 
-        val appIcon = context.applicationInfo.icon
+        // Use app's small icon, fall back to Android's default icon
+        val appIcon = try {
+            val iconResId = context.applicationInfo.icon
+            if (iconResId != 0) iconResId else android.R.drawable.ic_dialog_info
+        } catch (e: Exception) {
+            android.R.drawable.ic_dialog_info
+        }
 
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(appIcon)
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
 
         if (pendingIntent != null) {
             builder.setContentIntent(pendingIntent)

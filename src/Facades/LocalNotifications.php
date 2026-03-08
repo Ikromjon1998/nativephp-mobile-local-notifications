@@ -5,12 +5,12 @@ namespace Ikromjon\LocalNotifications\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @method static mixed schedule(array $options)
- * @method static mixed cancel(string $id)
- * @method static mixed cancelAll()
- * @method static mixed getPending()
- * @method static mixed requestPermission()
- * @method static mixed checkPermission()
+ * @method static array schedule(array $options)
+ * @method static array cancel(string $id)
+ * @method static array cancelAll()
+ * @method static array getPending()
+ * @method static array requestPermission()
+ * @method static array checkPermission()
  *
  * @see \Ikromjon\LocalNotifications\LocalNotifications
  */

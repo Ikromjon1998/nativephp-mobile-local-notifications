@@ -2,8 +2,6 @@
 
 namespace Ikromjon\LocalNotifications;
 
-use Native\Mobile\Bridge;
-
 class LocalNotifications
 {
     /**
@@ -21,48 +19,63 @@ class LocalNotifications
      *     data?: array,
      * }  $options
      */
-    public function schedule(array $options): mixed
+    public function schedule(array $options): array
     {
-        return Bridge::call('LocalNotifications.Schedule', $options);
+        return $this->call('LocalNotifications.Schedule', $options);
     }
 
     /**
      * Cancel a scheduled notification by its identifier.
      */
-    public function cancel(string $id): mixed
+    public function cancel(string $id): array
     {
-        return Bridge::call('LocalNotifications.Cancel', ['id' => $id]);
+        return $this->call('LocalNotifications.Cancel', ['id' => $id]);
     }
 
     /**
      * Cancel all scheduled notifications.
      */
-    public function cancelAll(): mixed
+    public function cancelAll(): array
     {
-        return Bridge::call('LocalNotifications.CancelAll');
+        return $this->call('LocalNotifications.CancelAll');
     }
 
     /**
      * Get a list of all pending scheduled notifications.
      */
-    public function getPending(): mixed
+    public function getPending(): array
     {
-        return Bridge::call('LocalNotifications.GetPending');
+        return $this->call('LocalNotifications.GetPending');
     }
 
     /**
      * Request permission to show notifications.
      */
-    public function requestPermission(): mixed
+    public function requestPermission(): array
     {
-        return Bridge::call('LocalNotifications.RequestPermission');
+        return $this->call('LocalNotifications.RequestPermission');
     }
 
     /**
      * Check current notification permission status.
      */
-    public function checkPermission(): mixed
+    public function checkPermission(): array
     {
-        return Bridge::call('LocalNotifications.CheckPermission');
+        return $this->call('LocalNotifications.CheckPermission');
+    }
+
+    /**
+     * Make a bridge call to the native layer.
+     */
+    private function call(string $function, array $data = []): array
+    {
+        if (function_exists('nativephp_call')) {
+            $result = nativephp_call($function, json_encode($data));
+            if ($result) {
+                return json_decode($result, true) ?? [];
+            }
+        }
+
+        return [];
     }
 }

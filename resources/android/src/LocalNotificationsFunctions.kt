@@ -34,7 +34,7 @@ object LocalNotificationsFunctions {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Notifications scheduled by the app"
                 enableVibration(true)
@@ -393,7 +393,13 @@ object LocalNotificationsFunctions {
 
     private fun dispatchEvent(activity: FragmentActivity, event: String, payloadJson: String) {
         try {
-            NativeActionCoordinator.dispatchEvent(activity, event, payloadJson)
+            activity.runOnUiThread {
+                try {
+                    NativeActionCoordinator.dispatchEvent(activity, event, payloadJson)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error dispatching event on UI thread: ${e.message}", e)
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error dispatching event: ${e.message}", e)
         }
