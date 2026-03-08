@@ -42,30 +42,42 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         completionHandler([.banner, .sound, .badge])
     }
 
-    /// Called when the user taps a notification.
+    /// Called when the user taps a notification or presses an action button.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier else {
-            completionHandler()
-            return
-        }
-
         let content = response.notification.request.content
         let userInfo = content.userInfo
         let id = userInfo["notification_id"] as? String ?? response.notification.request.identifier
-
-        let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationTapped"
-        var payload: [String: Any] = ["id": id, "title": content.title, "body": content.body]
-
         let customData = extractCustomData(from: userInfo)
-        if !customData.isEmpty {
-            payload["data"] = customData
-        }
 
-        LaravelBridge.shared.send?(eventClass, payload)
+        if response.actionIdentifier == UNNotificationDefaultActionIdentifier
+            || response.actionIdentifier == UNNotificationDismissActionIdentifier {
+            // Default tap on the notification body
+            if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+                let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationTapped"
+                var payload: [String: Any] = ["id": id, "title": content.title, "body": content.body]
+                if !customData.isEmpty { payload["data"] = customData }
+                LaravelBridge.shared.send?(eventClass, payload)
+            }
+        } else {
+            // Custom action button pressed
+            let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationActionPressed"
+            var payload: [String: Any] = [
+                "notificationId": id,
+                "actionId": response.actionIdentifier
+            ]
+            if !customData.isEmpty { payload["data"] = customData }
+
+            // Include text input if this was a text input action
+            if let textResponse = response as? UNTextInputNotificationResponse {
+                payload["inputText"] = textResponse.userText
+            }
+
+            LaravelBridge.shared.send?(eventClass, payload)
+        }
 
         completionHandler()
     }
@@ -102,6 +114,7 @@ enum LocalNotificationsFunctions {
     ///   - subtitle: (optional) string - Notification subtitle
     ///   - image: (optional) string - URL of an image to attach
     ///   - bigText: (optional) string - Expanded body text
+    ///   - actions: (optional) array - Action buttons [{id, title, destructive?, input?}] (max 3)
     /// Returns:
     ///   - success: boolean
     /// Events:
@@ -152,6 +165,56 @@ enum LocalNotificationsFunctions {
                 }
             }
             content.userInfo = userInfo
+
+            // Register action buttons if provided
+            if let actionsArray = parameters["actions"] as? [[String: Any]], !actionsArray.isEmpty {
+                let categoryId = "NOTIF_ACTIONS_\(id)"
+                let actions: [UNNotificationAction] = actionsArray.prefix(3).map { actionDict in
+                    let actionId = actionDict["id"] as? String ?? ""
+                    let actionTitle = actionDict["title"] as? String ?? ""
+                    let isDestructive = actionDict["destructive"] as? Bool ?? false
+                    let isInput = actionDict["input"] as? Bool ?? false
+
+                    if isInput {
+                        var options: UNNotificationActionOptions = []
+                        if isDestructive { options.insert(.destructive) }
+                        return UNTextInputNotificationAction(
+                            identifier: actionId,
+                            title: actionTitle,
+                            options: options
+                        )
+                    } else {
+                        var options: UNNotificationActionOptions = []
+                        if isDestructive { options.insert(.destructive) }
+                        return UNNotificationAction(
+                            identifier: actionId,
+                            title: actionTitle,
+                            options: options
+                        )
+                    }
+                }
+
+                let category = UNNotificationCategory(
+                    identifier: categoryId,
+                    actions: actions,
+                    intentIdentifiers: [],
+                    options: []
+                )
+                let center = UNUserNotificationCenter.current()
+                // Merge with existing categories
+                let semaphoreCategories = DispatchSemaphore(value: 0)
+                center.getNotificationCategories { existingCategories in
+                    var categories = existingCategories
+                    // Remove old category with same id if exists
+                    categories = categories.filter { $0.identifier != categoryId }
+                    categories.insert(category)
+                    center.setNotificationCategories(categories)
+                    semaphoreCategories.signal()
+                }
+                semaphoreCategories.wait()
+
+                content.categoryIdentifier = categoryId
+            }
 
             // Attach image if provided
             if let imageUrl = imageUrl, let url = URL(string: imageUrl) {
