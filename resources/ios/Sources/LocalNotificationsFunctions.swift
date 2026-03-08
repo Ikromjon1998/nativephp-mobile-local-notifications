@@ -144,7 +144,7 @@ enum LocalNotificationsFunctions {
 
             let content = UNMutableNotificationContent()
             content.title = title
-            content.body = bigText ?? body
+            content.body = body
 
             if let subtitle = subtitle {
                 content.subtitle = subtitle

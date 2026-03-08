@@ -56,7 +56,11 @@ class NotificationActionReceiver : BroadcastReceiver() {
             )
         } else {
             // Store as pending event and launch the app
-            LocalNotificationsFunctions.storePendingTapEvent(context, payload)
+            LocalNotificationsFunctions.storePendingEvent(
+                context,
+                "Ikromjon\\LocalNotifications\\Events\\NotificationActionPressed",
+                payload
+            )
 
             val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
