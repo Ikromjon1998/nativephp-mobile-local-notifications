@@ -2,6 +2,8 @@
 
 namespace Ikromjon\LocalNotifications;
 
+use Ikromjon\LocalNotifications\Enums\RepeatInterval;
+
 class LocalNotifications
 {
     /**
@@ -13,7 +15,7 @@ class LocalNotifications
      *     body: string,
      *     delay?: int,
      *     at?: int,
-     *     repeat?: string,
+     *     repeat?: RepeatInterval|string,
      *     sound?: bool,
      *     badge?: int,
      *     data?: array<string, mixed>,
@@ -26,6 +28,10 @@ class LocalNotifications
      */
     public function schedule(array $options): array
     {
+        if (isset($options['repeat']) && $options['repeat'] instanceof RepeatInterval) {
+            $options['repeat'] = $options['repeat']->value;
+        }
+
         return $this->call('LocalNotifications.Schedule', $options);
     }
 

@@ -15,13 +15,9 @@ Schedule, manage, and cancel local notifications in your NativePHP Mobile app �
 | **nativephp/mobile-firebase** | Push notifications from a server via FCM/APNs | Firebase project, server, internet |
 | **This plugin** | Local notifications scheduled on-device | Nothing — works offline |
 
-## What's New in v1.1.0
+## What's New in v1.1.1
 
-- **Rich notification content** — Display images, subtitles, and expanded text in notifications on both iOS and Android
-- **Action buttons** — Add up to 3 interactive buttons (including text input) to notifications
-- **Notification events fixed** — `NotificationReceived` and `NotificationTapped` now fire reliably on both platforms in all app states (foreground, background, killed)
-- **NotificationActionPressed event** — New event for handling action button taps with text input support
-- **Test suite & CI** — Pest test suite with 90%+ coverage, PHPStan level 8, GitHub Actions CI on PHP 8.3/8.4
+- **Fixed: Android repeating notifications** — Repeating notifications (`repeat: 'daily'`, `'hourly'`, etc.) now fire reliably on Android 12+ by using exact alarms with self-rescheduling instead of the unreliable `AlarmManager.setRepeating()` API
 
 See the full [CHANGELOG](CHANGELOG.md) for details.
 
@@ -74,6 +70,7 @@ Required on Android 13+ and iOS before notifications can be shown.
 
 ```php
 use Ikromjon\LocalNotifications\Facades\LocalNotifications;
+use Ikromjon\LocalNotifications\Enums\RepeatInterval;
 
 $result = LocalNotifications::requestPermission();
 // Returns: ['granted' => true] or ['granted' => false, 'status' => 'pending']
@@ -98,13 +95,31 @@ LocalNotifications::schedule([
     'at' => now()->addMinutes(15)->timestamp,
 ]);
 
-// Repeating notification
+// Repeating daily notification (using enum — recommended)
 LocalNotifications::schedule([
     'id' => 'daily-checkin',
     'title' => 'Daily Check-in',
     'body' => 'How are you feeling today?',
-    'delay' => 60,
-    'repeat' => 'daily',
+    'at' => now()->setTime(9, 0)->timestamp, // every day at 9:00 AM
+    'repeat' => RepeatInterval::Daily,
+]);
+
+// Repeating hourly notification
+LocalNotifications::schedule([
+    'id' => 'hydration',
+    'title' => 'Drink Water',
+    'body' => 'Stay hydrated!',
+    'delay' => 3600, // first one in 1 hour, then every hour
+    'repeat' => RepeatInterval::Hourly,
+]);
+
+// String values still work for backwards compatibility
+LocalNotifications::schedule([
+    'id' => 'weekly-review',
+    'title' => 'Weekly Review',
+    'body' => 'Time to review your progress',
+    'at' => now()->next('Monday')->setTime(10, 0)->timestamp,
+    'repeat' => 'weekly', // string also accepted
 ]);
 
 // With custom data and options
@@ -152,7 +167,7 @@ LocalNotifications::schedule([
 | `body` | string | Yes | Notification body text |
 | `delay` | int | No | Delay in seconds from now |
 | `at` | int | No | Unix timestamp to fire at |
-| `repeat` | string | No | Repeat interval (see table below) |
+| `repeat` | RepeatInterval\|string | No | Repeat interval (see table below) |
 | `sound` | bool | No | Play sound (default: `true`) |
 | `badge` | int | No | Badge number on app icon (iOS) |
 | `data` | array | No | Custom data payload (available in tapped event) |
@@ -240,12 +255,48 @@ public function onActionPressed($data)
 
 ## Repeat Intervals
 
-| Value | Description |
-|-------|-------------|
-| `minute` | Every minute |
-| `hourly` | Every hour |
-| `daily` | Every day |
-| `weekly` | Every week |
+Use the `RepeatInterval` enum (recommended) or pass the string value directly:
+
+| Enum | String | Description |
+|------|--------|-------------|
+| `RepeatInterval::Minute` | `'minute'` | Every minute |
+| `RepeatInterval::Hourly` | `'hourly'` | Every hour |
+| `RepeatInterval::Daily` | `'daily'` | Every day |
+| `RepeatInterval::Weekly` | `'weekly'` | Every week |
+
+### How Repeating Notifications Work
+
+On **iOS**, the system natively supports repeating notifications via calendar triggers — no extra work needed.
+
+On **Android**, the plugin uses exact alarms (`setExactAndAllowWhileIdle`) with **automatic self-rescheduling**. When a repeating notification fires, the native receiver immediately schedules the next occurrence. This means:
+
+- Notifications fire at **exact times**, not batched by the OS
+- Works reliably under **Doze mode** and **battery optimization**
+- Survives **device reboots** (the BootReceiver restores all scheduled notifications)
+- No app-level rescheduling needed — the plugin handles everything natively
+
+**Example: Daily habit reminder**
+
+```php
+// Schedule once — fires every day at the specified time automatically
+LocalNotifications::schedule([
+    'id' => 'habit-meditation',
+    'title' => 'Time to Meditate',
+    'body' => 'Your 10-minute session is waiting',
+    'at' => now()->setTime(7, 0)->timestamp,
+    'repeat' => RepeatInterval::Daily,
+    'sound' => true,
+    'actions' => [
+        ['id' => 'done', 'title' => 'Done'],
+        ['id' => 'snooze', 'title' => 'Snooze'],
+    ],
+]);
+
+// To stop it, just cancel by id
+LocalNotifications::cancel('habit-meditation');
+```
+
+> **Note:** On Android, `repeat: 'minute'` intervals may experience slight drift (~9 minutes) due to system limits on `setExactAndAllowWhileIdle` frequency in Doze mode. For `hourly`, `daily`, and `weekly` intervals this is not an issue.
 
 ## Testing
 

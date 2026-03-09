@@ -194,20 +194,14 @@ object LocalNotificationsFunctions {
 
                 val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-                if (repeatMs > 0) {
-                    alarmManager.setRepeating(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerTimeMs,
-                        repeatMs,
-                        pendingIntent
-                    )
-                } else {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        triggerTimeMs,
-                        pendingIntent
-                    )
-                }
+                // Always use exact alarms for reliable delivery.
+                // For repeating notifications, the LocalNotificationReceiver
+                // will reschedule the next occurrence after each delivery.
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    triggerTimeMs,
+                    pendingIntent
+                )
 
                 // Persist notification info for getPending and boot restoration
                 saveNotificationInfo(context, id, title, body, triggerTimeMs, repeatMs, sound, badge, data, subtitle, imageUrl, bigText, actions)
