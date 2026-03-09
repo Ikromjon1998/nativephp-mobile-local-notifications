@@ -78,20 +78,13 @@ class BootReceiver : BroadcastReceiver() {
                     triggerTimeMs
                 }
 
-                if (repeatMs > 0) {
-                    alarmManager.setRepeating(
-                        AlarmManager.RTC_WAKEUP,
-                        adjustedTrigger,
-                        repeatMs,
-                        pendingIntent
-                    )
-                } else {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        adjustedTrigger,
-                        pendingIntent
-                    )
-                }
+                // Always use exact alarms — repeating notifications are
+                // self-rescheduled by LocalNotificationReceiver after each delivery
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    adjustedTrigger,
+                    pendingIntent
+                )
 
                 Log.d(TAG, "Restored notification: $id")
             } catch (e: Exception) {

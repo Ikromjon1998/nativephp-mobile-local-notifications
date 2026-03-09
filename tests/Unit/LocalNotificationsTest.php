@@ -1,5 +1,6 @@
 <?php
 
+use Ikromjon\LocalNotifications\Enums\RepeatInterval;
 use Ikromjon\LocalNotifications\LocalNotifications;
 
 beforeEach(function () {
@@ -205,6 +206,73 @@ describe('schedule', function () {
             'user' => ['id' => 1, 'name' => 'John'],
             'tags' => ['urgent', 'work'],
         ]);
+    });
+
+    it('converts RepeatInterval enum to string value', function () {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'enum-test',
+            'title' => 'Enum Test',
+            'body' => 'Testing enum',
+            'delay' => 60,
+            'repeat' => RepeatInterval::Daily,
+        ]);
+
+        expect($capturedData['repeat'])->toBe('daily');
+    });
+
+    it('converts all RepeatInterval enum cases to correct strings', function () {
+        $cases = [
+            [RepeatInterval::Minute, 'minute'],
+            [RepeatInterval::Hourly, 'hourly'],
+            [RepeatInterval::Daily, 'daily'],
+            [RepeatInterval::Weekly, 'weekly'],
+        ];
+
+        foreach ($cases as [$enum, $expected]) {
+            $capturedData = null;
+
+            stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+                $capturedData = json_decode($data, true);
+
+                return json_encode(['success' => true]);
+            });
+
+            $this->notifications->schedule([
+                'id' => "enum-$expected",
+                'title' => 'Test',
+                'body' => 'Body',
+                'repeat' => $enum,
+            ]);
+
+            expect($capturedData['repeat'])->toBe($expected);
+        }
+    });
+
+    it('passes string repeat values unchanged', function () {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'string-test',
+            'title' => 'String Test',
+            'body' => 'Testing string',
+            'repeat' => 'weekly',
+        ]);
+
+        expect($capturedData['repeat'])->toBe('weekly');
     });
 });
 

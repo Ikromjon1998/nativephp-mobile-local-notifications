@@ -1,5 +1,6 @@
 package com.ikromjon.localnotifications
 
+import android.app.AlarmManager
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -163,9 +164,9 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             Log.d(TAG, "No active activity, skipping NotificationReceived event dispatch")
         }
 
-        // Clean up non-repeating notifications from storage
         val repeatMs = intent.getLongExtra("repeat_ms", 0L)
         if (repeatMs == 0L) {
+            // Clean up non-repeating notifications from storage
             val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
             val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
             ids.remove(id)
@@ -173,7 +174,71 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                 .putStringSet("notification_ids", ids)
                 .remove("notification_$id")
                 .apply()
+        } else {
+            // Self-reschedule the next occurrence for repeating notifications.
+            // This replaces setRepeating() which is unreliable on modern Android.
+            rescheduleNext(context, id, title, body, sound, channelId, repeatMs, dataJson, subtitle, imageUrl, bigText, actionsJson)
         }
+    }
+
+    /**
+     * Reschedule the next occurrence of a repeating notification using setExactAndAllowWhileIdle.
+     */
+    private fun rescheduleNext(
+        context: Context,
+        id: String,
+        title: String,
+        body: String,
+        sound: Boolean,
+        channelId: String,
+        repeatMs: Long,
+        dataJson: String?,
+        subtitle: String?,
+        imageUrl: String?,
+        bigText: String?,
+        actionsJson: String?
+    ) {
+        val nextTriggerMs = System.currentTimeMillis() + repeatMs
+
+        val rescheduleIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
+            action = "com.ikromjon.localnotifications.NOTIFY"
+            putExtra("notification_id", id)
+            putExtra("title", title)
+            putExtra("body", body)
+            putExtra("sound", sound)
+            putExtra("channel_id", channelId)
+            putExtra("repeat_ms", repeatMs)
+            if (dataJson != null) putExtra("data", dataJson)
+            if (subtitle != null) putExtra("subtitle", subtitle)
+            if (imageUrl != null) putExtra("image", imageUrl)
+            if (bigText != null) putExtra("big_text", bigText)
+            if (actionsJson != null) putExtra("actions", actionsJson)
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            id.hashCode(),
+            rescheduleIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarmManager.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            nextTriggerMs,
+            pendingIntent
+        )
+
+        // Update the stored trigger time for boot restoration and getPending()
+        val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
+        val infoJson = prefs.getString("notification_$id", null)
+        if (infoJson != null) {
+            val info = JSONObject(infoJson)
+            info.put("triggerTimeMs", nextTriggerMs)
+            prefs.edit().putString("notification_$id", info.toString()).apply()
+        }
+
+        Log.d(TAG, "Rescheduled repeating notification: $id, next in ${repeatMs / 1000}s")
     }
 
     /**
