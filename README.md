@@ -314,6 +314,17 @@ composer analyse
 - NativePHP Mobile v3+
 - iOS 18.2+ / Android API 33+
 
+## Example App
+
+**[Daily Habits](https://github.com/Ikromjon1998/daily-habits)** is a full, open-source mobile app built with this plugin. It demonstrates:
+
+- Scheduling daily repeating notifications with `RepeatInterval::Daily`
+- Action buttons ("Done" / "Snooze") handled via `NotificationActionPressed`
+- Permission management on the Settings screen
+- Notification cancellation when habits are deleted
+
+Use it as a reference, fork it as a starter for your own app, or contribute to it.
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a list of changes in each release.
