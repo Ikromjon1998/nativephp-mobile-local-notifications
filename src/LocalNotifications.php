@@ -113,6 +113,20 @@ class LocalNotifications implements LocalNotificationsInterface
             }
         }
 
+        if (isset($options['repeatCount'])) {
+            if ($options['repeatCount'] < 1) {
+                throw new \InvalidArgumentException(
+                    'repeatCount must be at least 1.',
+                );
+            }
+
+            if (! isset($options['repeat']) && ! isset($options['repeatIntervalSeconds']) && ! isset($options['repeatDays'])) {
+                throw new \InvalidArgumentException(
+                    '"repeatCount" requires a repeat mechanism ("repeat", "repeatIntervalSeconds", or "repeatDays").',
+                );
+            }
+        }
+
         return $options;
     }
 

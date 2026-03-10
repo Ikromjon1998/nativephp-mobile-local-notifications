@@ -92,7 +92,7 @@ The following scheduling features are already implemented across all layers:
 - [x] Day-of-week scheduling fires on correct days at correct times — sub-IDs `{id}_day_{weekday}`
 - [x] Cancelling a multi-day notification cancels all sub-alarms (both platforms)
 - [x] `getPending()` aggregates sub-IDs back into parent entry with `repeatDays` array
-- [ ] Repeat count limits are enforced on both platforms
+- [x] Repeat count limits are enforced on both platforms
 - [ ] Old `repeat` parameter with 4 preset values still works unchanged
 - [x] `BootReceiver` restores all new interval types correctly on Android
 - [x] Tests cover monthly/yearly enum conversion and backward compatibility

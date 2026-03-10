@@ -167,8 +167,19 @@ class LocalNotificationReceiver : BroadcastReceiver() {
 
         val repeatMs = intent.getLongExtra("repeat_ms", 0L)
         val repeatType = intent.getStringExtra("repeat_type")
+        val remainingCount = if (intent.hasExtra("remaining_count")) intent.getIntExtra("remaining_count", 0) else -1
         if (repeatMs == 0L) {
             // Clean up non-repeating notifications from storage
+            val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
+            val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+            ids.remove(id)
+            prefs.edit()
+                .putStringSet("notification_ids", ids)
+                .remove("notification_$id")
+                .apply()
+        } else if (remainingCount == 1) {
+            // Last repetition reached — do not reschedule, clean up
+            Log.d(TAG, "Repeat count exhausted for: $id")
             val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
             val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
             ids.remove(id)
@@ -179,7 +190,8 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         } else {
             // Self-reschedule the next occurrence for repeating notifications.
             // This replaces setRepeating() which is unreliable on modern Android.
-            rescheduleNext(context, id, title, body, sound, channelId, repeatMs, repeatType, dataJson, subtitle, imageUrl, bigText, actionsJson)
+            val nextCount = if (remainingCount > 1) remainingCount - 1 else -1
+            rescheduleNext(context, id, title, body, sound, channelId, repeatMs, repeatType, dataJson, subtitle, imageUrl, bigText, actionsJson, nextCount)
         }
     }
 
@@ -201,7 +213,8 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         subtitle: String?,
         imageUrl: String?,
         bigText: String?,
-        actionsJson: String?
+        actionsJson: String?,
+        remainingCount: Int = -1
     ) {
         // For calendar-based repeats (monthly/yearly), use Calendar to compute
         // the next trigger. For fixed intervals, simply add repeatMs.
@@ -221,6 +234,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             putExtra("channel_id", channelId)
             putExtra("repeat_ms", repeatMs)
             if (repeatType != null) putExtra("repeat_type", repeatType)
+            if (remainingCount > 0) putExtra("remaining_count", remainingCount)
             if (dataJson != null) putExtra("data", dataJson)
             if (subtitle != null) putExtra("subtitle", subtitle)
             if (imageUrl != null) putExtra("image", imageUrl)
@@ -242,12 +256,17 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             pendingIntent
         )
 
-        // Update the stored trigger time for boot restoration and getPending()
+        // Update the stored trigger time and remaining count for boot restoration and getPending()
         val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
         val infoJson = prefs.getString("notification_$id", null)
         if (infoJson != null) {
             val info = JSONObject(infoJson)
             info.put("triggerTimeMs", nextTriggerMs)
+            if (remainingCount > 0) {
+                info.put("remainingCount", remainingCount)
+            } else {
+                info.remove("remainingCount")
+            }
             prefs.edit().putString("notification_$id", info.toString()).apply()
         }
 

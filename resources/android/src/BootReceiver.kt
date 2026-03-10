@@ -39,6 +39,7 @@ class BootReceiver : BroadcastReceiver() {
                 val triggerTimeMs = info.getLong("triggerTimeMs")
                 val repeatMs = info.optLong("repeatMs", 0L)
                 val repeatType = if (info.has("repeatType")) info.getString("repeatType") else null
+                val remainingCount = if (info.has("remainingCount")) info.getInt("remainingCount") else -1
                 val title = info.getString("title")
                 val body = info.getString("body")
                 val sound = info.optBoolean("sound", true)
@@ -58,6 +59,7 @@ class BootReceiver : BroadcastReceiver() {
                     putExtra("channel_id", "nativephp_local_notifications")
                     if (repeatMs != 0L) putExtra("repeat_ms", repeatMs)
                     if (repeatType != null) putExtra("repeat_type", repeatType)
+                    if (remainingCount > 0) putExtra("remaining_count", remainingCount)
                     if (info.has("data")) putExtra("data", info.getString("data"))
                     if (info.has("subtitle")) putExtra("subtitle", info.getString("subtitle"))
                     if (info.has("image")) putExtra("image", info.getString("image"))

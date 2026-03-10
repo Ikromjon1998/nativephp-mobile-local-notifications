@@ -20,6 +20,7 @@ final readonly class NotificationOptions
         public RepeatInterval|string|null $repeat = null,
         public ?int $repeatIntervalSeconds = null,
         public ?array $repeatDays = null,
+        public ?int $repeatCount = null,
         public ?bool $sound = null,
         public ?int $badge = null,
         public ?array $data = null,
@@ -70,6 +71,20 @@ final readonly class NotificationOptions
             }
         }
 
+        if ($this->repeatCount !== null) {
+            if ($this->repeatCount < 1) {
+                throw new \InvalidArgumentException(
+                    'repeatCount must be at least 1.',
+                );
+            }
+
+            if ($this->repeat === null && $this->repeatIntervalSeconds === null && $this->repeatDays === null) {
+                throw new \InvalidArgumentException(
+                    '"repeatCount" requires a repeat mechanism ("repeat", "repeatIntervalSeconds", or "repeatDays").',
+                );
+            }
+        }
+
         $result = [
             'id' => $this->id,
             'title' => $this->title,
@@ -96,6 +111,10 @@ final readonly class NotificationOptions
 
         if ($this->repeatDays !== null) {
             $result['repeatDays'] = array_values(array_unique($this->repeatDays));
+        }
+
+        if ($this->repeatCount !== null) {
+            $result['repeatCount'] = $this->repeatCount;
         }
 
         if ($this->sound !== null) {

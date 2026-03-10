@@ -244,6 +244,75 @@ describe('NotificationOptions', function (): void {
         $options->toArray();
     })->throws(InvalidArgumentException::class, 'Each value in "repeatDays" must be between 1 (Monday) and 7 (Sunday)');
 
+    it('includes repeatCount in array', function (): void {
+        $options = new NotificationOptions(
+            id: 'counted',
+            title: 'Counted',
+            body: 'Body',
+            repeat: RepeatInterval::Daily,
+            repeatCount: 5,
+        );
+
+        $array = $options->toArray();
+
+        expect($array['repeatCount'])->toBe(5)
+            ->and($array['repeat'])->toBe('daily');
+    });
+
+    it('includes repeatCount with repeatIntervalSeconds', function (): void {
+        $options = new NotificationOptions(
+            id: 'counted-custom',
+            title: 'Counted Custom',
+            body: 'Body',
+            repeatIntervalSeconds: 3600,
+            repeatCount: 10,
+        );
+
+        $array = $options->toArray();
+
+        expect($array['repeatCount'])->toBe(10)
+            ->and($array['repeatIntervalSeconds'])->toBe(3600);
+    });
+
+    it('includes repeatCount with repeatDays', function (): void {
+        $options = new NotificationOptions(
+            id: 'counted-days',
+            title: 'Counted Days',
+            body: 'Body',
+            at: 1700000000,
+            repeatDays: [1, 3, 5],
+            repeatCount: 4,
+        );
+
+        $array = $options->toArray();
+
+        expect($array['repeatCount'])->toBe(4)
+            ->and($array['repeatDays'])->toBe([1, 3, 5]);
+    });
+
+    it('throws when repeatCount is less than 1', function (): void {
+        $options = new NotificationOptions(
+            id: 'bad-count',
+            title: 'Bad Count',
+            body: 'Body',
+            repeat: RepeatInterval::Daily,
+            repeatCount: 0,
+        );
+
+        $options->toArray();
+    })->throws(InvalidArgumentException::class, 'repeatCount must be at least 1');
+
+    it('throws when repeatCount is used without repeat mechanism', function (): void {
+        $options = new NotificationOptions(
+            id: 'no-repeat',
+            title: 'No Repeat',
+            body: 'Body',
+            repeatCount: 3,
+        );
+
+        $options->toArray();
+    })->throws(InvalidArgumentException::class, '"repeatCount" requires a repeat mechanism');
+
     it('can be passed to schedule method', function (): void {
         $capturedData = null;
 

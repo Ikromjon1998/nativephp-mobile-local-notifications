@@ -147,6 +147,7 @@ object LocalNotificationsFunctions {
             val repeatDaysList = (parameters["repeatDays"] as? List<*>)?.mapNotNull {
                 (it as? Number)?.toInt()
             }?.filter { it in 1..7 }
+            val repeatCount = (parameters["repeatCount"] as? Number)?.toInt()
 
             val context = activity as Context
             ensureNotificationChannel(context)
@@ -181,8 +182,8 @@ object LocalNotificationsFunctions {
                         val triggerTimeMs = triggerCal.timeInMillis
                         val weekMs = AlarmManager.INTERVAL_DAY * 7
 
-                        scheduleAlarm(context, subId, title, body, sound, badge, data, subtitle, imageUrl, bigText, actions, triggerTimeMs, weekMs, "weekly")
-                        saveNotificationInfo(context, subId, title, body, triggerTimeMs, weekMs, "weekly", sound, badge, data, subtitle, imageUrl, bigText, actions)
+                        scheduleAlarm(context, subId, title, body, sound, badge, data, subtitle, imageUrl, bigText, actions, triggerTimeMs, weekMs, "weekly", repeatCount)
+                        saveNotificationInfo(context, subId, title, body, triggerTimeMs, weekMs, "weekly", sound, badge, data, subtitle, imageUrl, bigText, actions, repeatCount)
                     }
 
                     // Save a parent entry that tracks the sub-IDs for cancel/getPending
@@ -222,8 +223,8 @@ object LocalNotificationsFunctions {
                         else -> 0L
                     }
 
-                    scheduleAlarm(context, id, title, body, sound, badge, data, subtitle, imageUrl, bigText, actions, triggerTimeMs, repeatMs, repeatInterval)
-                    saveNotificationInfo(context, id, title, body, triggerTimeMs, repeatMs, repeatInterval, sound, badge, data, subtitle, imageUrl, bigText, actions)
+                    scheduleAlarm(context, id, title, body, sound, badge, data, subtitle, imageUrl, bigText, actions, triggerTimeMs, repeatMs, repeatInterval, repeatCount)
+                    saveNotificationInfo(context, id, title, body, triggerTimeMs, repeatMs, repeatInterval, sound, badge, data, subtitle, imageUrl, bigText, actions, repeatCount)
 
                     Log.d(TAG, "✅ Notification scheduled: $id at $triggerTimeMs")
 
@@ -264,7 +265,8 @@ object LocalNotificationsFunctions {
         actions: List<*>?,
         triggerTimeMs: Long,
         repeatMs: Long,
-        repeatType: String?
+        repeatType: String?,
+        repeatCount: Int? = null
     ) {
         val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
             action = "com.ikromjon.localnotifications.NOTIFY"
@@ -276,6 +278,7 @@ object LocalNotificationsFunctions {
             if (badge != null) putExtra("badge", badge)
             if (repeatMs != 0L) putExtra("repeat_ms", repeatMs)
             if (repeatType != null) putExtra("repeat_type", repeatType)
+            if (repeatCount != null) putExtra("remaining_count", repeatCount)
             if (data != null) {
                 val dataJson = JSONObject(data.mapKeys { it.key.toString() }).toString()
                 putExtra("data", dataJson)
@@ -574,7 +577,8 @@ object LocalNotificationsFunctions {
         subtitle: String? = null,
         imageUrl: String? = null,
         bigText: String? = null,
-        actions: List<*>? = null
+        actions: List<*>? = null,
+        remainingCount: Int? = null
     ) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
@@ -587,6 +591,7 @@ object LocalNotificationsFunctions {
             put("triggerTimeMs", triggerTimeMs)
             put("repeatMs", repeatMs)
             if (repeatType != null) put("repeatType", repeatType)
+            if (remainingCount != null) put("remainingCount", remainingCount)
             put("sound", sound)
             if (badge != null) put("badge", badge)
             if (data != null) put("data", JSONObject(data.mapKeys { it.key.toString() }))

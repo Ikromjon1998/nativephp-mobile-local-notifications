@@ -26,7 +26,22 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     ) {
         let content = notification.request.content
         let userInfo = content.userInfo
-        let id = userInfo["notification_id"] as? String ?? notification.request.identifier
+        let requestId = notification.request.identifier
+        let id = userInfo["notification_id"] as? String ?? requestId
+
+        // Check and decrement repeat count
+        let remainingKey = "notif_remaining_\(requestId)"
+        let defaults = UserDefaults.standard
+        let remaining = defaults.integer(forKey: remainingKey)
+        if remaining > 0 {
+            if remaining <= 1 {
+                // Last repetition — remove the pending notification and clean up
+                center.removePendingNotificationRequests(withIdentifiers: [requestId])
+                defaults.removeObject(forKey: remainingKey)
+            } else {
+                defaults.set(remaining - 1, forKey: remainingKey)
+            }
+        }
 
         let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationReceived"
         var payload: [String: Any] = ["id": id, "title": content.title, "body": content.body]
@@ -50,8 +65,22 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     ) {
         let content = response.notification.request.content
         let userInfo = content.userInfo
-        let id = userInfo["notification_id"] as? String ?? response.notification.request.identifier
+        let requestId = response.notification.request.identifier
+        let id = userInfo["notification_id"] as? String ?? requestId
         let customData = extractCustomData(from: userInfo)
+
+        // Decrement repeat count for background-delivered notifications
+        let remainingKey = "notif_remaining_\(requestId)"
+        let defaults = UserDefaults.standard
+        let remaining = defaults.integer(forKey: remainingKey)
+        if remaining > 0 {
+            if remaining <= 1 {
+                center.removePendingNotificationRequests(withIdentifiers: [requestId])
+                defaults.removeObject(forKey: remainingKey)
+            } else {
+                defaults.set(remaining - 1, forKey: remainingKey)
+            }
+        }
 
         if response.actionIdentifier == UNNotificationDefaultActionIdentifier
             || response.actionIdentifier == UNNotificationDismissActionIdentifier {
@@ -141,6 +170,7 @@ enum LocalNotificationsFunctions {
             let repeatInterval = parameters["repeat"] as? String
             let repeatIntervalSeconds = parameters["repeatIntervalSeconds"] as? Int
             let repeatDays = parameters["repeatDays"] as? [Int]
+            let repeatCount = parameters["repeatCount"] as? Int
             let subtitle = parameters["subtitle"] as? String
             let imageUrl = parameters["image"] as? String
             let bigText = parameters["bigText"] as? String
@@ -270,6 +300,15 @@ enum LocalNotificationsFunctions {
                     return ["success": false, "error": error.localizedDescription]
                 }
 
+                // Store repeat count for each sub-ID
+                if let count = repeatCount, count >= 1 {
+                    let defaults = UserDefaults.standard
+                    for isoDay in days {
+                        let subId = "\(id)_day_\(isoDay)"
+                        defaults.set(count, forKey: "notif_remaining_\(subId)")
+                    }
+                }
+
                 let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled"
                 let payload: [String: Any] = ["id": id, "title": title, "body": body]
                 LaravelBridge.shared.send?(eventClass, payload)
@@ -348,6 +387,11 @@ enum LocalNotificationsFunctions {
                     print("✅ Notification scheduled: \(id)")
                     result = ["success": true, "id": id]
 
+                    // Store repeat count if provided
+                    if let count = repeatCount, count >= 1 {
+                        UserDefaults.standard.set(count, forKey: "notif_remaining_\(id)")
+                    }
+
                     let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled"
                     let payload: [String: Any] = ["id": id, "title": title, "body": body]
                     LaravelBridge.shared.send?(eventClass, payload)
@@ -416,10 +460,17 @@ enum LocalNotificationsFunctions {
             center.removePendingNotificationRequests(withIdentifiers: [id])
             center.removeDeliveredNotifications(withIdentifiers: [id])
 
+            // Clean up repeat count
+            let defaults = UserDefaults.standard
+            defaults.removeObject(forKey: "notif_remaining_\(id)")
+
             // Also cancel any day-of-week sub-IDs (id_day_1 through id_day_7)
             let subIds = (1...7).map { "\(id)_day_\($0)" }
             center.removePendingNotificationRequests(withIdentifiers: subIds)
             center.removeDeliveredNotifications(withIdentifiers: subIds)
+            for subId in subIds {
+                defaults.removeObject(forKey: "notif_remaining_\(subId)")
+            }
 
             print("✅ Notification cancelled: \(id)")
             return ["success": true, "id": id]
@@ -460,6 +511,8 @@ enum LocalNotificationsFunctions {
                 // Group sub-IDs by parent: parentId -> [day numbers]
                 var dayGroups: [String: (request: UNNotificationRequest, days: [Int])] = [:]
 
+                let defaults = UserDefaults.standard
+
                 for request in requests {
                     let id = request.identifier
                     if let range = id.range(of: "_day_"), let day = Int(id[range.upperBound...]) {
@@ -490,6 +543,11 @@ enum LocalNotificationsFunctions {
                             }
                         }
 
+                        let remaining = defaults.integer(forKey: "notif_remaining_\(id)")
+                        if remaining > 0 {
+                            notification["remainingCount"] = remaining
+                        }
+
                         regularNotifications.append(notification)
                     }
                 }
@@ -507,6 +565,13 @@ enum LocalNotificationsFunctions {
                     if let trigger = group.request.trigger as? UNCalendarNotificationTrigger,
                        let nextDate = trigger.nextTriggerDate() {
                         notification["nextTriggerAt"] = Int(nextDate.timeIntervalSince1970)
+                    }
+
+                    // Use the first sub-ID's remaining count as representative
+                    let firstSubId = "\(parentId)_day_\(group.days.sorted().first ?? 1)"
+                    let remaining = defaults.integer(forKey: "notif_remaining_\(firstSubId)")
+                    if remaining > 0 {
+                        notification["remainingCount"] = remaining
                     }
 
                     regularNotifications.append(notification)

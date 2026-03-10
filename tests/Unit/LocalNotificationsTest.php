@@ -379,6 +379,46 @@ describe('schedule', function (): void {
         ]);
     })->throws(InvalidArgumentException::class, '"repeatDays" requires "at" to determine the time of day');
 
+    it('passes repeatCount to the bridge', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'count-test',
+            'title' => 'Count Test',
+            'body' => 'Body',
+            'repeat' => 'daily',
+            'repeatCount' => 5,
+        ]);
+
+        expect($capturedData['repeatCount'])->toBe(5)
+            ->and($capturedData['repeat'])->toBe('daily');
+    });
+
+    it('throws when repeatCount is less than 1', function (): void {
+        $this->notifications->schedule([
+            'id' => 'bad-count',
+            'title' => 'Bad Count',
+            'body' => 'Body',
+            'repeat' => 'daily',
+            'repeatCount' => 0,
+        ]);
+    })->throws(InvalidArgumentException::class, 'repeatCount must be at least 1');
+
+    it('throws when repeatCount is used without repeat mechanism', function (): void {
+        $this->notifications->schedule([
+            'id' => 'no-repeat',
+            'title' => 'No Repeat',
+            'body' => 'Body',
+            'repeatCount' => 3,
+        ]);
+    })->throws(InvalidArgumentException::class, '"repeatCount" requires a repeat mechanism');
+
     it('passes string repeat values unchanged', function (): void {
         $capturedData = null;
 
