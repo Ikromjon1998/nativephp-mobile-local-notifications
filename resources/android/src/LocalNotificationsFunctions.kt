@@ -135,6 +135,7 @@ object LocalNotificationsFunctions {
             val delay = (parameters["delay"] as? Number)?.toLong()
             val atTimestamp = (parameters["at"] as? Number)?.toLong()
             val repeatInterval = parameters["repeat"] as? String
+            val repeatIntervalSeconds = (parameters["repeatIntervalSeconds"] as? Number)?.toLong()
             val sound = parameters["sound"] as? Boolean ?: true
             val badge = (parameters["badge"] as? Number)?.toInt()
             val data = parameters["data"] as? Map<*, *>
@@ -158,7 +159,10 @@ object LocalNotificationsFunctions {
                 // Monthly/yearly use calendar-based calculation, so repeatMs is
                 // set to a sentinel value; actual next trigger is computed at
                 // reschedule time.
-                val repeatMs = when (repeatInterval) {
+                // repeatIntervalSeconds takes precedence if no preset repeat is set.
+                val repeatMs = if (repeatIntervalSeconds != null && repeatIntervalSeconds >= 60 && repeatInterval == null) {
+                    repeatIntervalSeconds * 1000L
+                } else when (repeatInterval) {
                     "minute" -> 60_000L
                     "hourly" -> 3_600_000L
                     "daily" -> AlarmManager.INTERVAL_DAY

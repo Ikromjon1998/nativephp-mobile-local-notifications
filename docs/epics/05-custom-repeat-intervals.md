@@ -15,11 +15,13 @@ The following scheduling features are already implemented across all layers:
 - `RepeatInterval` enum with 6 cases: `Minute`, `Hourly`, `Daily`, `Weekly`, `Monthly`, `Yearly`
 - `schedule()` accepts `repeat` as either `RepeatInterval` enum or string
 - `delay` (seconds from now) and `at` (Unix timestamp) for trigger timing
-- No validation — parameters pass through to native layer
+- `repeatIntervalSeconds` parameter for custom intervals (min 60s, mutually exclusive with `repeat`)
+- Validation: rejects `< 60` seconds and `repeat` + `repeatIntervalSeconds` used together
 
 ### Android (`resources/android/src/`)
 - `LocalNotificationsFunctions.Schedule` maps repeat strings to milliseconds:
   - `"minute"` → 60,000ms, `"hourly"` → 3,600,000ms, `"daily"` → 86,400,000ms, `"weekly"` → 604,800,000ms, `"monthly"` → calendar-based, `"yearly"` → calendar-based
+  - `repeatIntervalSeconds` → converted to `repeat_ms` (seconds × 1000), uses existing self-reschedule pattern
 - Uses `setExactAndAllowWhileIdle()` for all alarms (Epic 11 work)
 - `LocalNotificationReceiver` self-reschedules repeating notifications via `repeat_ms` intent extra
 - `BootReceiver` restores alarms from SharedPreferences on reboot
@@ -33,12 +35,15 @@ The following scheduling features are already implemented across all layers:
   - `"weekly"` → matches `[.weekday, .hour, .minute, .second]` components
   - `"monthly"` → matches `[.day, .hour, .minute, .second]` components
   - `"yearly"` → matches `[.month, .day, .hour, .minute, .second]` components
+- `repeatIntervalSeconds` → `UNTimeIntervalNotificationTrigger(timeInterval:repeats:true)` for custom intervals
 - Falls back to `UNTimeIntervalNotificationTrigger` for delay-based scheduling
 - Unknown repeat strings silently set `repeats = false`
 
 ### Tests (`tests/`)
 - All 6 `RepeatInterval` enum cases tested for string conversion (including Monthly, Yearly)
 - Dedicated tests for Monthly and Yearly enum-to-string conversion
+- `repeatIntervalSeconds` passthrough, validation (< 60 rejected), and mutual exclusivity with `repeat` tested
+- DTO tests for `NotificationOptions.repeatIntervalSeconds` including edge cases
 - String repeat values tested for passthrough
 
 ## Scope
@@ -81,9 +86,9 @@ The following scheduling features are already implemented across all layers:
 - [x] `Monthly` and `Yearly` repeat intervals work on both platforms
 - [x] Monthly handles variable month lengths (Jan 31 → Feb 28/29 → Mar 31) — Android uses `Calendar.add(MONTH)`
 - [x] Yearly handles Feb 29 for leap years — Android uses `Calendar.add(YEAR)`
-- [ ] Custom second-based intervals (≥60s) work on both platforms
-- [ ] Minimum interval validation rejects intervals < 60 seconds
-- [ ] `repeat` and `repeatIntervalSeconds` cannot be used together
+- [x] Custom second-based intervals (≥60s) work on both platforms
+- [x] Minimum interval validation rejects intervals < 60 seconds
+- [x] `repeat` and `repeatIntervalSeconds` cannot be used together
 - [ ] Day-of-week scheduling fires on correct days at correct times
 - [ ] Cancelling a multi-day notification cancels all sub-alarms
 - [ ] `getPending()` returns correct data for all new interval types

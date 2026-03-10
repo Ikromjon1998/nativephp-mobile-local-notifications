@@ -74,15 +74,29 @@ class LocalNotifications implements LocalNotificationsInterface
     }
 
     /**
-     * Normalize a raw options array, converting enum values to strings.
+     * Normalize a raw options array, converting enum values to strings and validating.
      *
      * @param  array<string, mixed>  $options
      * @return array<string, mixed>
+     *
+     * @throws \InvalidArgumentException
      */
     protected function normalizeOptions(array $options): array
     {
         if (isset($options['repeat']) && $options['repeat'] instanceof RepeatInterval) {
             $options['repeat'] = $options['repeat']->value;
+        }
+
+        if (isset($options['repeat'], $options['repeatIntervalSeconds'])) {
+            throw new \InvalidArgumentException(
+                'Cannot use both "repeat" and "repeatIntervalSeconds". Choose one.',
+            );
+        }
+
+        if (isset($options['repeatIntervalSeconds']) && $options['repeatIntervalSeconds'] < 60) {
+            throw new \InvalidArgumentException(
+                'repeatIntervalSeconds must be at least 60 seconds.',
+            );
         }
 
         return $options;

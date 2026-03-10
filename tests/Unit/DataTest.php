@@ -132,6 +132,54 @@ describe('NotificationOptions', function (): void {
             ->and($array['actions'][1])->toBe(['id' => 'delete', 'title' => 'Delete', 'destructive' => true]);
     });
 
+    it('includes repeatIntervalSeconds in array', function (): void {
+        $options = new NotificationOptions(
+            id: 'custom',
+            title: 'Custom',
+            body: 'Body',
+            repeatIntervalSeconds: 7200,
+        );
+
+        $array = $options->toArray();
+
+        expect($array['repeatIntervalSeconds'])->toBe(7200)
+            ->and($array)->not->toHaveKey('repeat');
+    });
+
+    it('throws when both repeat and repeatIntervalSeconds are set', function (): void {
+        $options = new NotificationOptions(
+            id: 'conflict',
+            title: 'Conflict',
+            body: 'Body',
+            repeat: RepeatInterval::Daily,
+            repeatIntervalSeconds: 3600,
+        );
+
+        $options->toArray();
+    })->throws(InvalidArgumentException::class, 'Cannot use both "repeat" and "repeatIntervalSeconds"');
+
+    it('throws when repeatIntervalSeconds is less than 60', function (): void {
+        $options = new NotificationOptions(
+            id: 'too-short',
+            title: 'Too Short',
+            body: 'Body',
+            repeatIntervalSeconds: 30,
+        );
+
+        $options->toArray();
+    })->throws(InvalidArgumentException::class, 'repeatIntervalSeconds must be at least 60 seconds');
+
+    it('allows exactly 60 seconds for repeatIntervalSeconds', function (): void {
+        $options = new NotificationOptions(
+            id: 'min-interval',
+            title: 'Min Interval',
+            body: 'Body',
+            repeatIntervalSeconds: 60,
+        );
+
+        expect($options->toArray()['repeatIntervalSeconds'])->toBe(60);
+    });
+
     it('can be passed to schedule method', function (): void {
         $capturedData = null;
 

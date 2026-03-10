@@ -29,9 +29,23 @@ final readonly class NotificationOptions
 
     /**
      * @return array<string, mixed>
+     *
+     * @throws \InvalidArgumentException
      */
     public function toArray(): array
     {
+        if ($this->repeat !== null && $this->repeatIntervalSeconds !== null) {
+            throw new \InvalidArgumentException(
+                'Cannot use both "repeat" and "repeatIntervalSeconds". Choose one.',
+            );
+        }
+
+        if ($this->repeatIntervalSeconds !== null && $this->repeatIntervalSeconds < 60) {
+            throw new \InvalidArgumentException(
+                'repeatIntervalSeconds must be at least 60 seconds.',
+            );
+        }
+
         $result = [
             'id' => $this->id,
             'title' => $this->title,
@@ -50,6 +64,10 @@ final readonly class NotificationOptions
             $result['repeat'] = $this->repeat instanceof RepeatInterval
                 ? $this->repeat->value
                 : $this->repeat;
+        }
+
+        if ($this->repeatIntervalSeconds !== null) {
+            $result['repeatIntervalSeconds'] = $this->repeatIntervalSeconds;
         }
 
         if ($this->sound !== null) {

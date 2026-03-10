@@ -298,6 +298,45 @@ describe('schedule', function (): void {
         expect($capturedData['repeat'])->toBe('yearly');
     });
 
+    it('passes repeatIntervalSeconds to the bridge', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'custom-interval',
+            'title' => 'Custom Interval',
+            'body' => 'Every 2 hours',
+            'repeatIntervalSeconds' => 7200,
+        ]);
+
+        expect($capturedData['repeatIntervalSeconds'])->toBe(7200)
+            ->and($capturedData)->not->toHaveKey('repeat');
+    });
+
+    it('throws when both repeat and repeatIntervalSeconds are set', function (): void {
+        $this->notifications->schedule([
+            'id' => 'conflict',
+            'title' => 'Conflict',
+            'body' => 'Body',
+            'repeat' => 'daily',
+            'repeatIntervalSeconds' => 3600,
+        ]);
+    })->throws(InvalidArgumentException::class, 'Cannot use both "repeat" and "repeatIntervalSeconds"');
+
+    it('throws when repeatIntervalSeconds is less than 60', function (): void {
+        $this->notifications->schedule([
+            'id' => 'too-short',
+            'title' => 'Too Short',
+            'body' => 'Body',
+            'repeatIntervalSeconds' => 30,
+        ]);
+    })->throws(InvalidArgumentException::class, 'repeatIntervalSeconds must be at least 60 seconds');
+
     it('passes string repeat values unchanged', function (): void {
         $capturedData = null;
 

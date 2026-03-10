@@ -107,7 +107,8 @@ enum LocalNotificationsFunctions {
     ///   - body: string - Notification body text
     ///   - delay: (optional) int - Delay in seconds from now
     ///   - at: (optional) int - Unix timestamp to fire at
-    ///   - repeat: (optional) string - Repeat interval: "minute", "hourly", "daily", "weekly"
+    ///   - repeat: (optional) string - Repeat interval: "minute", "hourly", "daily", "weekly", "monthly", "yearly"
+    ///   - repeatIntervalSeconds: (optional) int - Custom repeat interval in seconds (min 60, mutually exclusive with repeat)
     ///   - sound: (optional) boolean - Play sound (default: true)
     ///   - badge: (optional) int - Badge number to set on app icon
     ///   - data: (optional) object - Custom data to attach to the notification
@@ -138,6 +139,7 @@ enum LocalNotificationsFunctions {
             let badge = parameters["badge"] as? Int
             let data = parameters["data"] as? [String: Any]
             let repeatInterval = parameters["repeat"] as? String
+            let repeatIntervalSeconds = parameters["repeatIntervalSeconds"] as? Int
             let subtitle = parameters["subtitle"] as? String
             let imageUrl = parameters["image"] as? String
             let bigText = parameters["bigText"] as? String
@@ -228,7 +230,13 @@ enum LocalNotificationsFunctions {
             // Determine trigger
             var trigger: UNNotificationTrigger?
 
-            if let delay = parameters["delay"] as? Int, delay > 0 {
+            if let customSeconds = repeatIntervalSeconds, customSeconds >= 60, repeatInterval == nil {
+                // Custom repeat interval in seconds
+                trigger = UNTimeIntervalNotificationTrigger(
+                    timeInterval: TimeInterval(customSeconds),
+                    repeats: true
+                )
+            } else if let delay = parameters["delay"] as? Int, delay > 0 {
                 let repeats = repeatInterval != nil
                 trigger = UNTimeIntervalNotificationTrigger(
                     timeInterval: TimeInterval(delay),
