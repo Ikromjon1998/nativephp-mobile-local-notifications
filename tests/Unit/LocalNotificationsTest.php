@@ -337,6 +337,48 @@ describe('schedule', function (): void {
         ]);
     })->throws(InvalidArgumentException::class, 'repeatIntervalSeconds must be at least 60 seconds');
 
+    it('passes repeatDays to the bridge', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'weekday-alarm',
+            'title' => 'Weekday Alarm',
+            'body' => 'Wake up!',
+            'at' => 1700000000,
+            'repeatDays' => [1, 2, 3, 4, 5],
+        ]);
+
+        expect($capturedData['repeatDays'])->toBe([1, 2, 3, 4, 5])
+            ->and($capturedData['at'])->toBe(1700000000)
+            ->and($capturedData)->not->toHaveKey('repeat');
+    });
+
+    it('throws when repeatDays is used with repeat', function (): void {
+        $this->notifications->schedule([
+            'id' => 'conflict',
+            'title' => 'Conflict',
+            'body' => 'Body',
+            'at' => 1700000000,
+            'repeat' => 'daily',
+            'repeatDays' => [1, 3, 5],
+        ]);
+    })->throws(InvalidArgumentException::class, 'Cannot use "repeatDays" with "repeat" or "repeatIntervalSeconds"');
+
+    it('throws when repeatDays is used without at', function (): void {
+        $this->notifications->schedule([
+            'id' => 'no-at',
+            'title' => 'No At',
+            'body' => 'Body',
+            'repeatDays' => [1, 3, 5],
+        ]);
+    })->throws(InvalidArgumentException::class, '"repeatDays" requires "at" to determine the time of day');
+
     it('passes string repeat values unchanged', function (): void {
         $capturedData = null;
 

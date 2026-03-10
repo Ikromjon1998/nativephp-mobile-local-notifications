@@ -140,6 +140,7 @@ enum LocalNotificationsFunctions {
             let data = parameters["data"] as? [String: Any]
             let repeatInterval = parameters["repeat"] as? String
             let repeatIntervalSeconds = parameters["repeatIntervalSeconds"] as? Int
+            let repeatDays = parameters["repeatDays"] as? [Int]
             let subtitle = parameters["subtitle"] as? String
             let imageUrl = parameters["image"] as? String
             let bigText = parameters["bigText"] as? String
@@ -225,6 +226,55 @@ enum LocalNotificationsFunctions {
                 } else {
                     print("⚠️ Failed to download image, sending notification without image")
                 }
+            }
+
+            // Day-of-week scheduling: create one request per day
+            if let days = repeatDays, !days.isEmpty, let timestamp = parameters["at"] as? Int {
+                let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+                let center = UNUserNotificationCenter.current()
+                let semaphore = DispatchSemaphore(value: 0)
+                var lastError: Error?
+
+                for isoDay in days {
+                    // Convert ISO day (1=Mon..7=Sun) to Apple weekday (1=Sun..7=Sat)
+                    let appleWeekday = isoDay == 7 ? 1 : isoDay + 1
+                    let subId = "\(id)_day_\(isoDay)"
+
+                    var dateComponents = Calendar.current.dateComponents(
+                        [.hour, .minute, .second],
+                        from: date
+                    )
+                    dateComponents.weekday = appleWeekday
+
+                    let trigger = UNCalendarNotificationTrigger(
+                        dateMatching: dateComponents,
+                        repeats: true
+                    )
+
+                    let request = UNNotificationRequest(
+                        identifier: subId,
+                        content: content,
+                        trigger: trigger
+                    )
+
+                    center.add(request) { error in
+                        if let error = error {
+                            lastError = error
+                        }
+                        semaphore.signal()
+                    }
+                    semaphore.wait()
+                }
+
+                if let error = lastError {
+                    return ["success": false, "error": error.localizedDescription]
+                }
+
+                let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled"
+                let payload: [String: Any] = ["id": id, "title": title, "body": body]
+                LaravelBridge.shared.send?(eventClass, payload)
+
+                return ["success": true, "id": id]
             }
 
             // Determine trigger
@@ -347,7 +397,9 @@ enum LocalNotificationsFunctions {
 
     // MARK: - LocalNotifications.Cancel
 
-    /// Cancel a scheduled notification by identifier
+    /// Cancel a scheduled notification by identifier.
+    /// If the ID has day-of-week sub-notifications (e.g. id_day_1, id_day_3),
+    /// those are cancelled too.
     /// Parameters:
     ///   - id: string - The notification identifier to cancel
     /// Returns:
@@ -359,8 +411,15 @@ enum LocalNotificationsFunctions {
             }
 
             let center = UNUserNotificationCenter.current()
+
+            // Cancel the direct ID
             center.removePendingNotificationRequests(withIdentifiers: [id])
             center.removeDeliveredNotifications(withIdentifiers: [id])
+
+            // Also cancel any day-of-week sub-IDs (id_day_1 through id_day_7)
+            let subIds = (1...7).map { "\(id)_day_\($0)" }
+            center.removePendingNotificationRequests(withIdentifiers: subIds)
+            center.removeDeliveredNotifications(withIdentifiers: subIds)
 
             print("✅ Notification cancelled: \(id)")
             return ["success": true, "id": id]
@@ -385,7 +444,8 @@ enum LocalNotificationsFunctions {
 
     // MARK: - LocalNotifications.GetPending
 
-    /// Get all pending scheduled notifications
+    /// Get all pending scheduled notifications.
+    /// Day-of-week sub-notifications are aggregated into their parent entry.
     /// Returns:
     ///   - notifications: JSON string array of pending notifications
     class GetPending: BridgeFunction {
@@ -395,28 +455,64 @@ enum LocalNotificationsFunctions {
             var result: [String: Any] = [:]
 
             center.getPendingNotificationRequests { requests in
-                let notifications = requests.map { request -> [String: Any] in
+                // Separate sub-IDs (containing "_day_") from regular notifications
+                var regularNotifications: [[String: Any]] = []
+                // Group sub-IDs by parent: parentId -> [day numbers]
+                var dayGroups: [String: (request: UNNotificationRequest, days: [Int])] = [:]
+
+                for request in requests {
+                    let id = request.identifier
+                    if let range = id.range(of: "_day_"), let day = Int(id[range.upperBound...]) {
+                        let parentId = String(id[..<range.lowerBound])
+                        if var group = dayGroups[parentId] {
+                            group.days.append(day)
+                            dayGroups[parentId] = group
+                        } else {
+                            dayGroups[parentId] = (request: request, days: [day])
+                        }
+                    } else {
+                        var notification: [String: Any] = [
+                            "id": id,
+                            "title": request.content.title,
+                            "body": request.content.body
+                        ]
+
+                        if let trigger = request.trigger as? UNCalendarNotificationTrigger {
+                            notification["repeats"] = trigger.repeats
+                            if let nextDate = trigger.nextTriggerDate() {
+                                notification["nextTriggerAt"] = Int(nextDate.timeIntervalSince1970)
+                            }
+                        } else if let trigger = request.trigger as? UNTimeIntervalNotificationTrigger {
+                            notification["repeats"] = trigger.repeats
+                            notification["timeInterval"] = Int(trigger.timeInterval)
+                            if let nextDate = trigger.nextTriggerDate() {
+                                notification["nextTriggerAt"] = Int(nextDate.timeIntervalSince1970)
+                            }
+                        }
+
+                        regularNotifications.append(notification)
+                    }
+                }
+
+                // Add aggregated parent entries
+                for (parentId, group) in dayGroups {
                     var notification: [String: Any] = [
-                        "id": request.identifier,
-                        "title": request.content.title,
-                        "body": request.content.body
+                        "id": parentId,
+                        "title": group.request.content.title,
+                        "body": group.request.content.body,
+                        "repeats": true,
+                        "repeatDays": group.days.sorted()
                     ]
 
-                    if let trigger = request.trigger as? UNCalendarNotificationTrigger {
-                        notification["repeats"] = trigger.repeats
-                        if let nextDate = trigger.nextTriggerDate() {
-                            notification["nextTriggerAt"] = Int(nextDate.timeIntervalSince1970)
-                        }
-                    } else if let trigger = request.trigger as? UNTimeIntervalNotificationTrigger {
-                        notification["repeats"] = trigger.repeats
-                        notification["timeInterval"] = Int(trigger.timeInterval)
-                        if let nextDate = trigger.nextTriggerDate() {
-                            notification["nextTriggerAt"] = Int(nextDate.timeIntervalSince1970)
-                        }
+                    if let trigger = group.request.trigger as? UNCalendarNotificationTrigger,
+                       let nextDate = trigger.nextTriggerDate() {
+                        notification["nextTriggerAt"] = Int(nextDate.timeIntervalSince1970)
                     }
 
-                    return notification
+                    regularNotifications.append(notification)
                 }
+
+                let notifications = regularNotifications
 
                 do {
                     let jsonData = try JSONSerialization.data(withJSONObject: notifications, options: [])

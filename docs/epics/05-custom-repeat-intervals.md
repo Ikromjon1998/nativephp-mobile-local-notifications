@@ -89,9 +89,9 @@ The following scheduling features are already implemented across all layers:
 - [x] Custom second-based intervals (≥60s) work on both platforms
 - [x] Minimum interval validation rejects intervals < 60 seconds
 - [x] `repeat` and `repeatIntervalSeconds` cannot be used together
-- [ ] Day-of-week scheduling fires on correct days at correct times
-- [ ] Cancelling a multi-day notification cancels all sub-alarms
-- [ ] `getPending()` returns correct data for all new interval types
+- [x] Day-of-week scheduling fires on correct days at correct times — sub-IDs `{id}_day_{weekday}`
+- [x] Cancelling a multi-day notification cancels all sub-alarms (both platforms)
+- [x] `getPending()` aggregates sub-IDs back into parent entry with `repeatDays` array
 - [ ] Repeat count limits are enforced on both platforms
 - [ ] Old `repeat` parameter with 4 preset values still works unchanged
 - [x] `BootReceiver` restores all new interval types correctly on Android

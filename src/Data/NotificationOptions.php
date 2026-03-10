@@ -8,6 +8,7 @@ final readonly class NotificationOptions
 {
     /**
      * @param  array<string, mixed>|null  $data
+     * @param  array<int, int>|null  $repeatDays  Days of week (1=Monday through 7=Sunday)
      * @param  array<int, NotificationAction>|null  $actions
      */
     public function __construct(
@@ -18,6 +19,7 @@ final readonly class NotificationOptions
         public ?int $at = null,
         public RepeatInterval|string|null $repeat = null,
         public ?int $repeatIntervalSeconds = null,
+        public ?array $repeatDays = null,
         public ?bool $sound = null,
         public ?int $badge = null,
         public ?array $data = null,
@@ -46,6 +48,28 @@ final readonly class NotificationOptions
             );
         }
 
+        if ($this->repeatDays !== null) {
+            if ($this->repeat !== null || $this->repeatIntervalSeconds !== null) {
+                throw new \InvalidArgumentException(
+                    'Cannot use "repeatDays" with "repeat" or "repeatIntervalSeconds".',
+                );
+            }
+
+            if ($this->at === null) {
+                throw new \InvalidArgumentException(
+                    '"repeatDays" requires "at" to determine the time of day.',
+                );
+            }
+
+            foreach ($this->repeatDays as $day) {
+                if ($day < 1 || $day > 7) {
+                    throw new \InvalidArgumentException(
+                        'Each value in "repeatDays" must be between 1 (Monday) and 7 (Sunday).',
+                    );
+                }
+            }
+        }
+
         $result = [
             'id' => $this->id,
             'title' => $this->title,
@@ -68,6 +92,10 @@ final readonly class NotificationOptions
 
         if ($this->repeatIntervalSeconds !== null) {
             $result['repeatIntervalSeconds'] = $this->repeatIntervalSeconds;
+        }
+
+        if ($this->repeatDays !== null) {
+            $result['repeatDays'] = array_values(array_unique($this->repeatDays));
         }
 
         if ($this->sound !== null) {

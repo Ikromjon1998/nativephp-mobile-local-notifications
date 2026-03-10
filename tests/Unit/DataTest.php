@@ -180,6 +180,70 @@ describe('NotificationOptions', function (): void {
         expect($options->toArray()['repeatIntervalSeconds'])->toBe(60);
     });
 
+    it('includes repeatDays in array', function (): void {
+        $options = new NotificationOptions(
+            id: 'weekdays',
+            title: 'Weekday Alarm',
+            body: 'Wake up!',
+            at: 1700000000,
+            repeatDays: [1, 2, 3, 4, 5],
+        );
+
+        $array = $options->toArray();
+
+        expect($array['repeatDays'])->toBe([1, 2, 3, 4, 5])
+            ->and($array)->not->toHaveKey('repeat')
+            ->and($array)->not->toHaveKey('repeatIntervalSeconds');
+    });
+
+    it('deduplicates repeatDays', function (): void {
+        $options = new NotificationOptions(
+            id: 'dupes',
+            title: 'Test',
+            body: 'Body',
+            at: 1700000000,
+            repeatDays: [1, 1, 3, 3, 5],
+        );
+
+        expect($options->toArray()['repeatDays'])->toBe([1, 3, 5]);
+    });
+
+    it('throws when repeatDays used with repeat', function (): void {
+        $options = new NotificationOptions(
+            id: 'conflict',
+            title: 'Test',
+            body: 'Body',
+            at: 1700000000,
+            repeat: RepeatInterval::Daily,
+            repeatDays: [1, 3],
+        );
+
+        $options->toArray();
+    })->throws(InvalidArgumentException::class, 'Cannot use "repeatDays" with "repeat" or "repeatIntervalSeconds"');
+
+    it('throws when repeatDays used without at', function (): void {
+        $options = new NotificationOptions(
+            id: 'no-at',
+            title: 'Test',
+            body: 'Body',
+            repeatDays: [1, 3],
+        );
+
+        $options->toArray();
+    })->throws(InvalidArgumentException::class, '"repeatDays" requires "at" to determine the time of day');
+
+    it('throws when repeatDays has invalid day number', function (): void {
+        $options = new NotificationOptions(
+            id: 'bad-day',
+            title: 'Test',
+            body: 'Body',
+            at: 1700000000,
+            repeatDays: [0, 8],
+        );
+
+        $options->toArray();
+    })->throws(InvalidArgumentException::class, 'Each value in "repeatDays" must be between 1 (Monday) and 7 (Sunday)');
+
     it('can be passed to schedule method', function (): void {
         $capturedData = null;
 

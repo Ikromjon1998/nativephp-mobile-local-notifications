@@ -99,6 +99,20 @@ class LocalNotifications implements LocalNotificationsInterface
             );
         }
 
+        if (isset($options['repeatDays'])) {
+            if (isset($options['repeat']) || isset($options['repeatIntervalSeconds'])) {
+                throw new \InvalidArgumentException(
+                    'Cannot use "repeatDays" with "repeat" or "repeatIntervalSeconds".',
+                );
+            }
+
+            if (! isset($options['at'])) {
+                throw new \InvalidArgumentException(
+                    '"repeatDays" requires "at" to determine the time of day.',
+                );
+            }
+        }
+
         return $options;
     }
 
