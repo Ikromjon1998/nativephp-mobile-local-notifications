@@ -253,6 +253,10 @@ enum LocalNotificationsFunctions {
                         dateComponents = Calendar.current.dateComponents([.hour, .minute, .second], from: date)
                     case "weekly":
                         dateComponents = Calendar.current.dateComponents([.weekday, .hour, .minute, .second], from: date)
+                    case "monthly":
+                        dateComponents = Calendar.current.dateComponents([.day, .hour, .minute, .second], from: date)
+                    case "yearly":
+                        dateComponents = Calendar.current.dateComponents([.month, .day, .hour, .minute, .second], from: date)
                     default:
                         repeats = false
                     }

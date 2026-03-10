@@ -15,6 +15,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Calendar
 
 /**
  * BroadcastReceiver that fires local notifications when the AlarmManager triggers.
@@ -165,6 +166,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         }
 
         val repeatMs = intent.getLongExtra("repeat_ms", 0L)
+        val repeatType = intent.getStringExtra("repeat_type")
         if (repeatMs == 0L) {
             // Clean up non-repeating notifications from storage
             val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
@@ -177,12 +179,14 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         } else {
             // Self-reschedule the next occurrence for repeating notifications.
             // This replaces setRepeating() which is unreliable on modern Android.
-            rescheduleNext(context, id, title, body, sound, channelId, repeatMs, dataJson, subtitle, imageUrl, bigText, actionsJson)
+            rescheduleNext(context, id, title, body, sound, channelId, repeatMs, repeatType, dataJson, subtitle, imageUrl, bigText, actionsJson)
         }
     }
 
     /**
      * Reschedule the next occurrence of a repeating notification using setExactAndAllowWhileIdle.
+     * For monthly/yearly repeats, uses Calendar-based calculation to handle variable month
+     * lengths and leap years. For fixed intervals, adds repeatMs to the current time.
      */
     private fun rescheduleNext(
         context: Context,
@@ -192,13 +196,21 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         sound: Boolean,
         channelId: String,
         repeatMs: Long,
+        repeatType: String?,
         dataJson: String?,
         subtitle: String?,
         imageUrl: String?,
         bigText: String?,
         actionsJson: String?
     ) {
-        val nextTriggerMs = System.currentTimeMillis() + repeatMs
+        // For calendar-based repeats (monthly/yearly), use Calendar to compute
+        // the next trigger. For fixed intervals, simply add repeatMs.
+        val now = System.currentTimeMillis()
+        val nextTriggerMs = if (repeatType == "monthly" || repeatType == "yearly") {
+            LocalNotificationsFunctions.calculateNextTrigger(repeatType, now)
+        } else {
+            now + repeatMs
+        }
 
         val rescheduleIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
             action = "com.ikromjon.localnotifications.NOTIFY"
@@ -208,6 +220,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             putExtra("sound", sound)
             putExtra("channel_id", channelId)
             putExtra("repeat_ms", repeatMs)
+            if (repeatType != null) putExtra("repeat_type", repeatType)
             if (dataJson != null) putExtra("data", dataJson)
             if (subtitle != null) putExtra("subtitle", subtitle)
             if (imageUrl != null) putExtra("image", imageUrl)

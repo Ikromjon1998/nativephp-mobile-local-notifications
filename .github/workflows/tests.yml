@@ -28,8 +28,14 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
 
-      - name: Run tests
-        run: vendor/bin/pest --coverage --min=90
+      - name: Check code style
+        run: vendor/bin/pint --test
+
+      - name: Check refactoring
+        run: vendor/bin/rector process --dry-run
 
       - name: Run static analysis
         run: vendor/bin/phpstan analyse
+
+      - name: Run tests
+        run: vendor/bin/pest --coverage --min=90

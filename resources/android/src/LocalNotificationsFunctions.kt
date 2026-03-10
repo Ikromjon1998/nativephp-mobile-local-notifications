@@ -17,6 +17,7 @@ import com.nativephp.mobile.utils.NativeActionCoordinator
 import org.json.JSONArray
 import org.json.JSONObject
 import java.lang.ref.WeakReference
+import java.util.Calendar
 
 /**
  * Functions related to local notification operations
@@ -153,12 +154,17 @@ object LocalNotificationsFunctions {
                     else -> System.currentTimeMillis() + 1000 // fire in 1 second
                 }
 
-                // Calculate repeat interval in ms
+                // Calculate repeat interval in ms (for fixed intervals)
+                // Monthly/yearly use calendar-based calculation, so repeatMs is
+                // set to a sentinel value; actual next trigger is computed at
+                // reschedule time.
                 val repeatMs = when (repeatInterval) {
                     "minute" -> 60_000L
                     "hourly" -> 3_600_000L
                     "daily" -> AlarmManager.INTERVAL_DAY
                     "weekly" -> AlarmManager.INTERVAL_DAY * 7
+                    "monthly" -> -1L  // sentinel: calendar-based
+                    "yearly" -> -2L   // sentinel: calendar-based
                     else -> 0L
                 }
 
@@ -171,7 +177,8 @@ object LocalNotificationsFunctions {
                     putExtra("sound", sound)
                     putExtra("channel_id", CHANNEL_ID)
                     if (badge != null) putExtra("badge", badge)
-                    if (repeatMs > 0) putExtra("repeat_ms", repeatMs)
+                    if (repeatMs != 0L) putExtra("repeat_ms", repeatMs)
+                    if (repeatInterval != null) putExtra("repeat_type", repeatInterval)
                     if (data != null) {
                         val dataJson = JSONObject(data.mapKeys { it.key.toString() }).toString()
                         putExtra("data", dataJson)
@@ -204,7 +211,7 @@ object LocalNotificationsFunctions {
                 )
 
                 // Persist notification info for getPending and boot restoration
-                saveNotificationInfo(context, id, title, body, triggerTimeMs, repeatMs, sound, badge, data, subtitle, imageUrl, bigText, actions)
+                saveNotificationInfo(context, id, title, body, triggerTimeMs, repeatMs, repeatInterval, sound, badge, data, subtitle, imageUrl, bigText, actions)
 
                 Log.d(TAG, "✅ Notification scheduled: $id at $triggerTimeMs")
 
@@ -443,6 +450,7 @@ object LocalNotificationsFunctions {
         body: String,
         triggerTimeMs: Long,
         repeatMs: Long,
+        repeatType: String? = null,
         sound: Boolean,
         badge: Int?,
         data: Map<*, *>?,
@@ -461,6 +469,7 @@ object LocalNotificationsFunctions {
             put("body", body)
             put("triggerTimeMs", triggerTimeMs)
             put("repeatMs", repeatMs)
+            if (repeatType != null) put("repeatType", repeatType)
             put("sound", sound)
             if (badge != null) put("badge", badge)
             if (data != null) put("data", JSONObject(data.mapKeys { it.key.toString() }))
@@ -476,6 +485,19 @@ object LocalNotificationsFunctions {
             .putStringSet("notification_ids", ids)
             .putString("notification_$id", info.toString())
             .apply()
+    }
+
+    /**
+     * Calculate the next trigger time for calendar-based repeat types (monthly/yearly).
+     * Handles variable month lengths and leap years.
+     */
+    fun calculateNextTrigger(repeatType: String, currentTriggerMs: Long): Long {
+        val cal = Calendar.getInstance().apply { timeInMillis = currentTriggerMs }
+        when (repeatType) {
+            "monthly" -> cal.add(Calendar.MONTH, 1)
+            "yearly" -> cal.add(Calendar.YEAR, 1)
+        }
+        return cal.timeInMillis
     }
 
     private fun removeNotificationInfo(context: Context, id: String) {

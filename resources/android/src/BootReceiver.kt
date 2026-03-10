@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import org.json.JSONObject
+import java.util.Calendar
 
 /**
  * BroadcastReceiver that restores scheduled notifications after device reboot.
@@ -37,6 +38,7 @@ class BootReceiver : BroadcastReceiver() {
 
                 val triggerTimeMs = info.getLong("triggerTimeMs")
                 val repeatMs = info.optLong("repeatMs", 0L)
+                val repeatType = if (info.has("repeatType")) info.getString("repeatType") else null
                 val title = info.getString("title")
                 val body = info.getString("body")
                 val sound = info.optBoolean("sound", true)
@@ -54,7 +56,8 @@ class BootReceiver : BroadcastReceiver() {
                     putExtra("body", body)
                     putExtra("sound", sound)
                     putExtra("channel_id", "nativephp_local_notifications")
-                    if (repeatMs > 0) putExtra("repeat_ms", repeatMs)
+                    if (repeatMs != 0L) putExtra("repeat_ms", repeatMs)
+                    if (repeatType != null) putExtra("repeat_type", repeatType)
                     if (info.has("data")) putExtra("data", info.getString("data"))
                     if (info.has("subtitle")) putExtra("subtitle", info.getString("subtitle"))
                     if (info.has("image")) putExtra("image", info.getString("image"))
@@ -70,10 +73,19 @@ class BootReceiver : BroadcastReceiver() {
                 )
 
                 // For repeating notifications, use the next future trigger time
-                val adjustedTrigger = if (repeatMs > 0 && triggerTimeMs < now) {
-                    val elapsed = now - triggerTimeMs
-                    val periods = (elapsed / repeatMs) + 1
-                    triggerTimeMs + (periods * repeatMs)
+                val adjustedTrigger = if (repeatMs != 0L && triggerTimeMs < now) {
+                    if (repeatType == "monthly" || repeatType == "yearly") {
+                        // Advance using Calendar until we're in the future
+                        var next = triggerTimeMs
+                        while (next < now) {
+                            next = LocalNotificationsFunctions.calculateNextTrigger(repeatType, next)
+                        }
+                        next
+                    } else {
+                        val elapsed = now - triggerTimeMs
+                        val periods = (elapsed / repeatMs) + 1
+                        triggerTimeMs + (periods * repeatMs)
+                    }
                 } else {
                     triggerTimeMs
                 }

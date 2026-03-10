@@ -7,7 +7,8 @@ use Illuminate\Queue\SerializesModels;
 
 class NotificationActionPressed
 {
-    use Dispatchable, SerializesModels;
+    use Dispatchable;
+    use SerializesModels;
 
     /**
      * @param  array<string, mixed>|null  $data

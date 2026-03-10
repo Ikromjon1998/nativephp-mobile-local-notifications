@@ -17,7 +17,7 @@ See individual epic files in [`docs/epics/`](docs/epics/) for full details.
 |---|------|------|--------|
 | 3 | Rich Notification Content | [03-rich-notification-content.md](docs/epics/03-rich-notification-content.md) | Done |
 | 4 | Action Buttons | [04-action-buttons.md](docs/epics/04-action-buttons.md) | Done |
-| 5 | Custom Repeat Intervals & Advanced Scheduling | [05-custom-repeat-intervals.md](docs/epics/05-custom-repeat-intervals.md) | Not Started |
+| 5 | Custom Repeat Intervals & Advanced Scheduling | [05-custom-repeat-intervals.md](docs/epics/05-custom-repeat-intervals.md) | In Progress |
 | 6 | Notification Channels & Categories | [06-notification-channels.md](docs/epics/06-notification-channels.md) | Not Started |
 
 ## Medium
@@ -28,7 +28,7 @@ See individual epic files in [`docs/epics/`](docs/epics/) for full details.
 | 8 | Custom Notification Sounds | [08-custom-notification-sounds.md](docs/epics/08-custom-notification-sounds.md) | Not Started |
 | 9 | Notification Priority & Importance Control | [09-notification-priority.md](docs/epics/09-notification-priority.md) | Not Started |
 | 10 | Notification Grouping & Threading | [10-notification-grouping.md](docs/epics/10-notification-grouping.md) | Not Started |
-| 11 | Android Exact Alarm Reliability | [11-android-exact-alarm-reliability.md](docs/epics/11-android-exact-alarm-reliability.md) | Not Started |
+| 11 | Android Exact Alarm Reliability | [11-android-exact-alarm-reliability.md](docs/epics/11-android-exact-alarm-reliability.md) | In Progress |
 
 ## Low
 

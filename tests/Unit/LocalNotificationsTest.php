@@ -3,12 +3,12 @@
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
 use Ikromjon\LocalNotifications\LocalNotifications;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->notifications = new LocalNotifications;
 });
 
-describe('schedule', function () {
-    it('calls the bridge with correct function name and options', function () {
+describe('schedule', function (): void {
+    it('calls the bridge with correct function name and options', function (): void {
         $capturedFunction = null;
         $capturedData = null;
 
@@ -36,7 +36,7 @@ describe('schedule', function () {
             ->and($result)->toBe(['success' => true, 'id' => 'test-1']);
     });
 
-    it('passes all optional parameters to the bridge', function () {
+    it('passes all optional parameters to the bridge', function (): void {
         $capturedData = null;
 
         stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
@@ -76,7 +76,7 @@ describe('schedule', function () {
         ]);
     });
 
-    it('passes rich content parameters independently', function () {
+    it('passes rich content parameters independently', function (): void {
         $capturedData = null;
 
         stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
@@ -97,7 +97,7 @@ describe('schedule', function () {
             ->and($capturedData)->not->toHaveKey('bigText');
     });
 
-    it('passes subtitle without other rich content', function () {
+    it('passes subtitle without other rich content', function (): void {
         $capturedData = null;
 
         stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
@@ -118,7 +118,7 @@ describe('schedule', function () {
             ->and($capturedData)->not->toHaveKey('bigText');
     });
 
-    it('passes action buttons to the bridge', function () {
+    it('passes action buttons to the bridge', function (): void {
         $capturedData = null;
 
         stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
@@ -145,7 +145,7 @@ describe('schedule', function () {
             ->and($capturedData['actions'][2])->toBe(['id' => 'delete', 'title' => 'Delete', 'destructive' => true]);
     });
 
-    it('returns empty array when bridge returns null', function () {
+    it('returns empty array when bridge returns null', function (): void {
         stubNativephpCallReturnsNull();
 
         $result = $this->notifications->schedule([
@@ -157,8 +157,8 @@ describe('schedule', function () {
         expect($result)->toBe([]);
     });
 
-    it('returns empty array when bridge returns invalid json', function () {
-        stubNativephpCall(fn () => 'not-json');
+    it('returns empty array when bridge returns invalid json', function (): void {
+        stubNativephpCall(fn (): string => 'not-json');
 
         $result = $this->notifications->schedule([
             'id' => 'test-1',
@@ -169,7 +169,7 @@ describe('schedule', function () {
         expect($result)->toBe([]);
     });
 
-    it('handles empty options array', function () {
+    it('handles empty options array', function (): void {
         $capturedData = null;
 
         stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
@@ -183,7 +183,7 @@ describe('schedule', function () {
         expect($capturedData)->toBe([]);
     });
 
-    it('preserves nested data arrays', function () {
+    it('preserves nested data arrays', function (): void {
         $capturedData = null;
 
         stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
@@ -208,7 +208,7 @@ describe('schedule', function () {
         ]);
     });
 
-    it('converts RepeatInterval enum to string value', function () {
+    it('converts RepeatInterval enum to string value', function (): void {
         $capturedData = null;
 
         stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
@@ -228,12 +228,14 @@ describe('schedule', function () {
         expect($capturedData['repeat'])->toBe('daily');
     });
 
-    it('converts all RepeatInterval enum cases to correct strings', function () {
+    it('converts all RepeatInterval enum cases to correct strings', function (): void {
         $cases = [
             [RepeatInterval::Minute, 'minute'],
             [RepeatInterval::Hourly, 'hourly'],
             [RepeatInterval::Daily, 'daily'],
             [RepeatInterval::Weekly, 'weekly'],
+            [RepeatInterval::Monthly, 'monthly'],
+            [RepeatInterval::Yearly, 'yearly'],
         ];
 
         foreach ($cases as [$enum, $expected]) {
@@ -256,7 +258,47 @@ describe('schedule', function () {
         }
     });
 
-    it('passes string repeat values unchanged', function () {
+    it('converts Monthly enum to monthly string', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'monthly-test',
+            'title' => 'Monthly Test',
+            'body' => 'Monthly body',
+            'at' => 1700000000,
+            'repeat' => RepeatInterval::Monthly,
+        ]);
+
+        expect($capturedData['repeat'])->toBe('monthly');
+    });
+
+    it('converts Yearly enum to yearly string', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'yearly-test',
+            'title' => 'Yearly Test',
+            'body' => 'Yearly body',
+            'at' => 1700000000,
+            'repeat' => RepeatInterval::Yearly,
+        ]);
+
+        expect($capturedData['repeat'])->toBe('yearly');
+    });
+
+    it('passes string repeat values unchanged', function (): void {
         $capturedData = null;
 
         stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
@@ -276,8 +318,8 @@ describe('schedule', function () {
     });
 });
 
-describe('cancel', function () {
-    it('calls the bridge with correct function name and id', function () {
+describe('cancel', function (): void {
+    it('calls the bridge with correct function name and id', function (): void {
         $capturedFunction = null;
         $capturedData = null;
 
@@ -295,7 +337,7 @@ describe('cancel', function () {
             ->and($result)->toBe(['success' => true, 'id' => 'cancel-me']);
     });
 
-    it('returns empty array when bridge returns null', function () {
+    it('returns empty array when bridge returns null', function (): void {
         stubNativephpCallReturnsNull();
 
         $result = $this->notifications->cancel('test-id');
@@ -303,7 +345,7 @@ describe('cancel', function () {
         expect($result)->toBe([]);
     });
 
-    it('handles special characters in id', function () {
+    it('handles special characters in id', function (): void {
         $capturedData = null;
 
         stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
@@ -318,8 +360,8 @@ describe('cancel', function () {
     });
 });
 
-describe('cancelAll', function () {
-    it('calls the bridge with correct function name and no data', function () {
+describe('cancelAll', function (): void {
+    it('calls the bridge with correct function name and no data', function (): void {
         $capturedFunction = null;
         $capturedData = null;
 
@@ -337,7 +379,7 @@ describe('cancelAll', function () {
             ->and($result)->toBe(['success' => true]);
     });
 
-    it('returns empty array when bridge returns null', function () {
+    it('returns empty array when bridge returns null', function (): void {
         stubNativephpCallReturnsNull();
 
         $result = $this->notifications->cancelAll();
@@ -346,8 +388,8 @@ describe('cancelAll', function () {
     });
 });
 
-describe('getPending', function () {
-    it('calls the bridge with correct function name', function () {
+describe('getPending', function (): void {
+    it('calls the bridge with correct function name', function (): void {
         $capturedFunction = null;
 
         stubNativephpCall(function (string $function) use (&$capturedFunction) {
@@ -362,7 +404,7 @@ describe('getPending', function () {
             ->and($result)->toBe(['success' => true, 'notifications' => '[]', 'count' => 0]);
     });
 
-    it('returns empty array when bridge returns null', function () {
+    it('returns empty array when bridge returns null', function (): void {
         stubNativephpCallReturnsNull();
 
         $result = $this->notifications->getPending();
@@ -371,8 +413,8 @@ describe('getPending', function () {
     });
 });
 
-describe('requestPermission', function () {
-    it('calls the bridge with correct function name', function () {
+describe('requestPermission', function (): void {
+    it('calls the bridge with correct function name', function (): void {
         $capturedFunction = null;
 
         stubNativephpCall(function (string $function) use (&$capturedFunction) {
@@ -387,7 +429,7 @@ describe('requestPermission', function () {
             ->and($result)->toBe(['granted' => true]);
     });
 
-    it('handles denied permission response', function () {
+    it('handles denied permission response', function (): void {
         stubNativephpCall(fn () => json_encode(['granted' => false, 'status' => 'pending']));
 
         $result = $this->notifications->requestPermission();
@@ -395,7 +437,7 @@ describe('requestPermission', function () {
         expect($result)->toBe(['granted' => false, 'status' => 'pending']);
     });
 
-    it('returns empty array when bridge returns null', function () {
+    it('returns empty array when bridge returns null', function (): void {
         stubNativephpCallReturnsNull();
 
         $result = $this->notifications->requestPermission();
@@ -404,8 +446,8 @@ describe('requestPermission', function () {
     });
 });
 
-describe('checkPermission', function () {
-    it('calls the bridge with correct function name', function () {
+describe('checkPermission', function (): void {
+    it('calls the bridge with correct function name', function (): void {
         $capturedFunction = null;
 
         stubNativephpCall(function (string $function) use (&$capturedFunction) {
@@ -420,7 +462,7 @@ describe('checkPermission', function () {
             ->and($result)->toBe(['status' => 'granted']);
     });
 
-    it('handles denied status', function () {
+    it('handles denied status', function (): void {
         stubNativephpCall(fn () => json_encode(['status' => 'denied']));
 
         $result = $this->notifications->checkPermission();
@@ -428,7 +470,7 @@ describe('checkPermission', function () {
         expect($result)->toBe(['status' => 'denied']);
     });
 
-    it('returns empty array when bridge returns null', function () {
+    it('returns empty array when bridge returns null', function (): void {
         stubNativephpCallReturnsNull();
 
         $result = $this->notifications->checkPermission();

@@ -2,37 +2,25 @@
 
 namespace Ikromjon\LocalNotifications;
 
+use Ikromjon\LocalNotifications\Contracts\LocalNotificationsInterface;
+use Ikromjon\LocalNotifications\Data\NotificationOptions;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
 
-class LocalNotifications
+class LocalNotifications implements LocalNotificationsInterface
 {
     /**
      * Schedule a local notification.
      *
-     * @param  array{
-     *     id: string,
-     *     title: string,
-     *     body: string,
-     *     delay?: int,
-     *     at?: int,
-     *     repeat?: RepeatInterval|string,
-     *     sound?: bool,
-     *     badge?: int,
-     *     data?: array<string, mixed>,
-     *     subtitle?: string,
-     *     image?: string,
-     *     bigText?: string,
-     *     actions?: array<int, array{id: string, title: string, destructive?: bool, input?: bool}>,
-     * }  $options
+     * @param  NotificationOptions|array<string, mixed>  $options
      * @return array<string, mixed>
      */
-    public function schedule(array $options): array
+    public function schedule(NotificationOptions|array $options): array
     {
-        if (isset($options['repeat']) && $options['repeat'] instanceof RepeatInterval) {
-            $options['repeat'] = $options['repeat']->value;
-        }
+        $data = $options instanceof NotificationOptions
+            ? $options->toArray()
+            : $this->normalizeOptions($options);
 
-        return $this->call('LocalNotifications.Schedule', $options);
+        return $this->call('LocalNotifications.Schedule', $data);
     }
 
     /**
@@ -86,20 +74,38 @@ class LocalNotifications
     }
 
     /**
+     * Normalize a raw options array, converting enum values to strings.
+     *
+     * @param  array<string, mixed>  $options
+     * @return array<string, mixed>
+     */
+    protected function normalizeOptions(array $options): array
+    {
+        if (isset($options['repeat']) && $options['repeat'] instanceof RepeatInterval) {
+            $options['repeat'] = $options['repeat']->value;
+        }
+
+        return $options;
+    }
+
+    /**
      * Make a bridge call to the native layer.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    private function call(string $function, array $data = []): array
+    protected function call(string $function, array $data = []): array
     {
-        if (function_exists('nativephp_call')) {
-            $result = nativephp_call($function, json_encode($data));
-            if ($result) {
-                return json_decode($result, true) ?? [];
-            }
+        if (! function_exists('nativephp_call')) {
+            return [];
         }
 
-        return [];
+        $result = nativephp_call($function, json_encode($data));
+
+        if (! $result) {
+            return [];
+        }
+
+        return json_decode($result, true) ?? [];
     }
 }
