@@ -7,5 +7,6 @@ use Illuminate\Queue\SerializesModels;
 
 class PermissionGranted
 {
-    use Dispatchable, SerializesModels;
+    use Dispatchable;
+    use SerializesModels;
 }

@@ -15,6 +15,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Calendar
 
 /**
  * BroadcastReceiver that fires local notifications when the AlarmManager triggers.
@@ -31,6 +32,11 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         val id = intent.getStringExtra("notification_id") ?: return
         val title = intent.getStringExtra("title") ?: return
         val body = intent.getStringExtra("body") ?: return
+
+        // Extend the BroadcastReceiver lifetime so image downloads
+        // and rescheduling can complete without the system killing us.
+        val pendingResult = goAsync()
+        try {
         val sound = intent.getBooleanExtra("sound", true)
         val channelId = intent.getStringExtra("channel_id") ?: LocalNotificationsFunctions.CHANNEL_ID
         val dataJson = intent.getStringExtra("data")
@@ -105,7 +111,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         if (actionsJson != null) {
             try {
                 val actions = JSONArray(actionsJson)
-                for (i in 0 until minOf(actions.length(), 3)) {
+                for (i in 0 until minOf(actions.length(), LocalNotificationsFunctions.MAX_ACTIONS)) {
                     val action = actions.getJSONObject(i)
                     val actionId = action.getString("id")
                     val actionTitle = action.getString("title")
@@ -165,8 +171,20 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         }
 
         val repeatMs = intent.getLongExtra("repeat_ms", 0L)
+        val repeatType = intent.getStringExtra("repeat_type")
+        val remainingCount = if (intent.hasExtra("remaining_count")) intent.getIntExtra("remaining_count", 0) else -1
         if (repeatMs == 0L) {
             // Clean up non-repeating notifications from storage
+            val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
+            val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+            ids.remove(id)
+            prefs.edit()
+                .putStringSet("notification_ids", ids)
+                .remove("notification_$id")
+                .apply()
+        } else if (remainingCount == 1) {
+            // Last repetition reached — do not reschedule, clean up
+            Log.d(TAG, "Repeat count exhausted for: $id")
             val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
             val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
             ids.remove(id)
@@ -177,12 +195,18 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         } else {
             // Self-reschedule the next occurrence for repeating notifications.
             // This replaces setRepeating() which is unreliable on modern Android.
-            rescheduleNext(context, id, title, body, sound, channelId, repeatMs, dataJson, subtitle, imageUrl, bigText, actionsJson)
+            val nextCount = if (remainingCount > 1) remainingCount - 1 else -1
+            rescheduleNext(context, id, title, body, sound, channelId, repeatMs, repeatType, dataJson, subtitle, imageUrl, bigText, actionsJson, nextCount)
+        }
+        } finally {
+            pendingResult.finish()
         }
     }
 
     /**
      * Reschedule the next occurrence of a repeating notification using setExactAndAllowWhileIdle.
+     * For monthly/yearly repeats, uses Calendar-based calculation to handle variable month
+     * lengths and leap years. For fixed intervals, adds repeatMs to the current time.
      */
     private fun rescheduleNext(
         context: Context,
@@ -192,13 +216,22 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         sound: Boolean,
         channelId: String,
         repeatMs: Long,
+        repeatType: String?,
         dataJson: String?,
         subtitle: String?,
         imageUrl: String?,
         bigText: String?,
-        actionsJson: String?
+        actionsJson: String?,
+        remainingCount: Int = -1
     ) {
-        val nextTriggerMs = System.currentTimeMillis() + repeatMs
+        // For calendar-based repeats (monthly/yearly), use Calendar to compute
+        // the next trigger. For fixed intervals, simply add repeatMs.
+        val now = System.currentTimeMillis()
+        val nextTriggerMs = if (repeatType == "monthly" || repeatType == "yearly") {
+            LocalNotificationsFunctions.calculateNextTrigger(repeatType, now)
+        } else {
+            now + repeatMs
+        }
 
         val rescheduleIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
             action = "com.ikromjon.localnotifications.NOTIFY"
@@ -208,6 +241,8 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             putExtra("sound", sound)
             putExtra("channel_id", channelId)
             putExtra("repeat_ms", repeatMs)
+            if (repeatType != null) putExtra("repeat_type", repeatType)
+            if (remainingCount > 0) putExtra("remaining_count", remainingCount)
             if (dataJson != null) putExtra("data", dataJson)
             if (subtitle != null) putExtra("subtitle", subtitle)
             if (imageUrl != null) putExtra("image", imageUrl)
@@ -229,12 +264,17 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             pendingIntent
         )
 
-        // Update the stored trigger time for boot restoration and getPending()
+        // Update the stored trigger time and remaining count for boot restoration and getPending()
         val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
         val infoJson = prefs.getString("notification_$id", null)
         if (infoJson != null) {
             val info = JSONObject(infoJson)
             info.put("triggerTimeMs", nextTriggerMs)
+            if (remainingCount > 0) {
+                info.put("remainingCount", remainingCount)
+            } else {
+                info.remove("remainingCount")
+            }
             prefs.edit().putString("notification_$id", info.toString()).apply()
         }
 
@@ -243,10 +283,16 @@ class LocalNotificationReceiver : BroadcastReceiver() {
 
     /**
      * Downloads an image from a URL. Returns null on failure.
+     * Only allows http:// and https:// schemes to prevent SSRF via file:// or other schemes.
      */
     private fun downloadImage(urlString: String): Bitmap? {
         return try {
             val url = URL(urlString)
+            val scheme = url.protocol.lowercase()
+            if (scheme != "http" && scheme != "https") {
+                Log.w(TAG, "Rejected image URL with unsupported scheme: $scheme")
+                return null
+            }
             val connection = url.openConnection() as HttpURLConnection
             connection.connectTimeout = 10_000
             connection.readTimeout = 10_000

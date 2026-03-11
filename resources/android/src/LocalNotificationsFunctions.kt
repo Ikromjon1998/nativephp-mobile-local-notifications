@@ -17,6 +17,7 @@ import com.nativephp.mobile.utils.NativeActionCoordinator
 import org.json.JSONArray
 import org.json.JSONObject
 import java.lang.ref.WeakReference
+import java.util.Calendar
 
 /**
  * Functions related to local notification operations
@@ -29,6 +30,10 @@ object LocalNotificationsFunctions {
     private const val CHANNEL_NAME = "Local Notifications"
     const val PREFS_NAME = "nativephp_local_notifications_prefs"
     private const val PENDING_EVENTS_KEY = "pending_events"
+    /** Maximum number of action buttons per notification (platform limit). */
+    const val MAX_ACTIONS = 3
+    /** Lock object for thread-safe SharedPreferences access. */
+    private val prefsLock = Any()
 
     /** Holds a weak reference to the current activity for event dispatch. */
     object ActivityHolder {
@@ -80,18 +85,20 @@ object LocalNotificationsFunctions {
      * Events are stored as a JSON array queue to prevent overwrites.
      */
     fun storePendingEvent(context: Context, eventClass: String, payload: JSONObject) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val existing = prefs.getString(PENDING_EVENTS_KEY, null)
-        val queue = if (existing != null) JSONArray(existing) else JSONArray()
+        synchronized(prefsLock) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val existing = prefs.getString(PENDING_EVENTS_KEY, null)
+            val queue = if (existing != null) JSONArray(existing) else JSONArray()
 
-        val entry = JSONObject().apply {
-            put("event", eventClass)
-            put("payload", payload)
+            val entry = JSONObject().apply {
+                put("event", eventClass)
+                put("payload", payload)
+            }
+            queue.put(entry)
+
+            prefs.edit().putString(PENDING_EVENTS_KEY, queue.toString()).apply()
+            Log.d(TAG, "Stored pending event ($eventClass), queue size: ${queue.length()}")
         }
-        queue.put(entry)
-
-        prefs.edit().putString(PENDING_EVENTS_KEY, queue.toString()).apply()
-        Log.d(TAG, "Stored pending event ($eventClass), queue size: ${queue.length()}")
     }
 
     /**
@@ -134,6 +141,7 @@ object LocalNotificationsFunctions {
             val delay = (parameters["delay"] as? Number)?.toLong()
             val atTimestamp = (parameters["at"] as? Number)?.toLong()
             val repeatInterval = parameters["repeat"] as? String
+            val repeatIntervalSeconds = (parameters["repeatIntervalSeconds"] as? Number)?.toLong()
             val sound = parameters["sound"] as? Boolean ?: true
             val badge = (parameters["badge"] as? Number)?.toInt()
             val data = parameters["data"] as? Map<*, *>
@@ -142,85 +150,103 @@ object LocalNotificationsFunctions {
             val bigText = parameters["bigText"] as? String
             val actions = parameters["actions"] as? List<*>
 
+            val repeatDaysList = (parameters["repeatDays"] as? List<*>)?.mapNotNull {
+                (it as? Number)?.toInt()
+            }?.filter { it in 1..7 }
+            val repeatCount = (parameters["repeatCount"] as? Number)?.toInt()
+
             val context = activity as Context
             ensureNotificationChannel(context)
 
             return try {
-                // Calculate trigger time
-                val triggerTimeMs = when {
-                    delay != null && delay > 0 -> System.currentTimeMillis() + (delay * 1000)
-                    atTimestamp != null -> atTimestamp * 1000
-                    else -> System.currentTimeMillis() + 1000 // fire in 1 second
-                }
-
-                // Calculate repeat interval in ms
-                val repeatMs = when (repeatInterval) {
-                    "minute" -> 60_000L
-                    "hourly" -> 3_600_000L
-                    "daily" -> AlarmManager.INTERVAL_DAY
-                    "weekly" -> AlarmManager.INTERVAL_DAY * 7
-                    else -> 0L
-                }
-
-                // Create intent for the alarm receiver
-                val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
-                    action = "com.ikromjon.localnotifications.NOTIFY"
-                    putExtra("notification_id", id)
-                    putExtra("title", title)
-                    putExtra("body", body)
-                    putExtra("sound", sound)
-                    putExtra("channel_id", CHANNEL_ID)
-                    if (badge != null) putExtra("badge", badge)
-                    if (repeatMs > 0) putExtra("repeat_ms", repeatMs)
-                    if (data != null) {
-                        val dataJson = JSONObject(data.mapKeys { it.key.toString() }).toString()
-                        putExtra("data", dataJson)
+                // Day-of-week scheduling: create one sub-alarm per day
+                if (repeatDaysList != null && repeatDaysList.isNotEmpty() && atTimestamp != null) {
+                    val baseDate = Calendar.getInstance().apply {
+                        timeInMillis = atTimestamp * 1000
                     }
-                    if (subtitle != null) putExtra("subtitle", subtitle)
-                    if (imageUrl != null) putExtra("image", imageUrl)
-                    if (bigText != null) putExtra("big_text", bigText)
-                    if (actions != null) {
-                        putExtra("actions", serializeActions(actions).toString())
+                    val subIds = mutableListOf<String>()
+
+                    for (isoDay in repeatDaysList) {
+                        val subId = "${id}_day_$isoDay"
+                        subIds.add(subId)
+
+                        // Convert ISO day (1=Mon..7=Sun) to Java Calendar day (1=Sun..7=Sat)
+                        val calDay = if (isoDay == 7) Calendar.SUNDAY else isoDay + 1
+
+                        val triggerCal = Calendar.getInstance().apply {
+                            set(Calendar.HOUR_OF_DAY, baseDate.get(Calendar.HOUR_OF_DAY))
+                            set(Calendar.MINUTE, baseDate.get(Calendar.MINUTE))
+                            set(Calendar.SECOND, baseDate.get(Calendar.SECOND))
+                            set(Calendar.MILLISECOND, 0)
+                            set(Calendar.DAY_OF_WEEK, calDay)
+                            // If the calculated time is in the past, move to next week
+                            if (timeInMillis <= System.currentTimeMillis()) {
+                                add(Calendar.WEEK_OF_YEAR, 1)
+                            }
+                        }
+
+                        val triggerTimeMs = triggerCal.timeInMillis
+                        val weekMs = AlarmManager.INTERVAL_DAY * 7
+
+                        scheduleAlarm(context, subId, title, body, sound, badge, data, subtitle, imageUrl, bigText, actions, triggerTimeMs, weekMs, "weekly", repeatCount)
+                        saveNotificationInfo(context, subId, title, body, triggerTimeMs, weekMs, "weekly", sound, badge, data, subtitle, imageUrl, bigText, actions, repeatCount)
                     }
+
+                    // Save a parent entry that tracks the sub-IDs for cancel/getPending
+                    saveRepeatDaysParent(context, id, subIds)
+
+                    Log.d(TAG, "✅ Day-of-week notification scheduled: $id (${subIds.size} sub-alarms)")
+
+                    val payload = JSONObject().apply {
+                        put("id", id)
+                        put("title", title)
+                        put("body", body)
+                    }
+                    dispatchEvent(
+                        activity,
+                        "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled",
+                        payload.toString()
+                    )
+
+                    mapOf("success" to true, "id" to id)
+                } else {
+                    // Standard single-alarm scheduling
+                    val triggerTimeMs = when {
+                        delay != null && delay > 0 -> System.currentTimeMillis() + (delay * 1000)
+                        atTimestamp != null -> atTimestamp * 1000
+                        else -> System.currentTimeMillis() + 1000
+                    }
+
+                    val repeatMs = if (repeatIntervalSeconds != null && repeatIntervalSeconds >= 60 && repeatInterval == null) {
+                        repeatIntervalSeconds * 1000L
+                    } else when (repeatInterval) {
+                        "minute" -> 60_000L
+                        "hourly" -> 3_600_000L
+                        "daily" -> AlarmManager.INTERVAL_DAY
+                        "weekly" -> AlarmManager.INTERVAL_DAY * 7
+                        "monthly" -> -1L
+                        "yearly" -> -2L
+                        else -> 0L
+                    }
+
+                    scheduleAlarm(context, id, title, body, sound, badge, data, subtitle, imageUrl, bigText, actions, triggerTimeMs, repeatMs, repeatInterval, repeatCount)
+                    saveNotificationInfo(context, id, title, body, triggerTimeMs, repeatMs, repeatInterval, sound, badge, data, subtitle, imageUrl, bigText, actions, repeatCount)
+
+                    Log.d(TAG, "✅ Notification scheduled: $id at $triggerTimeMs")
+
+                    val payload = JSONObject().apply {
+                        put("id", id)
+                        put("title", title)
+                        put("body", body)
+                    }
+                    dispatchEvent(
+                        activity,
+                        "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled",
+                        payload.toString()
+                    )
+
+                    mapOf("success" to true, "id" to id)
                 }
-
-                val requestCode = id.hashCode()
-                val pendingIntent = PendingIntent.getBroadcast(
-                    context,
-                    requestCode,
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-
-                val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-
-                // Always use exact alarms for reliable delivery.
-                // For repeating notifications, the LocalNotificationReceiver
-                // will reschedule the next occurrence after each delivery.
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerTimeMs,
-                    pendingIntent
-                )
-
-                // Persist notification info for getPending and boot restoration
-                saveNotificationInfo(context, id, title, body, triggerTimeMs, repeatMs, sound, badge, data, subtitle, imageUrl, bigText, actions)
-
-                Log.d(TAG, "✅ Notification scheduled: $id at $triggerTimeMs")
-
-                // Fire event
-                val payload = JSONObject().apply {
-                    put("id", id)
-                    put("title", title)
-                    put("body", body)
-                }
-                dispatchEvent(
-                    activity,
-                    "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled",
-                    payload.toString()
-                )
-
-                mapOf("success" to true, "id" to id)
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error scheduling notification: ${e.message}", e)
                 mapOf("success" to false, "error" to (e.message ?: "Unknown error"))
@@ -229,7 +255,66 @@ object LocalNotificationsFunctions {
     }
 
     /**
-     * Cancel a scheduled notification by identifier
+     * Schedule a single alarm with the given parameters.
+     */
+    private fun scheduleAlarm(
+        context: Context,
+        id: String,
+        title: String,
+        body: String,
+        sound: Boolean,
+        badge: Int?,
+        data: Map<*, *>?,
+        subtitle: String?,
+        imageUrl: String?,
+        bigText: String?,
+        actions: List<*>?,
+        triggerTimeMs: Long,
+        repeatMs: Long,
+        repeatType: String?,
+        repeatCount: Int? = null
+    ) {
+        val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
+            action = "com.ikromjon.localnotifications.NOTIFY"
+            putExtra("notification_id", id)
+            putExtra("title", title)
+            putExtra("body", body)
+            putExtra("sound", sound)
+            putExtra("channel_id", CHANNEL_ID)
+            if (badge != null) putExtra("badge", badge)
+            if (repeatMs != 0L) putExtra("repeat_ms", repeatMs)
+            if (repeatType != null) putExtra("repeat_type", repeatType)
+            if (repeatCount != null) putExtra("remaining_count", repeatCount)
+            if (data != null) {
+                val dataJson = JSONObject(data.mapKeys { it.key.toString() }).toString()
+                putExtra("data", dataJson)
+            }
+            if (subtitle != null) putExtra("subtitle", subtitle)
+            if (imageUrl != null) putExtra("image", imageUrl)
+            if (bigText != null) putExtra("big_text", bigText)
+            if (actions != null) {
+                putExtra("actions", serializeActions(actions).toString())
+            }
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            id.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarmManager.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            triggerTimeMs,
+            pendingIntent
+        )
+    }
+
+    /**
+     * Cancel a scheduled notification by identifier.
+     * If the ID is a repeatDays parent, cancels all sub-alarms.
      */
     class Cancel(private val context: Context) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
@@ -237,34 +322,48 @@ object LocalNotificationsFunctions {
                 ?: return mapOf("success" to false, "error" to "Missing required parameter: id")
 
             return try {
-                val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
-                    action = "com.ikromjon.localnotifications.NOTIFY"
+                // Check if this is a repeatDays parent with sub-IDs
+                val subIds = getRepeatDaysSubIds(context, id)
+                if (subIds != null) {
+                    // Cancel all sub-alarms
+                    for (subId in subIds) {
+                        cancelSingleAlarm(context, subId)
+                        removeNotificationInfo(context, subId)
+                    }
+                    removeRepeatDaysParent(context, id)
+                    Log.d(TAG, "✅ Day-of-week notification cancelled: $id (${subIds.size} sub-alarms)")
+                } else {
+                    // Cancel single alarm
+                    cancelSingleAlarm(context, id)
+                    removeNotificationInfo(context, id)
+                    Log.d(TAG, "✅ Notification cancelled: $id")
                 }
-                val requestCode = id.hashCode()
-                val pendingIntent = PendingIntent.getBroadcast(
-                    context,
-                    requestCode,
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
 
-                val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-                alarmManager.cancel(pendingIntent)
-                pendingIntent.cancel()
-
-                // Remove from persisted storage
-                removeNotificationInfo(context, id)
-
-                // Cancel any delivered notification
-                val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                notificationManager.cancel(requestCode)
-
-                Log.d(TAG, "✅ Notification cancelled: $id")
                 mapOf("success" to true, "id" to id)
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error cancelling notification: ${e.message}", e)
                 mapOf("success" to false, "error" to (e.message ?: "Unknown error"))
             }
+        }
+
+        private fun cancelSingleAlarm(context: Context, id: String) {
+            val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
+                action = "com.ikromjon.localnotifications.NOTIFY"
+            }
+            val requestCode = id.hashCode()
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            alarmManager.cancel(pendingIntent)
+            pendingIntent.cancel()
+
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.cancel(requestCode)
         }
     }
 
@@ -310,7 +409,8 @@ object LocalNotificationsFunctions {
     }
 
     /**
-     * Get all pending scheduled notifications
+     * Get all pending scheduled notifications.
+     * repeatDays sub-alarms are aggregated back into a single parent entry.
      */
     class GetPending(private val context: Context) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
@@ -318,11 +418,44 @@ object LocalNotificationsFunctions {
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val allIds = prefs.getStringSet("notification_ids", emptySet()) ?: emptySet()
 
+                // Collect sub-IDs that belong to a parent so we can skip them
+                val parentIds = prefs.getStringSet("repeat_days_parent_ids", emptySet()) ?: emptySet()
+                val subIdSet = mutableSetOf<String>()
+                for (parentId in parentIds) {
+                    val subIds = getRepeatDaysSubIds(context, parentId)
+                    if (subIds != null) {
+                        subIdSet.addAll(subIds)
+                    }
+                }
+
                 val notifications = JSONArray()
+
+                // Add non-sub-ID notifications
                 for (id in allIds) {
+                    if (id in subIdSet) continue
                     val infoJson = prefs.getString("notification_$id", null) ?: continue
                     val info = JSONObject(infoJson)
                     notifications.put(info)
+                }
+
+                // Add aggregated parent entries for repeatDays
+                for (parentId in parentIds) {
+                    val subIds = getRepeatDaysSubIds(context, parentId) ?: continue
+                    // Use the first sub-alarm's info as the base, add repeatDays metadata
+                    val firstSubId = subIds.firstOrNull() ?: continue
+                    val firstInfoJson = prefs.getString("notification_$firstSubId", null) ?: continue
+                    val parentInfo = JSONObject(firstInfoJson)
+                    parentInfo.put("id", parentId)
+
+                    // Collect the days from sub-IDs
+                    val days = JSONArray()
+                    for (subId in subIds) {
+                        val dayStr = subId.substringAfterLast("_day_")
+                        days.put(dayStr.toIntOrNull() ?: continue)
+                    }
+                    parentInfo.put("repeatDays", days)
+
+                    notifications.put(parentInfo)
                 }
 
                 mapOf(
@@ -424,7 +557,7 @@ object LocalNotificationsFunctions {
      */
     private fun serializeActions(actions: List<*>): JSONArray {
         val actionsJson = JSONArray()
-        for (action in actions.take(3)) {
+        for (action in actions.take(MAX_ACTIONS)) {
             val actionMap = action as? Map<*, *> ?: continue
             actionsJson.put(JSONObject().apply {
                 put("id", actionMap["id"]?.toString() ?: "")
@@ -443,49 +576,107 @@ object LocalNotificationsFunctions {
         body: String,
         triggerTimeMs: Long,
         repeatMs: Long,
+        repeatType: String? = null,
         sound: Boolean,
         badge: Int?,
         data: Map<*, *>?,
         subtitle: String? = null,
         imageUrl: String? = null,
         bigText: String? = null,
-        actions: List<*>? = null
+        actions: List<*>? = null,
+        remainingCount: Int? = null
     ) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-        ids.add(id)
+        synchronized(prefsLock) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+            ids.add(id)
 
-        val info = JSONObject().apply {
-            put("id", id)
-            put("title", title)
-            put("body", body)
-            put("triggerTimeMs", triggerTimeMs)
-            put("repeatMs", repeatMs)
-            put("sound", sound)
-            if (badge != null) put("badge", badge)
-            if (data != null) put("data", JSONObject(data.mapKeys { it.key.toString() }))
-            if (subtitle != null) put("subtitle", subtitle)
-            if (imageUrl != null) put("image", imageUrl)
-            if (bigText != null) put("bigText", bigText)
-            if (actions != null) {
-                put("actions", serializeActions(actions))
+            val info = JSONObject().apply {
+                put("id", id)
+                put("title", title)
+                put("body", body)
+                put("triggerTimeMs", triggerTimeMs)
+                put("repeatMs", repeatMs)
+                if (repeatType != null) put("repeatType", repeatType)
+                if (remainingCount != null) put("remainingCount", remainingCount)
+                put("sound", sound)
+                if (badge != null) put("badge", badge)
+                if (data != null) put("data", JSONObject(data.mapKeys { it.key.toString() }))
+                if (subtitle != null) put("subtitle", subtitle)
+                if (imageUrl != null) put("image", imageUrl)
+                if (bigText != null) put("bigText", bigText)
+                if (actions != null) {
+                    put("actions", serializeActions(actions))
+                }
             }
+
+            prefs.edit()
+                .putStringSet("notification_ids", ids)
+                .putString("notification_$id", info.toString())
+                .apply()
         }
+    }
+
+    /**
+     * Calculate the next trigger time for calendar-based repeat types (monthly/yearly).
+     * Handles variable month lengths and leap years.
+     */
+    fun calculateNextTrigger(repeatType: String, currentTriggerMs: Long): Long {
+        val cal = Calendar.getInstance().apply { timeInMillis = currentTriggerMs }
+        when (repeatType) {
+            "monthly" -> cal.add(Calendar.MONTH, 1)
+            "yearly" -> cal.add(Calendar.YEAR, 1)
+        }
+        return cal.timeInMillis
+    }
+
+    /**
+     * Save a parent entry that maps a logical notification ID to its day-of-week sub-IDs.
+     * Used by Cancel and GetPending to aggregate sub-alarms.
+     */
+    private fun saveRepeatDaysParent(context: Context, parentId: String, subIds: List<String>) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val parentIds = prefs.getStringSet("repeat_days_parent_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+        parentIds.add(parentId)
+
+        val subIdsArray = JSONArray(subIds)
+        prefs.edit()
+            .putStringSet("repeat_days_parent_ids", parentIds)
+            .putString("repeat_days_$parentId", subIdsArray.toString())
+            .apply()
+    }
+
+    /**
+     * Get the sub-IDs for a repeatDays parent, or null if this is not a parent ID.
+     */
+    fun getRepeatDaysSubIds(context: Context, parentId: String): List<String>? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val json = prefs.getString("repeat_days_$parentId", null) ?: return null
+        val arr = JSONArray(json)
+        return (0 until arr.length()).map { arr.getString(it) }
+    }
+
+    private fun removeRepeatDaysParent(context: Context, parentId: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val parentIds = prefs.getStringSet("repeat_days_parent_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+        parentIds.remove(parentId)
 
         prefs.edit()
-            .putStringSet("notification_ids", ids)
-            .putString("notification_$id", info.toString())
+            .putStringSet("repeat_days_parent_ids", parentIds)
+            .remove("repeat_days_$parentId")
             .apply()
     }
 
     private fun removeNotificationInfo(context: Context, id: String) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-        ids.remove(id)
+        synchronized(prefsLock) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+            ids.remove(id)
 
-        prefs.edit()
-            .putStringSet("notification_ids", ids)
-            .remove("notification_$id")
-            .apply()
+            prefs.edit()
+                .putStringSet("notification_ids", ids)
+                .remove("notification_$id")
+                .apply()
+        }
     }
 }

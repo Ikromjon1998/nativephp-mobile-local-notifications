@@ -1,14 +1,14 @@
 <?php
 
-use Ikromjon\LocalNotifications\Events\NotificationScheduled;
-use Ikromjon\LocalNotifications\Events\NotificationReceived;
-use Ikromjon\LocalNotifications\Events\NotificationTapped;
-use Ikromjon\LocalNotifications\Events\PermissionGranted;
-use Ikromjon\LocalNotifications\Events\PermissionDenied;
 use Ikromjon\LocalNotifications\Events\NotificationActionPressed;
+use Ikromjon\LocalNotifications\Events\NotificationReceived;
+use Ikromjon\LocalNotifications\Events\NotificationScheduled;
+use Ikromjon\LocalNotifications\Events\NotificationTapped;
+use Ikromjon\LocalNotifications\Events\PermissionDenied;
+use Ikromjon\LocalNotifications\Events\PermissionGranted;
 
-describe('NotificationScheduled', function () {
-    it('stores id, title, and body', function () {
+describe('NotificationScheduled', function (): void {
+    it('stores id, title, and body', function (): void {
         $event = new NotificationScheduled(
             id: 'test-id',
             title: 'Test Title',
@@ -20,7 +20,7 @@ describe('NotificationScheduled', function () {
             ->and($event->body)->toBe('Test Body');
     });
 
-    it('has readonly properties', function () {
+    it('has readonly properties', function (): void {
         $event = new NotificationScheduled('id', 'title', 'body');
 
         $reflection = new ReflectionClass($event);
@@ -31,8 +31,8 @@ describe('NotificationScheduled', function () {
     });
 });
 
-describe('NotificationReceived', function () {
-    it('stores id, title, body, and data', function () {
+describe('NotificationReceived', function (): void {
+    it('stores id, title, body, and data', function (): void {
         $event = new NotificationReceived(
             id: 'recv-id',
             title: 'Received Title',
@@ -46,15 +46,15 @@ describe('NotificationReceived', function () {
             ->and($event->data)->toBe(['key' => 'value']);
     });
 
-    it('defaults data to null', function () {
+    it('defaults data to null', function (): void {
         $event = new NotificationReceived('id', 'title', 'body');
 
         expect($event->data)->toBeNull();
     });
 });
 
-describe('NotificationTapped', function () {
-    it('stores id, title, body, and data', function () {
+describe('NotificationTapped', function (): void {
+    it('stores id, title, body, and data', function (): void {
         $event = new NotificationTapped(
             id: 'tap-id',
             title: 'Tapped Title',
@@ -68,31 +68,31 @@ describe('NotificationTapped', function () {
             ->and($event->data)->toBe(['task_id' => 42]);
     });
 
-    it('defaults data to null', function () {
+    it('defaults data to null', function (): void {
         $event = new NotificationTapped('id', 'title', 'body');
 
         expect($event->data)->toBeNull();
     });
 });
 
-describe('PermissionGranted', function () {
-    it('can be instantiated with no arguments', function () {
+describe('PermissionGranted', function (): void {
+    it('can be instantiated with no arguments', function (): void {
         $event = new PermissionGranted;
 
         expect($event)->toBeInstanceOf(PermissionGranted::class);
     });
 });
 
-describe('PermissionDenied', function () {
-    it('can be instantiated with no arguments', function () {
+describe('PermissionDenied', function (): void {
+    it('can be instantiated with no arguments', function (): void {
         $event = new PermissionDenied;
 
         expect($event)->toBeInstanceOf(PermissionDenied::class);
     });
 });
 
-describe('NotificationActionPressed', function () {
-    it('stores notificationId, actionId, data, and inputText', function () {
+describe('NotificationActionPressed', function (): void {
+    it('stores notificationId, actionId, data, and inputText', function (): void {
         $event = new NotificationActionPressed(
             notificationId: 'notif-1',
             actionId: 'reply',
@@ -106,7 +106,7 @@ describe('NotificationActionPressed', function () {
             ->and($event->inputText)->toBe('Hello!');
     });
 
-    it('defaults data and inputText to null', function () {
+    it('defaults data and inputText to null', function (): void {
         $event = new NotificationActionPressed('notif-1', 'snooze');
 
         expect($event->data)->toBeNull()

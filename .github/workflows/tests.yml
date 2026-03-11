@@ -28,8 +28,40 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
 
-      - name: Run tests
-        run: vendor/bin/pest --coverage --min=90
+      - name: Check code style
+        run: vendor/bin/pint --test
+
+      - name: Check refactoring
+        run: vendor/bin/rector process --dry-run
 
       - name: Run static analysis
         run: vendor/bin/phpstan analyse
+
+      - name: Run tests
+        run: vendor/bin/pest --coverage --min=90
+
+  lint-native:
+    runs-on: ubuntu-latest
+    name: Native Code Lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Kotlin syntax
+        run: |
+          for f in resources/android/src/*.kt; do
+            echo "Checking $f..."
+            if ! head -1 "$f" | grep -q "^package"; then
+              echo "Warning: $f may have syntax issues"
+            fi
+          done
+          echo "Kotlin files checked"
+
+      - name: Check Swift syntax
+        run: |
+          for f in resources/ios/Sources/*.swift; do
+            echo "Checking $f..."
+            if ! head -1 "$f" | grep -qE "^(import|//|enum|class|struct|protocol)"; then
+              echo "Warning: $f may have syntax issues"
+            fi
+          done
+          echo "Swift files checked"

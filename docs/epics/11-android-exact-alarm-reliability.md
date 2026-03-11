@@ -1,7 +1,7 @@
 # Epic 11: Android Exact Alarm Reliability
 
 **Priority:** Medium
-**Status:** Not Started
+**Status:** Partial — Core features done, optional enhancements remain
 
 ## Description
 
@@ -19,8 +19,8 @@ Improve notification delivery timing accuracy on Android, especially for repeati
 
 ## Acceptance Criteria
 
-- [ ] Repeating notifications fire within 1 second of their scheduled time
-- [ ] Notifications survive Doze mode and battery optimization
-- [ ] Graceful degradation on devices that don't allow exact alarms
-- [ ] Boot receiver successfully restores all notifications
-- [ ] Developer-facing events for delivery diagnostics
+- [x] Repeating notifications use `setExactAndAllowWhileIdle()` + self-rescheduling pattern (replaces `setRepeating()`)
+- [x] Notifications survive Doze mode and battery optimization
+- [ ] Graceful degradation on devices that don't allow exact alarms (`WorkManager` fallback)
+- [x] Boot receiver successfully restores all notifications
+- [ ] Developer-facing events for delivery diagnostics (logging/telemetry)

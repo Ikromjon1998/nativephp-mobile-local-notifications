@@ -26,7 +26,22 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     ) {
         let content = notification.request.content
         let userInfo = content.userInfo
-        let id = userInfo["notification_id"] as? String ?? notification.request.identifier
+        let requestId = notification.request.identifier
+        let id = userInfo["notification_id"] as? String ?? requestId
+
+        // Check and decrement repeat count
+        let remainingKey = "notif_remaining_\(requestId)"
+        let defaults = UserDefaults.standard
+        let remaining = defaults.integer(forKey: remainingKey)
+        if remaining > 0 {
+            if remaining <= 1 {
+                // Last repetition — remove the pending notification and clean up
+                center.removePendingNotificationRequests(withIdentifiers: [requestId])
+                defaults.removeObject(forKey: remainingKey)
+            } else {
+                defaults.set(remaining - 1, forKey: remainingKey)
+            }
+        }
 
         let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationReceived"
         var payload: [String: Any] = ["id": id, "title": content.title, "body": content.body]
@@ -50,8 +65,22 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     ) {
         let content = response.notification.request.content
         let userInfo = content.userInfo
-        let id = userInfo["notification_id"] as? String ?? response.notification.request.identifier
+        let requestId = response.notification.request.identifier
+        let id = userInfo["notification_id"] as? String ?? requestId
         let customData = extractCustomData(from: userInfo)
+
+        // Decrement repeat count for background-delivered notifications
+        let remainingKey = "notif_remaining_\(requestId)"
+        let defaults = UserDefaults.standard
+        let remaining = defaults.integer(forKey: remainingKey)
+        if remaining > 0 {
+            if remaining <= 1 {
+                center.removePendingNotificationRequests(withIdentifiers: [requestId])
+                defaults.removeObject(forKey: remainingKey)
+            } else {
+                defaults.set(remaining - 1, forKey: remainingKey)
+            }
+        }
 
         if response.actionIdentifier == UNNotificationDefaultActionIdentifier
             || response.actionIdentifier == UNNotificationDismissActionIdentifier {
@@ -100,23 +129,29 @@ enum LocalNotificationsFunctions {
 
     // MARK: - LocalNotifications.Schedule
 
-    /// Schedule a local notification
+    /// Schedule a local notification.
+    ///
     /// Parameters:
     ///   - id: string - Unique identifier for this notification
     ///   - title: string - Notification title
     ///   - body: string - Notification body text
     ///   - delay: (optional) int - Delay in seconds from now
     ///   - at: (optional) int - Unix timestamp to fire at
-    ///   - repeat: (optional) string - Repeat interval: "minute", "hourly", "daily", "weekly"
+    ///   - repeat: (optional) string - Repeat interval: "minute", "hourly", "daily", "weekly", "monthly", "yearly"
+    ///   - repeatIntervalSeconds: (optional) int - Custom repeat interval in seconds (min 60, mutually exclusive with repeat)
+    ///   - repeatDays: (optional) [int] - Days of week (1=Mon..7=Sun). Requires `at`. Mutually exclusive with repeat
+    ///   - repeatCount: (optional) int - Limit repetitions (min 1). Requires a repeat mechanism
     ///   - sound: (optional) boolean - Play sound (default: true)
     ///   - badge: (optional) int - Badge number to set on app icon
     ///   - data: (optional) object - Custom data to attach to the notification
     ///   - subtitle: (optional) string - Notification subtitle
-    ///   - image: (optional) string - URL of an image to attach
+    ///   - image: (optional) string - URL of an image to attach (http/https only)
     ///   - bigText: (optional) string - Expanded body text
     ///   - actions: (optional) array - Action buttons [{id, title, destructive?, input?}] (max 3)
+    ///
     /// Returns:
     ///   - success: boolean
+    ///
     /// Events:
     ///   - Fires NotificationScheduled when notification is successfully scheduled
     class Schedule: BridgeFunction {
@@ -138,6 +173,9 @@ enum LocalNotificationsFunctions {
             let badge = parameters["badge"] as? Int
             let data = parameters["data"] as? [String: Any]
             let repeatInterval = parameters["repeat"] as? String
+            let repeatIntervalSeconds = parameters["repeatIntervalSeconds"] as? Int
+            let repeatDays = parameters["repeatDays"] as? [Int]
+            let repeatCount = parameters["repeatCount"] as? Int
             let subtitle = parameters["subtitle"] as? String
             let imageUrl = parameters["image"] as? String
             let bigText = parameters["bigText"] as? String
@@ -216,19 +254,86 @@ enum LocalNotificationsFunctions {
                 content.categoryIdentifier = categoryId
             }
 
-            // Attach image if provided
-            if let imageUrl = imageUrl, let url = URL(string: imageUrl) {
+            // Attach image if provided (only http/https to prevent SSRF)
+            if let imageUrl = imageUrl, let url = URL(string: imageUrl),
+               let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
                 if let attachment = Self.downloadAndAttachImage(from: url) {
                     content.attachments = [attachment]
                 } else {
                     print("⚠️ Failed to download image, sending notification without image")
                 }
+            } else if imageUrl != nil {
+                print("⚠️ Rejected image URL with unsupported scheme, only http/https allowed")
+            }
+
+            // Day-of-week scheduling: create one request per day
+            if let days = repeatDays, !days.isEmpty, let timestamp = parameters["at"] as? Int {
+                let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+                let center = UNUserNotificationCenter.current()
+                let semaphore = DispatchSemaphore(value: 0)
+                var lastError: Error?
+
+                for isoDay in days {
+                    // Convert ISO day (1=Mon..7=Sun) to Apple weekday (1=Sun..7=Sat)
+                    let appleWeekday = isoDay == 7 ? 1 : isoDay + 1
+                    let subId = "\(id)_day_\(isoDay)"
+
+                    var dateComponents = Calendar.current.dateComponents(
+                        [.hour, .minute, .second],
+                        from: date
+                    )
+                    dateComponents.weekday = appleWeekday
+
+                    let trigger = UNCalendarNotificationTrigger(
+                        dateMatching: dateComponents,
+                        repeats: true
+                    )
+
+                    let request = UNNotificationRequest(
+                        identifier: subId,
+                        content: content,
+                        trigger: trigger
+                    )
+
+                    center.add(request) { error in
+                        if let error = error {
+                            lastError = error
+                        }
+                        semaphore.signal()
+                    }
+                    semaphore.wait()
+                }
+
+                if let error = lastError {
+                    return ["success": false, "error": error.localizedDescription]
+                }
+
+                // Store repeat count for each sub-ID
+                if let count = repeatCount, count >= 1 {
+                    let defaults = UserDefaults.standard
+                    for isoDay in days {
+                        let subId = "\(id)_day_\(isoDay)"
+                        defaults.set(count, forKey: "notif_remaining_\(subId)")
+                    }
+                }
+
+                let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled"
+                let payload: [String: Any] = ["id": id, "title": title, "body": body]
+                LaravelBridge.shared.send?(eventClass, payload)
+
+                return ["success": true, "id": id]
             }
 
             // Determine trigger
             var trigger: UNNotificationTrigger?
 
-            if let delay = parameters["delay"] as? Int, delay > 0 {
+            if let customSeconds = repeatIntervalSeconds, customSeconds >= 60, repeatInterval == nil {
+                // Custom repeat interval in seconds
+                trigger = UNTimeIntervalNotificationTrigger(
+                    timeInterval: TimeInterval(customSeconds),
+                    repeats: true
+                )
+            } else if let delay = parameters["delay"] as? Int, delay > 0 {
                 let repeats = repeatInterval != nil
                 trigger = UNTimeIntervalNotificationTrigger(
                     timeInterval: TimeInterval(delay),
@@ -253,6 +358,10 @@ enum LocalNotificationsFunctions {
                         dateComponents = Calendar.current.dateComponents([.hour, .minute, .second], from: date)
                     case "weekly":
                         dateComponents = Calendar.current.dateComponents([.weekday, .hour, .minute, .second], from: date)
+                    case "monthly":
+                        dateComponents = Calendar.current.dateComponents([.day, .hour, .minute, .second], from: date)
+                    case "yearly":
+                        dateComponents = Calendar.current.dateComponents([.month, .day, .hour, .minute, .second], from: date)
                     default:
                         repeats = false
                     }
@@ -285,6 +394,11 @@ enum LocalNotificationsFunctions {
                 } else {
                     print("✅ Notification scheduled: \(id)")
                     result = ["success": true, "id": id]
+
+                    // Store repeat count if provided
+                    if let count = repeatCount, count >= 1 {
+                        UserDefaults.standard.set(count, forKey: "notif_remaining_\(id)")
+                    }
 
                     let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled"
                     let payload: [String: Any] = ["id": id, "title": title, "body": body]
@@ -335,7 +449,9 @@ enum LocalNotificationsFunctions {
 
     // MARK: - LocalNotifications.Cancel
 
-    /// Cancel a scheduled notification by identifier
+    /// Cancel a scheduled notification by identifier.
+    /// If the ID has day-of-week sub-notifications (e.g. id_day_1, id_day_3),
+    /// those are cancelled too.
     /// Parameters:
     ///   - id: string - The notification identifier to cancel
     /// Returns:
@@ -347,8 +463,22 @@ enum LocalNotificationsFunctions {
             }
 
             let center = UNUserNotificationCenter.current()
+
+            // Cancel the direct ID
             center.removePendingNotificationRequests(withIdentifiers: [id])
             center.removeDeliveredNotifications(withIdentifiers: [id])
+
+            // Clean up repeat count
+            let defaults = UserDefaults.standard
+            defaults.removeObject(forKey: "notif_remaining_\(id)")
+
+            // Also cancel any day-of-week sub-IDs (id_day_1 through id_day_7)
+            let subIds = (1...7).map { "\(id)_day_\($0)" }
+            center.removePendingNotificationRequests(withIdentifiers: subIds)
+            center.removeDeliveredNotifications(withIdentifiers: subIds)
+            for subId in subIds {
+                defaults.removeObject(forKey: "notif_remaining_\(subId)")
+            }
 
             print("✅ Notification cancelled: \(id)")
             return ["success": true, "id": id]
@@ -373,9 +503,16 @@ enum LocalNotificationsFunctions {
 
     // MARK: - LocalNotifications.GetPending
 
-    /// Get all pending scheduled notifications
+    /// Get all pending scheduled notifications.
+    ///
+    /// Day-of-week sub-notifications (e.g. `id_day_1`, `id_day_3`) are aggregated
+    /// back into a single parent entry with a `repeatDays` array.
+    /// Includes `remainingCount` if the notification has a repeat count limit.
+    ///
     /// Returns:
+    ///   - success: boolean
     ///   - notifications: JSON string array of pending notifications
+    ///   - count: int - Number of pending notifications
     class GetPending: BridgeFunction {
         func execute(parameters: [String: Any]) throws -> [String: Any] {
             let center = UNUserNotificationCenter.current()
@@ -383,28 +520,78 @@ enum LocalNotificationsFunctions {
             var result: [String: Any] = [:]
 
             center.getPendingNotificationRequests { requests in
-                let notifications = requests.map { request -> [String: Any] in
+                // Separate sub-IDs (containing "_day_") from regular notifications
+                var regularNotifications: [[String: Any]] = []
+                // Group sub-IDs by parent: parentId -> [day numbers]
+                var dayGroups: [String: (request: UNNotificationRequest, days: [Int])] = [:]
+
+                let defaults = UserDefaults.standard
+
+                for request in requests {
+                    let id = request.identifier
+                    if let range = id.range(of: "_day_"), let day = Int(id[range.upperBound...]) {
+                        let parentId = String(id[..<range.lowerBound])
+                        if var group = dayGroups[parentId] {
+                            group.days.append(day)
+                            dayGroups[parentId] = group
+                        } else {
+                            dayGroups[parentId] = (request: request, days: [day])
+                        }
+                    } else {
+                        var notification: [String: Any] = [
+                            "id": id,
+                            "title": request.content.title,
+                            "body": request.content.body
+                        ]
+
+                        if let trigger = request.trigger as? UNCalendarNotificationTrigger {
+                            notification["repeats"] = trigger.repeats
+                            if let nextDate = trigger.nextTriggerDate() {
+                                notification["nextTriggerAt"] = Int(nextDate.timeIntervalSince1970)
+                            }
+                        } else if let trigger = request.trigger as? UNTimeIntervalNotificationTrigger {
+                            notification["repeats"] = trigger.repeats
+                            notification["timeInterval"] = Int(trigger.timeInterval)
+                            if let nextDate = trigger.nextTriggerDate() {
+                                notification["nextTriggerAt"] = Int(nextDate.timeIntervalSince1970)
+                            }
+                        }
+
+                        let remaining = defaults.integer(forKey: "notif_remaining_\(id)")
+                        if remaining > 0 {
+                            notification["remainingCount"] = remaining
+                        }
+
+                        regularNotifications.append(notification)
+                    }
+                }
+
+                // Add aggregated parent entries
+                for (parentId, group) in dayGroups {
                     var notification: [String: Any] = [
-                        "id": request.identifier,
-                        "title": request.content.title,
-                        "body": request.content.body
+                        "id": parentId,
+                        "title": group.request.content.title,
+                        "body": group.request.content.body,
+                        "repeats": true,
+                        "repeatDays": group.days.sorted()
                     ]
 
-                    if let trigger = request.trigger as? UNCalendarNotificationTrigger {
-                        notification["repeats"] = trigger.repeats
-                        if let nextDate = trigger.nextTriggerDate() {
-                            notification["nextTriggerAt"] = Int(nextDate.timeIntervalSince1970)
-                        }
-                    } else if let trigger = request.trigger as? UNTimeIntervalNotificationTrigger {
-                        notification["repeats"] = trigger.repeats
-                        notification["timeInterval"] = Int(trigger.timeInterval)
-                        if let nextDate = trigger.nextTriggerDate() {
-                            notification["nextTriggerAt"] = Int(nextDate.timeIntervalSince1970)
-                        }
+                    if let trigger = group.request.trigger as? UNCalendarNotificationTrigger,
+                       let nextDate = trigger.nextTriggerDate() {
+                        notification["nextTriggerAt"] = Int(nextDate.timeIntervalSince1970)
                     }
 
-                    return notification
+                    // Use the first sub-ID's remaining count as representative
+                    let firstSubId = "\(parentId)_day_\(group.days.sorted().first ?? 1)"
+                    let remaining = defaults.integer(forKey: "notif_remaining_\(firstSubId)")
+                    if remaining > 0 {
+                        notification["remainingCount"] = remaining
+                    }
+
+                    regularNotifications.append(notification)
                 }
+
+                let notifications = regularNotifications
 
                 do {
                     let jsonData = try JSONSerialization.data(withJSONObject: notifications, options: [])
