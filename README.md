@@ -15,9 +15,14 @@ Schedule, manage, and cancel local notifications in your NativePHP Mobile app �
 | **nativephp/mobile-firebase** | Push notifications from a server via FCM/APNs | Firebase project, server, internet |
 | **This plugin** | Local notifications scheduled on-device | Nothing — works offline |
 
-## What's New in v1.1.1
+## What's New in v1.2.0
 
-- **Fixed: Android repeating notifications** — Repeating notifications (`repeat: 'daily'`, `'hourly'`, etc.) now fire reliably on Android 12+ by using exact alarms with self-rescheduling instead of the unreliable `AlarmManager.setRepeating()` API
+- **Monthly & Yearly repeats** — `RepeatInterval::Monthly` and `RepeatInterval::Yearly` with proper calendar handling
+- **Custom repeat intervals** — `repeatIntervalSeconds` for any interval >= 60 seconds
+- **Day-of-week scheduling** — `repeatDays` to fire on specific weekdays (e.g. Mon/Wed/Fri)
+- **Repeat count limits** — `repeatCount` to stop after N repetitions
+- **Type-safe DTOs** — `NotificationOptions` and `NotificationAction` classes with validation
+- **Security hardening** — Image URL validation (http/https only), thread-safe SharedPreferences
 
 See the full [CHANGELOG](CHANGELOG.md) for details.
 

@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-03-11
+
+### Added
+
+- **Monthly & Yearly repeat intervals** — `RepeatInterval::Monthly` and `RepeatInterval::Yearly` enum cases. Android uses `Calendar.add()` for variable month lengths and leap years. iOS uses `UNCalendarNotificationTrigger` with appropriate date components ([Epic #5 Phase 1](docs/epics/05-custom-repeat-intervals.md))
+- **Custom repeat intervals** — `repeatIntervalSeconds` parameter for any repeat interval >= 60 seconds, mutually exclusive with `repeat` ([Epic #5 Phase 2](docs/epics/05-custom-repeat-intervals.md))
+- **Day-of-week scheduling** — `repeatDays` parameter accepts an array of ISO weekdays (1=Monday through 7=Sunday). Creates sub-alarms per day with automatic aggregation in `getPending()` and cleanup in `cancel()` ([Epic #5 Phase 3](docs/epics/05-custom-repeat-intervals.md))
+- **Repeat count limit** — `repeatCount` parameter limits how many times a notification repeats. Android decrements in `rescheduleNext()`, iOS tracks via UserDefaults ([Epic #5 Phase 4](docs/epics/05-custom-repeat-intervals.md))
+- **`NotificationOptions` DTO** — Type-safe readonly class for scheduling notifications with IDE autocompletion and built-in validation
+- **`NotificationAction` DTO** — Type-safe readonly class for action button definitions
+- **`LocalNotificationsInterface`** — Interface contract for the main class, enabling dependency injection and custom implementations
+- **`NotificationValidator`** — Shared validation class eliminating duplication between DTO and raw array code paths
+
+### Changed
+
+- **Code quality tooling** — Added Laravel Pint (code style), Rector (automated refactoring), and expanded CI pipeline with lint and refactor checks
+- **Extensible architecture** — `LocalNotifications` class now uses `protected` methods (`call()`, `normalizeOptions()`) for subclass extensibility
+- **ServiceProvider** — Binds `LocalNotificationsInterface` as singleton with alias for concrete class
+
+### Fixed
+
+- **Security: Image URL validation** — Both Android and iOS now reject non-http/https image URLs to prevent SSRF attacks via `file://` or other schemes
+- **Android: BroadcastReceiver lifetime** — `LocalNotificationReceiver` now uses `goAsync()` to prevent the system from killing the receiver during image downloads
+- **Android: SharedPreferences thread safety** — Added `synchronized` blocks around all SharedPreferences read-modify-write operations to prevent data loss from concurrent access
+
 ## [1.1.1] - 2026-03-09
 
 ### Added
@@ -54,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Survives device reboot (Android)
 - NotificationScheduled, PermissionGranted, PermissionDenied events
 
+[1.2.0]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/releases/tag/v1.0.0
