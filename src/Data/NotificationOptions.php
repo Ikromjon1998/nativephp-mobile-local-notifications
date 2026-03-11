@@ -3,6 +3,7 @@
 namespace Ikromjon\LocalNotifications\Data;
 
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
+use Ikromjon\LocalNotifications\Validation\NotificationValidator;
 
 final readonly class NotificationOptions
 {
@@ -37,53 +38,13 @@ final readonly class NotificationOptions
      */
     public function toArray(): array
     {
-        if ($this->repeat !== null && $this->repeatIntervalSeconds !== null) {
-            throw new \InvalidArgumentException(
-                'Cannot use both "repeat" and "repeatIntervalSeconds". Choose one.',
-            );
-        }
-
-        if ($this->repeatIntervalSeconds !== null && $this->repeatIntervalSeconds < 60) {
-            throw new \InvalidArgumentException(
-                'repeatIntervalSeconds must be at least 60 seconds.',
-            );
-        }
-
-        if ($this->repeatDays !== null) {
-            if ($this->repeat !== null || $this->repeatIntervalSeconds !== null) {
-                throw new \InvalidArgumentException(
-                    'Cannot use "repeatDays" with "repeat" or "repeatIntervalSeconds".',
-                );
-            }
-
-            if ($this->at === null) {
-                throw new \InvalidArgumentException(
-                    '"repeatDays" requires "at" to determine the time of day.',
-                );
-            }
-
-            foreach ($this->repeatDays as $day) {
-                if ($day < 1 || $day > 7) {
-                    throw new \InvalidArgumentException(
-                        'Each value in "repeatDays" must be between 1 (Monday) and 7 (Sunday).',
-                    );
-                }
-            }
-        }
-
-        if ($this->repeatCount !== null) {
-            if ($this->repeatCount < 1) {
-                throw new \InvalidArgumentException(
-                    'repeatCount must be at least 1.',
-                );
-            }
-
-            if ($this->repeat === null && $this->repeatIntervalSeconds === null && $this->repeatDays === null) {
-                throw new \InvalidArgumentException(
-                    '"repeatCount" requires a repeat mechanism ("repeat", "repeatIntervalSeconds", or "repeatDays").',
-                );
-            }
-        }
+        NotificationValidator::validate([
+            'repeat' => $this->repeat,
+            'repeatIntervalSeconds' => $this->repeatIntervalSeconds,
+            'repeatDays' => $this->repeatDays,
+            'repeatCount' => $this->repeatCount,
+            'at' => $this->at,
+        ]);
 
         $result = [
             'id' => $this->id,

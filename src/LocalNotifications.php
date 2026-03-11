@@ -5,6 +5,7 @@ namespace Ikromjon\LocalNotifications;
 use Ikromjon\LocalNotifications\Contracts\LocalNotificationsInterface;
 use Ikromjon\LocalNotifications\Data\NotificationOptions;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
+use Ikromjon\LocalNotifications\Validation\NotificationValidator;
 
 class LocalNotifications implements LocalNotificationsInterface
 {
@@ -87,45 +88,7 @@ class LocalNotifications implements LocalNotificationsInterface
             $options['repeat'] = $options['repeat']->value;
         }
 
-        if (isset($options['repeat'], $options['repeatIntervalSeconds'])) {
-            throw new \InvalidArgumentException(
-                'Cannot use both "repeat" and "repeatIntervalSeconds". Choose one.',
-            );
-        }
-
-        if (isset($options['repeatIntervalSeconds']) && $options['repeatIntervalSeconds'] < 60) {
-            throw new \InvalidArgumentException(
-                'repeatIntervalSeconds must be at least 60 seconds.',
-            );
-        }
-
-        if (isset($options['repeatDays'])) {
-            if (isset($options['repeat']) || isset($options['repeatIntervalSeconds'])) {
-                throw new \InvalidArgumentException(
-                    'Cannot use "repeatDays" with "repeat" or "repeatIntervalSeconds".',
-                );
-            }
-
-            if (! isset($options['at'])) {
-                throw new \InvalidArgumentException(
-                    '"repeatDays" requires "at" to determine the time of day.',
-                );
-            }
-        }
-
-        if (isset($options['repeatCount'])) {
-            if ($options['repeatCount'] < 1) {
-                throw new \InvalidArgumentException(
-                    'repeatCount must be at least 1.',
-                );
-            }
-
-            if (! isset($options['repeat']) && ! isset($options['repeatIntervalSeconds']) && ! isset($options['repeatDays'])) {
-                throw new \InvalidArgumentException(
-                    '"repeatCount" requires a repeat mechanism ("repeat", "repeatIntervalSeconds", or "repeatDays").',
-                );
-            }
-        }
+        NotificationValidator::validate($options);
 
         return $options;
     }

@@ -129,7 +129,8 @@ enum LocalNotificationsFunctions {
 
     // MARK: - LocalNotifications.Schedule
 
-    /// Schedule a local notification
+    /// Schedule a local notification.
+    ///
     /// Parameters:
     ///   - id: string - Unique identifier for this notification
     ///   - title: string - Notification title
@@ -138,15 +139,19 @@ enum LocalNotificationsFunctions {
     ///   - at: (optional) int - Unix timestamp to fire at
     ///   - repeat: (optional) string - Repeat interval: "minute", "hourly", "daily", "weekly", "monthly", "yearly"
     ///   - repeatIntervalSeconds: (optional) int - Custom repeat interval in seconds (min 60, mutually exclusive with repeat)
+    ///   - repeatDays: (optional) [int] - Days of week (1=Mon..7=Sun). Requires `at`. Mutually exclusive with repeat
+    ///   - repeatCount: (optional) int - Limit repetitions (min 1). Requires a repeat mechanism
     ///   - sound: (optional) boolean - Play sound (default: true)
     ///   - badge: (optional) int - Badge number to set on app icon
     ///   - data: (optional) object - Custom data to attach to the notification
     ///   - subtitle: (optional) string - Notification subtitle
-    ///   - image: (optional) string - URL of an image to attach
+    ///   - image: (optional) string - URL of an image to attach (http/https only)
     ///   - bigText: (optional) string - Expanded body text
     ///   - actions: (optional) array - Action buttons [{id, title, destructive?, input?}] (max 3)
+    ///
     /// Returns:
     ///   - success: boolean
+    ///
     /// Events:
     ///   - Fires NotificationScheduled when notification is successfully scheduled
     class Schedule: BridgeFunction {
@@ -249,13 +254,16 @@ enum LocalNotificationsFunctions {
                 content.categoryIdentifier = categoryId
             }
 
-            // Attach image if provided
-            if let imageUrl = imageUrl, let url = URL(string: imageUrl) {
+            // Attach image if provided (only http/https to prevent SSRF)
+            if let imageUrl = imageUrl, let url = URL(string: imageUrl),
+               let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
                 if let attachment = Self.downloadAndAttachImage(from: url) {
                     content.attachments = [attachment]
                 } else {
                     print("⚠️ Failed to download image, sending notification without image")
                 }
+            } else if imageUrl != nil {
+                print("⚠️ Rejected image URL with unsupported scheme, only http/https allowed")
             }
 
             // Day-of-week scheduling: create one request per day
@@ -496,9 +504,15 @@ enum LocalNotificationsFunctions {
     // MARK: - LocalNotifications.GetPending
 
     /// Get all pending scheduled notifications.
-    /// Day-of-week sub-notifications are aggregated into their parent entry.
+    ///
+    /// Day-of-week sub-notifications (e.g. `id_day_1`, `id_day_3`) are aggregated
+    /// back into a single parent entry with a `repeatDays` array.
+    /// Includes `remainingCount` if the notification has a repeat count limit.
+    ///
     /// Returns:
+    ///   - success: boolean
     ///   - notifications: JSON string array of pending notifications
+    ///   - count: int - Number of pending notifications
     class GetPending: BridgeFunction {
         func execute(parameters: [String: Any]) throws -> [String: Any] {
             let center = UNUserNotificationCenter.current()

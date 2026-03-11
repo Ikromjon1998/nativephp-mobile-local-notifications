@@ -30,6 +30,10 @@ object LocalNotificationsFunctions {
     private const val CHANNEL_NAME = "Local Notifications"
     const val PREFS_NAME = "nativephp_local_notifications_prefs"
     private const val PENDING_EVENTS_KEY = "pending_events"
+    /** Maximum number of action buttons per notification (platform limit). */
+    const val MAX_ACTIONS = 3
+    /** Lock object for thread-safe SharedPreferences access. */
+    private val prefsLock = Any()
 
     /** Holds a weak reference to the current activity for event dispatch. */
     object ActivityHolder {
@@ -81,18 +85,20 @@ object LocalNotificationsFunctions {
      * Events are stored as a JSON array queue to prevent overwrites.
      */
     fun storePendingEvent(context: Context, eventClass: String, payload: JSONObject) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val existing = prefs.getString(PENDING_EVENTS_KEY, null)
-        val queue = if (existing != null) JSONArray(existing) else JSONArray()
+        synchronized(prefsLock) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val existing = prefs.getString(PENDING_EVENTS_KEY, null)
+            val queue = if (existing != null) JSONArray(existing) else JSONArray()
 
-        val entry = JSONObject().apply {
-            put("event", eventClass)
-            put("payload", payload)
+            val entry = JSONObject().apply {
+                put("event", eventClass)
+                put("payload", payload)
+            }
+            queue.put(entry)
+
+            prefs.edit().putString(PENDING_EVENTS_KEY, queue.toString()).apply()
+            Log.d(TAG, "Stored pending event ($eventClass), queue size: ${queue.length()}")
         }
-        queue.put(entry)
-
-        prefs.edit().putString(PENDING_EVENTS_KEY, queue.toString()).apply()
-        Log.d(TAG, "Stored pending event ($eventClass), queue size: ${queue.length()}")
     }
 
     /**
@@ -551,7 +557,7 @@ object LocalNotificationsFunctions {
      */
     private fun serializeActions(actions: List<*>): JSONArray {
         val actionsJson = JSONArray()
-        for (action in actions.take(3)) {
+        for (action in actions.take(MAX_ACTIONS)) {
             val actionMap = action as? Map<*, *> ?: continue
             actionsJson.put(JSONObject().apply {
                 put("id", actionMap["id"]?.toString() ?: "")
@@ -580,33 +586,35 @@ object LocalNotificationsFunctions {
         actions: List<*>? = null,
         remainingCount: Int? = null
     ) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-        ids.add(id)
+        synchronized(prefsLock) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+            ids.add(id)
 
-        val info = JSONObject().apply {
-            put("id", id)
-            put("title", title)
-            put("body", body)
-            put("triggerTimeMs", triggerTimeMs)
-            put("repeatMs", repeatMs)
-            if (repeatType != null) put("repeatType", repeatType)
-            if (remainingCount != null) put("remainingCount", remainingCount)
-            put("sound", sound)
-            if (badge != null) put("badge", badge)
-            if (data != null) put("data", JSONObject(data.mapKeys { it.key.toString() }))
-            if (subtitle != null) put("subtitle", subtitle)
-            if (imageUrl != null) put("image", imageUrl)
-            if (bigText != null) put("bigText", bigText)
-            if (actions != null) {
-                put("actions", serializeActions(actions))
+            val info = JSONObject().apply {
+                put("id", id)
+                put("title", title)
+                put("body", body)
+                put("triggerTimeMs", triggerTimeMs)
+                put("repeatMs", repeatMs)
+                if (repeatType != null) put("repeatType", repeatType)
+                if (remainingCount != null) put("remainingCount", remainingCount)
+                put("sound", sound)
+                if (badge != null) put("badge", badge)
+                if (data != null) put("data", JSONObject(data.mapKeys { it.key.toString() }))
+                if (subtitle != null) put("subtitle", subtitle)
+                if (imageUrl != null) put("image", imageUrl)
+                if (bigText != null) put("bigText", bigText)
+                if (actions != null) {
+                    put("actions", serializeActions(actions))
+                }
             }
-        }
 
-        prefs.edit()
-            .putStringSet("notification_ids", ids)
-            .putString("notification_$id", info.toString())
-            .apply()
+            prefs.edit()
+                .putStringSet("notification_ids", ids)
+                .putString("notification_$id", info.toString())
+                .apply()
+        }
     }
 
     /**
@@ -660,13 +668,15 @@ object LocalNotificationsFunctions {
     }
 
     private fun removeNotificationInfo(context: Context, id: String) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-        ids.remove(id)
+        synchronized(prefsLock) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+            ids.remove(id)
 
-        prefs.edit()
-            .putStringSet("notification_ids", ids)
-            .remove("notification_$id")
-            .apply()
+            prefs.edit()
+                .putStringSet("notification_ids", ids)
+                .remove("notification_$id")
+                .apply()
+        }
     }
 }

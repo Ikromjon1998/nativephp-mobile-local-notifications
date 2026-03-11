@@ -1,7 +1,7 @@
 # Epic 5: Custom Repeat Intervals & Advanced Scheduling
 
 **Priority:** High
-**Status:** In Progress
+**Status:** Complete
 
 ## Description
 
@@ -93,6 +93,6 @@ The following scheduling features are already implemented across all layers:
 - [x] Cancelling a multi-day notification cancels all sub-alarms (both platforms)
 - [x] `getPending()` aggregates sub-IDs back into parent entry with `repeatDays` array
 - [x] Repeat count limits are enforced on both platforms
-- [ ] Old `repeat` parameter with 4 preset values still works unchanged
+- [x] Old `repeat` parameter with 4 preset values still works unchanged
 - [x] `BootReceiver` restores all new interval types correctly on Android
 - [x] Tests cover monthly/yearly enum conversion and backward compatibility

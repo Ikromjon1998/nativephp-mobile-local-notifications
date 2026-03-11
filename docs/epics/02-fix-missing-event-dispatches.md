@@ -17,7 +17,7 @@ The `NotificationReceived` and `NotificationTapped` event classes exist in PHP b
 
 ## Acceptance Criteria
 
-- [ ] `NotificationReceived` fires on both iOS and Android when a notification is delivered
-- [ ] `NotificationTapped` fires on both iOS and Android when the user taps a notification
-- [ ] Custom `data` payload is correctly passed through in both events
-- [ ] Events work whether the app is in foreground, background, or killed state
+- [x] `NotificationReceived` fires on both iOS and Android when a notification is delivered
+- [x] `NotificationTapped` fires on both iOS and Android when the user taps a notification
+- [x] Custom `data` payload is correctly passed through in both events
+- [x] Events work whether the app is in foreground, background, or killed state

@@ -24,7 +24,10 @@ See the full [CHANGELOG](CHANGELOG.md) for details.
 ## Features
 
 - Schedule notifications with a delay or at a specific time
-- Repeat intervals: minute, hourly, daily, weekly
+- Repeat intervals: minute, hourly, daily, weekly, monthly, yearly
+- Custom repeat intervals (any duration >= 60 seconds)
+- Day-of-week scheduling (e.g. every Mon/Wed/Fri at 9 AM)
+- Repeat count limits (fire N times then stop)
 - Rich content: images, subtitles, and expanded text
 - Action buttons with text input support (max 3 per notification)
 - Custom sounds, badges, and data payloads
@@ -168,11 +171,14 @@ LocalNotifications::schedule([
 | `delay` | int | No | Delay in seconds from now |
 | `at` | int | No | Unix timestamp to fire at |
 | `repeat` | RepeatInterval\|string | No | Repeat interval (see table below) |
+| `repeatIntervalSeconds` | int | No | Custom repeat interval in seconds (min 60). Mutually exclusive with `repeat` |
+| `repeatDays` | array\<int\> | No | Days of week to repeat (1=Mon..7=Sun). Requires `at`. Mutually exclusive with `repeat` |
+| `repeatCount` | int | No | Limit how many times the notification repeats (min 1). Requires a repeat mechanism |
 | `sound` | bool | No | Play sound (default: `true`) |
 | `badge` | int | No | Badge number on app icon (iOS) |
 | `data` | array | No | Custom data payload (available in tapped event) |
 | `subtitle` | string | No | Subtitle text (iOS: subtitle, Android: subtext) |
-| `image` | string | No | Image URL to display in the notification |
+| `image` | string | No | Image URL (http/https only) to display in the notification |
 | `bigText` | string | No | Expanded body text shown when notification is expanded |
 | `actions` | array | No | Action buttons (max 3), each with `id`, `title`, optional `destructive` and `input` |
 
@@ -263,6 +269,77 @@ Use the `RepeatInterval` enum (recommended) or pass the string value directly:
 | `RepeatInterval::Hourly` | `'hourly'` | Every hour |
 | `RepeatInterval::Daily` | `'daily'` | Every day |
 | `RepeatInterval::Weekly` | `'weekly'` | Every week |
+| `RepeatInterval::Monthly` | `'monthly'` | Every month (handles variable month lengths) |
+| `RepeatInterval::Yearly` | `'yearly'` | Every year (handles leap years) |
+
+### Custom Repeat Interval
+
+Use `repeatIntervalSeconds` for any interval >= 60 seconds:
+
+```php
+// Every 2 hours
+LocalNotifications::schedule([
+    'id' => 'custom-interval',
+    'title' => 'Check In',
+    'body' => 'Time for a check-in',
+    'repeatIntervalSeconds' => 7200,
+]);
+```
+
+### Day-of-Week Scheduling
+
+Use `repeatDays` to fire on specific days of the week. Days use ISO format: 1=Monday through 7=Sunday. Requires `at` to set the time of day.
+
+```php
+// Weekdays at 8:30 AM
+LocalNotifications::schedule([
+    'id' => 'weekday-alarm',
+    'title' => 'Good Morning',
+    'body' => 'Time to start the day!',
+    'at' => now()->setTime(8, 30)->timestamp,
+    'repeatDays' => [1, 2, 3, 4, 5], // Mon-Fri
+]);
+```
+
+### Repeat Count Limit
+
+Use `repeatCount` to limit how many times a notification repeats:
+
+```php
+// Remind 3 times, then stop
+LocalNotifications::schedule([
+    'id' => 'limited-reminder',
+    'title' => 'Take your medicine',
+    'body' => 'Time for your dose',
+    'repeat' => RepeatInterval::Daily,
+    'at' => now()->setTime(20, 0)->timestamp,
+    'repeatCount' => 3,
+]);
+```
+
+### Type-Safe DTO
+
+You can use the `NotificationOptions` DTO instead of arrays for type safety:
+
+```php
+use Ikromjon\LocalNotifications\Data\NotificationOptions;
+use Ikromjon\LocalNotifications\Data\NotificationAction;
+
+$options = new NotificationOptions(
+    id: 'dto-example',
+    title: 'DTO Notification',
+    body: 'Using the type-safe DTO',
+    repeat: RepeatInterval::Daily,
+    at: now()->setTime(9, 0)->timestamp,
+    repeatCount: 7,
+    actions: [
+        new NotificationAction(id: 'done', title: 'Done'),
+        new NotificationAction(id: 'snooze', title: 'Snooze'),
+    ],
+);
+
+LocalNotifications::schedule($options);
+```
 
 ### How Repeating Notifications Work
 

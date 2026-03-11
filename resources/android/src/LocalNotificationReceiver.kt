@@ -32,6 +32,11 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         val id = intent.getStringExtra("notification_id") ?: return
         val title = intent.getStringExtra("title") ?: return
         val body = intent.getStringExtra("body") ?: return
+
+        // Extend the BroadcastReceiver lifetime so image downloads
+        // and rescheduling can complete without the system killing us.
+        val pendingResult = goAsync()
+        try {
         val sound = intent.getBooleanExtra("sound", true)
         val channelId = intent.getStringExtra("channel_id") ?: LocalNotificationsFunctions.CHANNEL_ID
         val dataJson = intent.getStringExtra("data")
@@ -106,7 +111,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         if (actionsJson != null) {
             try {
                 val actions = JSONArray(actionsJson)
-                for (i in 0 until minOf(actions.length(), 3)) {
+                for (i in 0 until minOf(actions.length(), LocalNotificationsFunctions.MAX_ACTIONS)) {
                     val action = actions.getJSONObject(i)
                     val actionId = action.getString("id")
                     val actionTitle = action.getString("title")
@@ -193,6 +198,9 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             val nextCount = if (remainingCount > 1) remainingCount - 1 else -1
             rescheduleNext(context, id, title, body, sound, channelId, repeatMs, repeatType, dataJson, subtitle, imageUrl, bigText, actionsJson, nextCount)
         }
+        } finally {
+            pendingResult.finish()
+        }
     }
 
     /**
@@ -275,10 +283,16 @@ class LocalNotificationReceiver : BroadcastReceiver() {
 
     /**
      * Downloads an image from a URL. Returns null on failure.
+     * Only allows http:// and https:// schemes to prevent SSRF via file:// or other schemes.
      */
     private fun downloadImage(urlString: String): Bitmap? {
         return try {
             val url = URL(urlString)
+            val scheme = url.protocol.lowercase()
+            if (scheme != "http" && scheme != "https") {
+                Log.w(TAG, "Rejected image URL with unsupported scheme: $scheme")
+                return null
+            }
             val connection = url.openConnection() as HttpURLConnection
             connection.connectTimeout = 10_000
             connection.readTimeout = 10_000

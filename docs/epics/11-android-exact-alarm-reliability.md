@@ -1,7 +1,7 @@
 # Epic 11: Android Exact Alarm Reliability
 
 **Priority:** Medium
-**Status:** In Progress
+**Status:** Partial — Core features done, optional enhancements remain
 
 ## Description
 
