@@ -11,10 +11,42 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     static let shared = LocalNotificationDelegate()
     private static var isRegistered = false
 
+    /// Queue of events to dispatch once the Laravel bridge becomes available.
+    /// Prevents silent event loss during cold start when LaravelBridge.shared.send is nil.
+    private var pendingEvents: [(eventClass: String, payload: [String: Any])] = []
+    private let pendingQueue = DispatchQueue(label: "com.ikromjon.localnotifications.pending")
+
     static func ensureRegistered() {
         if !isRegistered {
             UNUserNotificationCenter.current().delegate = shared
             isRegistered = true
+        }
+    }
+
+    /// Attempt to send an event via the bridge. If not ready, queue it for later dispatch.
+    private func sendOrQueue(eventClass: String, payload: [String: Any]) {
+        if let send = LaravelBridge.shared.send {
+            send(eventClass, payload)
+        } else {
+            pendingQueue.sync {
+                pendingEvents.append((eventClass: eventClass, payload: payload))
+                print("⏳ Queued pending event: \(eventClass), queue size: \(pendingEvents.count)")
+            }
+        }
+    }
+
+    /// Dispatch any queued events. Called when the bridge becomes available
+    /// (e.g. from Schedule or RequestPermission).
+    func dispatchPendingEvents() {
+        var events: [(eventClass: String, payload: [String: Any])] = []
+        pendingQueue.sync {
+            events = pendingEvents
+            pendingEvents.removeAll()
+        }
+        guard !events.isEmpty, let send = LaravelBridge.shared.send else { return }
+        print("📤 Dispatching \(events.count) pending event(s)")
+        for event in events {
+            send(event.eventClass, event.payload)
         }
     }
 
@@ -51,7 +83,7 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             payload["data"] = customData
         }
 
-        LaravelBridge.shared.send?(eventClass, payload)
+        sendOrQueue(eventClass: eventClass, payload: payload)
 
         // Show the notification banner even when the app is in the foreground
         completionHandler([.banner, .sound, .badge])
@@ -89,7 +121,7 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
                 let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationTapped"
                 var payload: [String: Any] = ["id": id, "title": content.title, "body": content.body]
                 if !customData.isEmpty { payload["data"] = customData }
-                LaravelBridge.shared.send?(eventClass, payload)
+                sendOrQueue(eventClass: eventClass, payload: payload)
             }
         } else {
             // Custom action button pressed
@@ -105,7 +137,7 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
                 payload["inputText"] = textResponse.userText
             }
 
-            LaravelBridge.shared.send?(eventClass, payload)
+            sendOrQueue(eventClass: eventClass, payload: payload)
         }
 
         completionHandler()
@@ -158,6 +190,8 @@ enum LocalNotificationsFunctions {
         func execute(parameters: [String: Any]) throws -> [String: Any] {
             // Ensure the notification delegate is registered
             LocalNotificationDelegate.ensureRegistered()
+            // Dispatch any events queued during cold start
+            LocalNotificationDelegate.shared.dispatchPendingEvents()
 
             guard let id = parameters["id"] as? String else {
                 return ["success": false, "error": "Missing required parameter: id"]
@@ -620,6 +654,8 @@ enum LocalNotificationsFunctions {
         func execute(parameters: [String: Any]) throws -> [String: Any] {
             // Ensure the notification delegate is registered
             LocalNotificationDelegate.ensureRegistered()
+            // Dispatch any events queued during cold start
+            LocalNotificationDelegate.shared.dispatchPendingEvents()
 
             let center = UNUserNotificationCenter.current()
             let semaphore = DispatchSemaphore(value: 0)

@@ -21,3 +21,10 @@ The `NotificationReceived` and `NotificationTapped` event classes exist in PHP b
 - [x] `NotificationTapped` fires on both iOS and Android when the user taps a notification
 - [x] Custom `data` payload is correctly passed through in both events
 - [x] Events work whether the app is in foreground, background, or killed state
+
+## Follow-up Fix (v1.2.1)
+
+The original implementation had two remaining issues discovered during real-device testing:
+
+1. **Android:** `PendingIntent.getBroadcast()` was used for the notification `contentIntent`, but `startActivity()` from a `BroadcastReceiver` is silently blocked on Android 12+ (API 31). Fixed by using `PendingIntent.getActivity()` to launch the app directly.
+2. **iOS:** `LaravelBridge.shared.send?()` optional chaining silently dropped `NotificationTapped` events during cold start when the bridge was nil. Fixed by adding a `sendOrQueue()` pending event queue with `dispatchPendingEvents()` flush on first bridge call.

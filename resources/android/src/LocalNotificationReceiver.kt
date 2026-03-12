@@ -50,21 +50,42 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         // Build the notification
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // Create an intent for the tap receiver to handle user taps
-        val tapIntent = Intent(context, NotificationTapReceiver::class.java).apply {
+        // Launch the app directly when the user taps the notification.
+        // Using PendingIntent.getActivity() instead of getBroadcast() because
+        // startActivity() from a BroadcastReceiver is restricted on Android 12+ (API 31).
+        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
             action = "com.ikromjon.localnotifications.TAP"
             putExtra("notification_id", id)
             putExtra("notification_title", title)
             putExtra("notification_body", body)
             if (dataJson != null) putExtra("notification_data", dataJson)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
 
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            id.hashCode(),
-            tapIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingIntent = if (launchIntent != null) {
+            PendingIntent.getActivity(
+                context,
+                id.hashCode(),
+                launchIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        } else {
+            Log.e(TAG, "Could not resolve launch intent for package: ${context.packageName}")
+            // Fallback: use a broadcast so the notification still works
+            val fallbackIntent = Intent(context, NotificationTapReceiver::class.java).apply {
+                this.action = "com.ikromjon.localnotifications.TAP"
+                putExtra("notification_id", id)
+                putExtra("notification_title", title)
+                putExtra("notification_body", body)
+                if (dataJson != null) putExtra("notification_data", dataJson)
+            }
+            PendingIntent.getBroadcast(
+                context,
+                id.hashCode(),
+                fallbackIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
 
         // Use app's small icon, fall back to Android's default icon
         val appIcon = try {

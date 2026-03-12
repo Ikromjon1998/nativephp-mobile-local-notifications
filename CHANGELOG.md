@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-03-12
+
+### Fixed
+
+- **Android: Tapping notification now opens the app** — Replaced `PendingIntent.getBroadcast()` with `PendingIntent.getActivity()` for the notification `contentIntent`. On Android 12+ (API 31), `startActivity()` from a `BroadcastReceiver` is silently blocked by the system. The notification tap now launches the app's main activity directly via the OS, bypassing the restriction entirely.
+- **Android: NotificationTapped event delivered on cold start** — `dispatchPendingEvents()` now reads tap data from the activity's intent extras (set by `PendingIntent.getActivity()`) and dispatches the `NotificationTapped` event. Intent action is cleared after dispatch to prevent re-delivery on configuration changes.
+- **iOS: NotificationTapped event lost on cold start** — Added a pending event queue to `LocalNotificationDelegate`. When `LaravelBridge.shared.send` is nil (bridge not yet initialized during cold start), events are queued in memory via `sendOrQueue()`. Queued events are flushed on the first bridge call (`Schedule` or `RequestPermission`).
+
+### Thanks
+
+- **GMDev (gabyydev)** — for reporting the notification tap issue from the NativePHP Discord community. Community feedback like this helps make the plugin better for everyone.
+
 ## [1.2.0] - 2026-03-11
 
 ### Added
@@ -79,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Survives device reboot (Android)
 - NotificationScheduled, PermissionGranted, PermissionDenied events
 
+[1.2.1]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.0.0...v1.1.0
