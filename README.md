@@ -15,14 +15,11 @@ Schedule, manage, and cancel local notifications in your NativePHP Mobile app �
 | **nativephp/mobile-firebase** | Push notifications from a server via FCM/APNs | Firebase project, server, internet |
 | **This plugin** | Local notifications scheduled on-device | Nothing — works offline |
 
-## What's New in v1.2.0
+## What's New in v1.2.1
 
-- **Monthly & Yearly repeats** — `RepeatInterval::Monthly` and `RepeatInterval::Yearly` with proper calendar handling
-- **Custom repeat intervals** — `repeatIntervalSeconds` for any interval >= 60 seconds
-- **Day-of-week scheduling** — `repeatDays` to fire on specific weekdays (e.g. Mon/Wed/Fri)
-- **Repeat count limits** — `repeatCount` to stop after N repetitions
-- **Type-safe DTOs** — `NotificationOptions` and `NotificationAction` classes with validation
-- **Security hardening** — Image URL validation (http/https only), thread-safe SharedPreferences
+- **Fixed: Notification tap opens the app** — Android 12+ silently blocked `startActivity()` from a `BroadcastReceiver`. Now uses `PendingIntent.getActivity()` to launch the app directly via the OS.
+- **Fixed: NotificationTapped event on cold start (Android)** — Tap data is passed via activity intent extras and dispatched when the bridge becomes available.
+- **Fixed: NotificationTapped event on cold start (iOS)** — Added a pending event queue so events aren't silently dropped when the Laravel bridge is nil during app launch.
 
 See the full [CHANGELOG](CHANGELOG.md) for details.
 

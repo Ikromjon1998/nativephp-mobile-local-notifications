@@ -103,8 +103,37 @@ object LocalNotificationsFunctions {
 
     /**
      * Check for and dispatch any pending events that were stored while the app was inactive.
+     * Also checks if the activity was launched via a notification tap (PendingIntent.getActivity)
+     * and dispatches the NotificationTapped event from the intent extras.
      */
     private fun dispatchPendingEvents(activity: FragmentActivity) {
+        // Check if the activity was launched from a notification tap
+        val intent = activity.intent
+        if (intent?.action == "com.ikromjon.localnotifications.TAP") {
+            val id = intent.getStringExtra("notification_id")
+            val title = intent.getStringExtra("notification_title")
+            val body = intent.getStringExtra("notification_body")
+            val dataJson = intent.getStringExtra("notification_data")
+
+            if (id != null && title != null && body != null) {
+                val payload = JSONObject().apply {
+                    put("id", id)
+                    put("title", title)
+                    put("body", body)
+                    if (dataJson != null) put("data", JSONObject(dataJson))
+                }
+                Log.d(TAG, "Dispatching NotificationTapped from activity intent: $id")
+                dispatchEvent(
+                    activity,
+                    "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
+                    payload.toString()
+                )
+            }
+            // Clear action to prevent re-dispatch on configuration change
+            intent.action = null
+        }
+
+        // Dispatch any events stored in SharedPreferences queue
         val prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val eventsJson = prefs.getString(PENDING_EVENTS_KEY, null) ?: return
 
@@ -112,7 +141,7 @@ object LocalNotificationsFunctions {
         prefs.edit().remove(PENDING_EVENTS_KEY).apply()
 
         val queue = JSONArray(eventsJson)
-        Log.d(TAG, "Dispatching ${queue.length()} pending event(s)")
+        Log.d(TAG, "Dispatching ${queue.length()} pending event(s) from queue")
 
         for (i in 0 until queue.length()) {
             val entry = queue.getJSONObject(i)
