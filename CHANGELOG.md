@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-03-13
+
+### Added
+
+- **JavaScript client library** — `resources/js/index.js` now exports named functions (`schedule`, `cancel`, `cancelAll`, `getPending`, `requestPermission`, `checkPermission`) for apps using Inertia with Vue or React. Includes CSRF token handling and error unwrapping matching the official NativePHP `BridgeCall` contract.
+- **JavaScript event constants** — `Events` export with all 6 event name constants for use with the NativePHP `On()` listener in SPA frameworks.
+- **Boost guidelines** — `resources/boost/guidelines/core.blade.php` documenting facade methods, DTOs, events, JS usage, and common patterns for AI-assisted development.
+- **README: JavaScript usage section** — Complete examples for scheduling, cancelling, and listening to events from Vue/React components.
+- **README: Event listener docs for SPA** — Shows how to use `On()` from `#nativephp` with the plugin's `Events` constants.
+- **README: Required permissions section** — Documents all Android permissions and iOS requirements.
+
+### Changed
+
+- **README: Installation** — Updated to use `php artisan native:plugin:register` as the primary registration method, aligned with NativePHP v3 docs.
+- **README: Section headings** — Renamed "Usage" to "Usage (PHP)" and "Listening to Events" to "Listening to Events (Livewire)" for clarity alongside new JS sections.
+
 ## [1.2.1] - 2026-03-12
 
 ### Fixed
@@ -91,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Survives device reboot (Android)
 - NotificationScheduled, PermissionGranted, PermissionDenied events
 
+[1.3.0]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.1.0...v1.1.1
