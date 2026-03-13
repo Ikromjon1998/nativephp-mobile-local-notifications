@@ -255,6 +255,41 @@ public function onActionPressed($data)
 }
 ```
 
+## Listening to Events (Laravel)
+
+For apps using native UI (EDGE components) or any context without Livewire, register standard Laravel event listeners. Events are dispatched to the PHP backend regardless of the frontend stack.
+
+```php
+// app/Listeners/HandleNotificationTap.php
+namespace App\Listeners;
+
+use Ikromjon\LocalNotifications\Events\NotificationTapped;
+
+class HandleNotificationTap
+{
+    public function handle(NotificationTapped $event): void
+    {
+        // $event->id, $event->title, $event->body, $event->data
+    }
+}
+```
+
+Register in your `AppServiceProvider` or `EventServiceProvider`:
+
+```php
+use App\Listeners\HandleNotificationTap;
+use App\Listeners\HandleNotificationAction;
+use Ikromjon\LocalNotifications\Events\NotificationTapped;
+use Ikromjon\LocalNotifications\Events\NotificationActionPressed;
+
+protected $listen = [
+    NotificationTapped::class => [HandleNotificationTap::class],
+    NotificationActionPressed::class => [HandleNotificationAction::class],
+];
+```
+
+This approach works with **all frontend stacks**: Livewire, Inertia (Vue/React), and native UI (EDGE) — no WebView required.
+
 ## Usage (JavaScript)
 
 For apps using Inertia with Vue or React, import functions directly from the plugin's JavaScript library. The CSRF token is read automatically from your page's `<meta name="csrf-token">` tag.

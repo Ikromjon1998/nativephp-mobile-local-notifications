@@ -62,8 +62,6 @@ LocalNotifications::schedule(new NotificationOptions(
 
 ## Events
 
-Listen in Livewire with `#[OnNative(EventClass::class)]`:
-
 | Event | Payload | When |
 |-------|---------|------|
 | `NotificationScheduled` | `id`, `title`, `body` | Notification successfully scheduled |
@@ -73,7 +71,31 @@ Listen in Livewire with `#[OnNative(EventClass::class)]`:
 | `PermissionGranted` | — | Permission granted |
 | `PermissionDenied` | — | Permission denied |
 
-## JavaScript Usage (Inertia / Vue / React)
+Events are dispatched to **all** contexts simultaneously. Listen in whichever fits your stack:
+
+### Livewire
+
+```php
+#[OnNative(NotificationTapped::class)]
+public function onTapped($data) { /* $data['id'], $data['data'] */ }
+```
+
+### Laravel Listeners (works with native UI / EDGE — no WebView needed)
+
+```php
+// app/Listeners/HandleNotificationTap.php
+use Ikromjon\LocalNotifications\Events\NotificationTapped;
+
+class HandleNotificationTap
+{
+    public function handle(NotificationTapped $event): void
+    {
+        // $event->id, $event->title, $event->body, $event->data
+    }
+}
+```
+
+### JavaScript (Inertia / Vue / React)
 
 ```js
 import { schedule, cancel, Events } from '../../vendor/ikromjon/nativephp-mobile-local-notifications/resources/js/index.js';
