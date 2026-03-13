@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" width="120" alt="Local Notifications Logo">
+</p>
+
 # NativePHP Mobile Local Notifications
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/ikromjon/nativephp-mobile-local-notifications.svg)](https://packagist.org/packages/ikromjon/nativephp-mobile-local-notifications)
