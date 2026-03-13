@@ -44,20 +44,14 @@ See the full [CHANGELOG](CHANGELOG.md) for details.
 
 ```bash
 composer require ikromjon/nativephp-mobile-local-notifications
+
+php artisan native:plugin:register ikromjon/nativephp-mobile-local-notifications
 ```
 
-Register the plugin in your `app/Providers/NativeServiceProvider.php`:
-
-```php
-use Native\Mobile\Facades\System;
-
-public function boot(): void
-{
-    System::enablePlugins([
-        \Ikromjon\LocalNotifications\LocalNotificationsServiceProvider::class,
-    ]);
-}
-```
+> **Note:** If you don't have a `NativeServiceProvider` yet, publish it first:
+> ```bash
+> php artisan vendor:publish --tag=nativephp-plugins-provider
+> ```
 
 Build your app (plugin requires a native build — it does not work with Jump):
 
@@ -67,7 +61,7 @@ php artisan native:run android
 php artisan native:run ios
 ```
 
-## Usage
+## Usage (PHP)
 
 ### Request Permission
 
@@ -210,7 +204,7 @@ $result = LocalNotifications::checkPermission();
 // Returns: ['status' => 'granted'] or ['status' => 'denied']
 ```
 
-## Listening to Events
+## Listening to Events (Livewire)
 
 Use the `#[OnNative]` attribute in your Livewire components:
 
@@ -260,6 +254,108 @@ public function onActionPressed($data)
     // Text input (if input action): $data['inputText']
 }
 ```
+
+## Usage (JavaScript)
+
+For apps using Inertia with Vue or React, import functions directly from the plugin's JavaScript library. The CSRF token is read automatically from your page's `<meta name="csrf-token">` tag.
+
+```js
+import {
+    schedule,
+    cancel,
+    cancelAll,
+    getPending,
+    requestPermission,
+    checkPermission,
+    Events,
+} from '../../vendor/ikromjon/nativephp-mobile-local-notifications/resources/js/index.js';
+
+// Request permission
+const { granted } = await requestPermission();
+
+// Schedule a notification
+await schedule({
+    id: 'reminder-1',
+    title: 'Reminder',
+    body: 'Time to take a break!',
+    delay: 300,
+});
+
+// Schedule a repeating notification with actions
+await schedule({
+    id: 'daily-checkin',
+    title: 'Daily Check-in',
+    body: 'How are you feeling today?',
+    at: Math.floor(Date.now() / 1000) + 60, // 1 minute from now
+    repeat: 'daily',
+    actions: [
+        { id: 'done', title: 'Done' },
+        { id: 'snooze', title: 'Snooze' },
+    ],
+});
+
+// Cancel a notification
+await cancel('reminder-1');
+
+// Cancel all notifications
+await cancelAll();
+
+// List pending notifications
+const { notifications, count } = await getPending();
+
+// Check permission status
+const { status } = await checkPermission();
+```
+
+### Listening to Events (JavaScript)
+
+Use the NativePHP `On()` function with the plugin's `Events` constants:
+
+```js
+import { On } from '#nativephp';
+import { Events } from '../../vendor/ikromjon/nativephp-mobile-local-notifications/resources/js/index.js';
+
+// User tapped a notification
+On(Events.NotificationTapped, (payload) => {
+    console.log('Tapped:', payload.id, payload.data);
+});
+
+// Notification was delivered
+On(Events.NotificationReceived, (payload) => {
+    console.log('Received:', payload.id);
+});
+
+// Action button pressed
+On(Events.NotificationActionPressed, (payload) => {
+    console.log('Action:', payload.actionId, payload.inputText);
+});
+
+// Permission result
+On(Events.PermissionGranted, () => console.log('Permission granted'));
+On(Events.PermissionDenied, () => console.log('Permission denied'));
+```
+
+### Available JavaScript Functions
+
+| Function | Parameters | Returns |
+|----------|-----------|---------|
+| `schedule(options)` | Object with `id`, `title`, `body`, and optional scheduling params | `{ success, id?, error? }` |
+| `cancel(id)` | Notification ID string | `{ success, id?, error? }` |
+| `cancelAll()` | None | `{ success, error? }` |
+| `getPending()` | None | `{ success, notifications?, count?, error? }` |
+| `requestPermission()` | None | `{ granted, status?, error? }` |
+| `checkPermission()` | None | `{ status, error? }` |
+
+### Available Event Constants
+
+| Constant | PHP Event Class |
+|----------|----------------|
+| `Events.NotificationScheduled` | `NotificationScheduled` |
+| `Events.NotificationReceived` | `NotificationReceived` |
+| `Events.NotificationTapped` | `NotificationTapped` |
+| `Events.NotificationActionPressed` | `NotificationActionPressed` |
+| `Events.PermissionGranted` | `PermissionGranted` |
+| `Events.PermissionDenied` | `PermissionDenied` |
 
 ## Repeat Intervals
 
@@ -376,6 +472,27 @@ LocalNotifications::cancel('habit-meditation');
 ```
 
 > **Note:** On Android, `repeat: 'minute'` intervals may experience slight drift (~9 minutes) due to system limits on `setExactAndAllowWhileIdle` frequency in Doze mode. For `hourly`, `daily`, and `weekly` intervals this is not an issue.
+
+## Required Permissions
+
+The plugin declares all required permissions automatically via `nativephp.json`. No manual configuration needed.
+
+**Android:**
+
+| Permission | Purpose |
+|-----------|---------|
+| `POST_NOTIFICATIONS` | Show notifications (Android 13+, requested at runtime) |
+| `SCHEDULE_EXACT_ALARM` | Schedule notifications at exact times |
+| `USE_EXACT_ALARM` | Fallback for exact alarm scheduling |
+| `RECEIVE_BOOT_COMPLETED` | Restore scheduled notifications after device reboot |
+| `VIBRATE` | Vibrate on notification delivery |
+
+**iOS:**
+
+- Notification authorization is requested at runtime via `requestPermission()` (alert, sound, badge)
+- Minimum iOS version: 18.2
+
+**Environment variables:** None required. The plugin works entirely on-device with no external services.
 
 ## Testing
 

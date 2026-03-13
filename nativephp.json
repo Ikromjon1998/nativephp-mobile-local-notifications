@@ -49,9 +49,6 @@
             "android.permission.RECEIVE_BOOT_COMPLETED",
             "android.permission.VIBRATE"
         ],
-        "dependencies": {
-            "implementation": []
-        },
         "receivers": [
             {
                 "name": ".LocalNotificationReceiver",
@@ -73,12 +70,7 @@
     },
 
     "ios": {
-        "min_version": "18.2",
-        "info_plist": {},
-        "dependencies": {
-            "swift_packages": [],
-            "pods": []
-        }
+        "min_version": "18.2"
     },
 
     "events": [
