@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-03-16
+
+### Fixed
+
+- **NotificationTapped event not reaching Livewire `#[OnNative]` handlers** — Pending events (including cold-start tap events) are now flushed from **all** bridge functions (`Cancel`, `CancelAll`, `GetPending`, `CheckPermission`), not just `Schedule` and `RequestPermission`. Previously, if the first bridge call after a notification tap was anything other than those two, the queued `NotificationTapped` event was never dispatched. Applies to both Android and iOS. ([#10](https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/issues/10))
+- **Android: Livewire cold-start race condition** — Added a `livewire:init` JS fallback so that events dispatched before Livewire has loaded are re-dispatched when Livewire initializes. The existing one-shot `if (window.Livewire)` check in `NativeActionCoordinator` silently drops events on cold start; the fallback listens for Livewire's deterministic `livewire:init` lifecycle event and replays the dispatch. ([#10](https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/issues/10))
+
 ## [1.3.1] - 2026-03-13
 
 ### Added
@@ -114,6 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Survives device reboot (Android)
 - NotificationScheduled, PermissionGranted, PermissionDenied events
 
+[1.3.2]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.2.0...v1.2.1
