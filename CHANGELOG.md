@@ -12,7 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Publishable config file** — `config/local-notifications.php` with all customizable values: channel ID/name/description, max actions, min repeat interval, default sound, tap detection delay, and navigation replay duration. Publish with `php artisan vendor:publish --tag=local-notifications-config`.
 - **ServiceProvider `boot()` method** — Registers config merging and publishing for the `local-notifications` config key.
 - **Config-driven validation** — `NotificationValidator` now reads `max_actions` and `min_repeat_interval_seconds` from config instead of hardcoded values. Validates action button count at the PHP layer.
-- **Runtime native config** — `schedule()` injects a `_config` key into bridge calls so Android reads channel, sound, timing, and replay settings from PHP config at runtime.
+- **Runtime native config** — `schedule()` injects a `_config` key into bridge calls so both Android and iOS read applicable settings from PHP config at runtime.
+- **iOS: Configurable default sound and max actions** — iOS now reads `default_sound` and `max_actions` from the `_config` bridge parameter, matching Android behavior.
 - **Android: Configurable notification channel** — Channel ID, name, and description are now set from PHP config instead of hardcoded Kotlin constants.
 - **Android: Configurable tap detection delay** — The `onResume` warm-start tap detection delay is now configurable via `tap_detection_delay_ms`.
 - **Android: Configurable navigation replay duration** — The `livewire:navigated` cold-start replay window is now configurable via `navigation_replay_duration_ms`.

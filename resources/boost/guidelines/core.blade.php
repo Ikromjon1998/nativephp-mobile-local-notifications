@@ -113,18 +113,18 @@ On(Events.NotificationTapped, (payload) => {
 
 Publish with `php artisan vendor:publish --tag=local-notifications-config`.
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `channel_id` | `nativephp_local_notifications` | Android notification channel ID |
-| `channel_name` | `Local Notifications` | Android notification channel name |
-| `channel_description` | `Notifications scheduled by the app` | Android channel description |
-| `max_actions` | `3` | Max action buttons per notification |
-| `min_repeat_interval_seconds` | `60` | Minimum custom repeat interval |
-| `default_sound` | `true` | Play sound when no explicit `sound` parameter |
-| `tap_detection_delay_ms` | `500` | Android warm-start tap detection delay |
-| `navigation_replay_duration_ms` | `15000` | Android cold-start `livewire:navigated` replay window |
+| Key | Default | Platform | Description |
+|-----|---------|----------|-------------|
+| `channel_id` | `nativephp_local_notifications` | Android only | Notification channel ID |
+| `channel_name` | `Local Notifications` | Android only | Notification channel name |
+| `channel_description` | `Notifications scheduled by the app` | Android only | Channel description |
+| `max_actions` | `3` | Android + iOS | Max action buttons per notification |
+| `min_repeat_interval_seconds` | `60` | Android + iOS | Minimum custom repeat interval (PHP validation) |
+| `default_sound` | `true` | Android + iOS | Play sound when no explicit `sound` parameter |
+| `tap_detection_delay_ms` | `500` | Android only | Warm-start tap detection delay |
+| `navigation_replay_duration_ms` | `15000` | Android only | Cold-start `livewire:navigated` replay window |
 
-Config is injected into bridge calls via `_config` key — Android reads values at runtime.
+Config is injected into bridge calls via `_config` key — both Android (Kotlin) and iOS (Swift) read applicable values at runtime. Android-only keys relate to notification channels and tap detection; iOS uses `UNUserNotificationCenter` delegates instead.
 
 ## Event Dispatch & Tap Detection
 

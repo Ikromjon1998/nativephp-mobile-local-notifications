@@ -22,8 +22,9 @@ Schedule, manage, and cancel local notifications in your NativePHP Mobile app �
 ## What's New in v1.4.0
 
 - **Publishable config** — Customize channel ID/name, max actions, repeat constraints, sound defaults, and timing via `config/local-notifications.php`
-- **Runtime native config** — PHP config values flow to Android at runtime — no more hardcoded Kotlin constants
+- **Runtime native config** — PHP config values flow to both Android and iOS at runtime via the `_config` bridge parameter
 - **Config-driven validation** — Action count and repeat interval limits read from config
+- **Cross-platform config support** — `default_sound` and `max_actions` are now respected on both Android and iOS
 
 See the full [CHANGELOG](CHANGELOG.md) for details.
 
@@ -75,16 +76,18 @@ php artisan vendor:publish --tag=local-notifications-config
 
 This creates `config/local-notifications.php` where you can set:
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `channel_id` | `nativephp_local_notifications` | Android notification channel ID |
-| `channel_name` | `Local Notifications` | Android notification channel name |
-| `channel_description` | `Notifications scheduled by the app` | Android channel description |
-| `max_actions` | `3` | Max action buttons per notification |
-| `min_repeat_interval_seconds` | `60` | Minimum custom repeat interval |
-| `default_sound` | `true` | Play sound when no explicit `sound` parameter |
-| `tap_detection_delay_ms` | `500` | Android warm-start tap detection delay |
-| `navigation_replay_duration_ms` | `15000` | Android cold-start `livewire:navigated` replay window |
+| Key | Default | Platform | Description |
+|-----|---------|----------|-------------|
+| `channel_id` | `nativephp_local_notifications` | Android only | Notification channel ID |
+| `channel_name` | `Local Notifications` | Android only | Notification channel name |
+| `channel_description` | `Notifications scheduled by the app` | Android only | Channel description |
+| `max_actions` | `3` | Android + iOS | Max action buttons per notification |
+| `min_repeat_interval_seconds` | `60` | Android + iOS | Minimum custom repeat interval (PHP validation) |
+| `default_sound` | `true` | Android + iOS | Play sound when no explicit `sound` parameter |
+| `tap_detection_delay_ms` | `500` | Android only | Warm-start tap detection delay |
+| `navigation_replay_duration_ms` | `15000` | Android only | Cold-start `livewire:navigated` replay window |
+
+> **Note:** Config values marked "Android + iOS" are applied on both platforms. Android-only values relate to notification channels and tap detection mechanisms that have no iOS equivalent — iOS uses `UNUserNotificationCenter` delegates which handle these concerns natively.
 
 You can also use environment variables for channel settings:
 
