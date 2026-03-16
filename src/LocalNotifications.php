@@ -107,6 +107,7 @@ class LocalNotifications implements LocalNotificationsInterface
             'channel_id' => config('local-notifications.channel_id', 'nativephp_local_notifications'),
             'channel_name' => config('local-notifications.channel_name', 'Local Notifications'),
             'channel_description' => config('local-notifications.channel_description', 'Notifications scheduled by the app'),
+            'max_actions' => config('local-notifications.max_actions', 3),
             'default_sound' => config('local-notifications.default_sound', true),
             'tap_detection_delay_ms' => config('local-notifications.tap_detection_delay_ms', 500),
             'navigation_replay_duration_ms' => config('local-notifications.navigation_replay_duration_ms', 15000),

@@ -313,6 +313,54 @@ describe('NotificationOptions', function (): void {
         $options->toArray();
     })->throws(InvalidArgumentException::class, '"repeatCount" requires a repeat mechanism');
 
+    it('throws when actions exceed default max of 3', function (): void {
+        $options = new NotificationOptions(
+            id: 'too-many',
+            title: 'Too Many',
+            body: 'Body',
+            actions: [
+                new NotificationAction(id: 'a1', title: 'A1'),
+                new NotificationAction(id: 'a2', title: 'A2'),
+                new NotificationAction(id: 'a3', title: 'A3'),
+                new NotificationAction(id: 'a4', title: 'A4'),
+            ],
+        );
+
+        $options->toArray();
+    })->throws(InvalidArgumentException::class, 'at most 3 action buttons');
+
+    it('throws when actions exceed custom max_actions', function (): void {
+        config()->set('local-notifications.max_actions', 2);
+
+        $options = new NotificationOptions(
+            id: 'too-many',
+            title: 'Too Many',
+            body: 'Body',
+            actions: [
+                new NotificationAction(id: 'a1', title: 'A1'),
+                new NotificationAction(id: 'a2', title: 'A2'),
+                new NotificationAction(id: 'a3', title: 'A3'),
+            ],
+        );
+
+        $options->toArray();
+    })->throws(InvalidArgumentException::class, 'at most 2 action buttons');
+
+    it('allows actions at default max of 3', function (): void {
+        $options = new NotificationOptions(
+            id: 'ok',
+            title: 'OK',
+            body: 'Body',
+            actions: [
+                new NotificationAction(id: 'a1', title: 'A1'),
+                new NotificationAction(id: 'a2', title: 'A2'),
+                new NotificationAction(id: 'a3', title: 'A3'),
+            ],
+        );
+
+        expect($options->toArray()['actions'])->toHaveCount(3);
+    });
+
     it('can be passed to schedule method', function (): void {
         $capturedData = null;
 

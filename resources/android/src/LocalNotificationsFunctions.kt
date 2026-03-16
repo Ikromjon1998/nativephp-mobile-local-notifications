@@ -57,6 +57,7 @@ object LocalNotificationsFunctions {
         (config["channel_id"] as? String)?.let { channelId = it }
         (config["channel_name"] as? String)?.let { channelName = it }
         (config["channel_description"] as? String)?.let { channelDescription = it }
+        (config["max_actions"] as? Number)?.let { maxActions = it.toInt() }
         (config["default_sound"] as? Boolean)?.let { defaultSound = it }
         (config["tap_detection_delay_ms"] as? Number)?.let { tapDetectionDelayMs = it.toLong() }
         (config["navigation_replay_duration_ms"] as? Number)?.let { navigationReplayDurationMs = it.toLong() }

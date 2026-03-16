@@ -475,11 +475,13 @@ describe('schedule', function (): void {
                 'channel_id',
                 'channel_name',
                 'channel_description',
+                'max_actions',
                 'default_sound',
                 'tap_detection_delay_ms',
                 'navigation_replay_duration_ms',
             ])
             ->and($capturedData['_config']['channel_id'])->toBe('nativephp_local_notifications')
+            ->and($capturedData['_config']['max_actions'])->toBe(3)
             ->and($capturedData['_config']['default_sound'])->toBeTrue()
             ->and($capturedData['_config']['tap_detection_delay_ms'])->toBe(500)
             ->and($capturedData['_config']['navigation_replay_duration_ms'])->toBe(15000);

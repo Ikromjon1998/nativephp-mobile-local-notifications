@@ -81,6 +81,26 @@ describe('config flows to bridge', function (): void {
         expect($capturedData['_config']['channel_id'])->toBe('my_app_notifs');
     });
 
+    it('injects overridden max_actions into _config', function (): void {
+        config()->set('local-notifications.max_actions', 2);
+
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        (new LocalNotifications)->schedule([
+            'id' => 'test',
+            'title' => 'Test',
+            'body' => 'Body',
+        ]);
+
+        expect($capturedData['_config']['max_actions'])->toBe(2);
+    });
+
     it('injects overridden default_sound into _config', function (): void {
         config()->set('local-notifications.default_sound', false);
 
