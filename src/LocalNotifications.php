@@ -21,6 +21,9 @@ class LocalNotifications implements LocalNotificationsInterface
             ? $options->toArray()
             : $this->normalizeOptions($options);
 
+        // Inject configurable values for the native layer
+        $data['_config'] = $this->nativeConfig();
+
         return $this->call('LocalNotifications.Schedule', $data);
     }
 
@@ -91,6 +94,23 @@ class LocalNotifications implements LocalNotificationsInterface
         NotificationValidator::validate($options);
 
         return $options;
+    }
+
+    /**
+     * Build the config values to pass to the native layer.
+     *
+     * @return array<string, mixed>
+     */
+    protected function nativeConfig(): array
+    {
+        return [
+            'channel_id' => config('local-notifications.channel_id', 'nativephp_local_notifications'),
+            'channel_name' => config('local-notifications.channel_name', 'Local Notifications'),
+            'channel_description' => config('local-notifications.channel_description', 'Notifications scheduled by the app'),
+            'default_sound' => config('local-notifications.default_sound', true),
+            'tap_detection_delay_ms' => config('local-notifications.tap_detection_delay_ms', 500),
+            'navigation_replay_duration_ms' => config('local-notifications.navigation_replay_duration_ms', 15000),
+        ];
     }
 
     /**

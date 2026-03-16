@@ -334,6 +334,7 @@ describe('NotificationOptions', function (): void {
 
         $result = $notifications->schedule($options);
 
+        unset($capturedData['_config']);
         expect($result)->toBe(['success' => true])
             ->and($capturedData)->toBe([
                 'id' => 'dto-test',

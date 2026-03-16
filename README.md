@@ -19,12 +19,11 @@ Schedule, manage, and cancel local notifications in your NativePHP Mobile app �
 | **nativephp/mobile-firebase** | Push notifications from a server via FCM/APNs | Firebase project, server, internet |
 | **This plugin** | Local notifications scheduled on-device | Nothing — works offline |
 
-## What's New in v1.3.4
+## What's New in v1.4.0
 
-- **Reliable `NotificationTapped` event** — Both warm-start (app open) and cold-start (app killed) notification taps now reliably dispatch to `#[OnNative]` handlers on Android
-- **Immediate warm-start detection** — Tapped notifications are detected instantly when the app returns to foreground via `onResume` lifecycle callback
-- **Cold-start navigation replay** — Tap events replay across `wire:navigate` page transitions so the destination component always receives them
-- **Action button fixes** — Pressing an action button no longer falsely triggers `NotificationTapped`
+- **Publishable config** — Customize channel ID/name, max actions, repeat constraints, sound defaults, and timing via `config/local-notifications.php`
+- **Runtime native config** — PHP config values flow to Android at runtime — no more hardcoded Kotlin constants
+- **Config-driven validation** — Action count and repeat interval limits read from config
 
 See the full [CHANGELOG](CHANGELOG.md) for details.
 
@@ -64,6 +63,34 @@ Build your app (plugin requires a native build — it does not work with Jump):
 php artisan native:run android
 # or
 php artisan native:run ios
+```
+
+## Configuration
+
+Optionally publish the config file to customize defaults:
+
+```bash
+php artisan vendor:publish --tag=local-notifications-config
+```
+
+This creates `config/local-notifications.php` where you can set:
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `channel_id` | `nativephp_local_notifications` | Android notification channel ID |
+| `channel_name` | `Local Notifications` | Android notification channel name |
+| `channel_description` | `Notifications scheduled by the app` | Android channel description |
+| `max_actions` | `3` | Max action buttons per notification |
+| `min_repeat_interval_seconds` | `60` | Minimum custom repeat interval |
+| `default_sound` | `true` | Play sound when no explicit `sound` parameter |
+| `tap_detection_delay_ms` | `500` | Android warm-start tap detection delay |
+| `navigation_replay_duration_ms` | `15000` | Android cold-start `livewire:navigated` replay window |
+
+You can also use environment variables for channel settings:
+
+```env
+LOCAL_NOTIFICATIONS_CHANNEL_ID=my_app_notifications
+LOCAL_NOTIFICATIONS_CHANNEL_NAME="My App Alerts"
 ```
 
 ## Usage (PHP)

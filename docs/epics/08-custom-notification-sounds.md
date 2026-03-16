@@ -3,9 +3,13 @@
 **Priority:** Medium
 **Status:** Not Started
 
+## Prerequisites
+
+- v1.4.0 added `default_sound` config option controlling the default `sound: true/false` behavior.
+
 ## Description
 
-Allow specifying custom sound files instead of just a boolean on/off toggle. Developers need distinct sounds for different notification types (e.g., alerts vs. reminders).
+Allow specifying custom sound files instead of just a boolean on/off toggle. Developers need distinct sounds for different notification types (e.g., alerts vs. reminders). The default sound toggle is already configurable via `config/local-notifications.php` (`default_sound` key).
 
 ## Scope
 

@@ -3,6 +3,10 @@
 **Priority:** Low
 **Status:** Not Started
 
+## Prerequisites
+
+- v1.4.0 established the publishable config pattern (`config/local-notifications.php`) and the `_config` bridge parameter for passing PHP config values to native code at runtime. New icon config keys (e.g., `default_icon`, `default_color`) should follow this same pattern.
+
 ## Description
 
 Allow developers to customize notification icons on Android instead of always using the app icon. Android recommends a monochrome silhouette for the small icon, but the package currently uses `applicationInfo.icon` which often renders poorly in the status bar.
