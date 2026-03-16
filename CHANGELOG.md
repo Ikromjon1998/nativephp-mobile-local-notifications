@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.4] - 2026-03-16
+
+### Fixed
+
+- **Android: Warm-start notification tap now reliably dispatches NotificationTapped** — Replaced the `localnotification://` URI + lifecycle listener approach (which caused 404 errors in NativePHP's WebView router) with a SharedPreferences-based tap detection mechanism. When a notification is shown, a tap payload is stored. On user dismiss (swipe), a `deleteIntent` clears it. On user tap (auto-cancel), the payload persists. The next bridge call compares stored payloads against `NotificationManager.getActiveNotifications()` and dispatches `NotificationTapped` for any notification that is no longer in the status bar. ([#10](https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/issues/10))
+- **Android: Cold-start tap payload deduplication** — After dispatching `NotificationTapped` from the activity's launch intent (cold start), the corresponding tap payload is now cleared to prevent a duplicate dispatch from the warm-start detection logic. ([#10](https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/issues/10))
+- **Android: Tap payload cleanup on Cancel/CancelAll** — Stored tap payloads are now cleared when notifications are explicitly cancelled, preventing false `NotificationTapped` events for cancelled notifications.
+
 ## [1.3.3] - 2026-03-16
 
 ### Fixed
@@ -128,6 +136,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Survives device reboot (Android)
 - NotificationScheduled, PermissionGranted, PermissionDenied events
 
+[1.3.4]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.3.0...v1.3.1

@@ -8,13 +8,11 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.nativephp.mobile.bridge.BridgeFunction
-import com.nativephp.mobile.lifecycle.NativePHPLifecycle
 import com.nativephp.mobile.utils.NativeActionCoordinator
 import com.nativephp.mobile.utils.WebViewProvider
 import org.json.JSONArray
@@ -49,44 +47,34 @@ object LocalNotificationsFunctions {
         fun get(): FragmentActivity? = ref?.get()
     }
 
-    /** Whether the NativePHPLifecycle listener for warm-start taps has been registered. */
-    private var lifecycleRegistered = false
-
     /**
-     * Register a NativePHPLifecycle listener for onNewIntent.
-     * Handles warm-start notification taps: when the app is already running and the user
-     * taps a notification, onNewIntent fires with a localnotification:// URI.
-     * We parse the tap data and dispatch NotificationTapped immediately.
+     * Store a notification's tap payload in SharedPreferences.
+     * Called when a notification is shown. On user tap (auto-cancel), the payload persists.
+     * On user dismiss (swipe), the deleteIntent clears it via [clearTapPayload].
      */
-    private fun registerLifecycleListener() {
-        if (lifecycleRegistered) return
-        lifecycleRegistered = true
-
-        NativePHPLifecycle.on(NativePHPLifecycle.Events.ON_NEW_INTENT) { data ->
-            val url = data["url"] as? String ?: return@on
-            if (!url.startsWith("localnotification://tap")) return@on
-
-            val uri = Uri.parse(url)
-            val id = uri.getQueryParameter("id") ?: return@on
-            val title = uri.getQueryParameter("title") ?: return@on
-            val body = uri.getQueryParameter("body") ?: return@on
-            val dataJson = uri.getQueryParameter("data")
-
-            Log.d(TAG, "Warm-start notification tap via lifecycle: $id")
-
+    fun storeTapPayload(context: Context, id: String, title: String, body: String, dataJson: String?) {
+        synchronized(prefsLock) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val payload = JSONObject().apply {
                 put("id", id)
                 put("title", title)
                 put("body", body)
                 if (dataJson != null) put("data", JSONObject(dataJson))
             }
+            prefs.edit().putString("tap_payload_$id", payload.toString()).apply()
+            Log.d(TAG, "Stored tap payload for: $id")
+        }
+    }
 
-            val activity = ActivityHolder.get() ?: return@on
-            dispatchEvent(
-                activity,
-                "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
-                payload.toString()
-            )
+    /**
+     * Clear a stored tap payload. Called from deleteIntent when user swipe-dismisses
+     * a notification, preventing a false NotificationTapped dispatch.
+     */
+    fun clearTapPayload(context: Context, id: String) {
+        synchronized(prefsLock) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit().remove("tap_payload_$id").apply()
+            Log.d(TAG, "Cleared tap payload for dismissed notification: $id")
         }
     }
 
@@ -175,12 +163,10 @@ object LocalNotificationsFunctions {
      * Check for and dispatch any pending events that were stored while the app was inactive.
      * Also checks if the activity was launched via a notification tap (PendingIntent.getActivity)
      * and dispatches the NotificationTapped event from the intent extras.
+     * Finally, detects warm-start taps via SharedPreferences-based tap payload tracking.
      */
     private fun dispatchPendingEvents(activity: FragmentActivity) {
-        // Register lifecycle listener for warm-start notification taps
-        registerLifecycleListener()
-
-        // Check if the activity was launched from a notification tap
+        // Check if the activity was launched from a notification tap (cold start)
         val intent = activity.intent
         if (intent?.action == "com.ikromjon.localnotifications.TAP") {
             val id = intent.getStringExtra("notification_id")
@@ -201,10 +187,17 @@ object LocalNotificationsFunctions {
                     "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
                     payload.toString()
                 )
+                // Clear the tap payload to prevent duplicate dispatch from warm-start detection
+                clearTapPayload(activity, id)
             }
             // Clear action to prevent re-dispatch on configuration change
             intent.action = null
         }
+
+        // Warm-start tap detection: compare stored tap payloads against active notifications.
+        // If a tap payload exists but the notification is no longer in the status bar,
+        // the user must have tapped it (auto-cancel removes it but deleteIntent does NOT fire).
+        detectTappedNotifications(activity)
 
         // Dispatch any events stored in SharedPreferences queue
         val prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -221,6 +214,39 @@ object LocalNotificationsFunctions {
             val eventClass = entry.getString("event")
             val payload = entry.getJSONObject("payload")
             dispatchEvent(activity, eventClass, payload.toString())
+        }
+    }
+
+    /**
+     * Detect tapped notifications by comparing stored tap payloads against active notifications.
+     * When a notification is tapped, auto-cancel removes it from the status bar but deleteIntent
+     * does NOT fire, so the tap payload persists. If a payload exists but the notification is gone,
+     * the user must have tapped it.
+     */
+    private fun detectTappedNotifications(activity: FragmentActivity) {
+        val prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val allKeys = prefs.all.keys.filter { it.startsWith("tap_payload_") }
+        if (allKeys.isEmpty()) return
+
+        // Get currently active notification IDs from the status bar
+        val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val activeIds = notificationManager.activeNotifications.map { it.id }.toSet()
+
+        for (key in allKeys) {
+            val notifId = key.removePrefix("tap_payload_")
+            val notifHashCode = notifId.hashCode()
+
+            if (notifHashCode !in activeIds) {
+                // Notification is no longer in the status bar — user tapped it
+                val payloadJson = prefs.getString(key, null) ?: continue
+                Log.d(TAG, "Detected tapped notification (warm-start): $notifId")
+                dispatchEvent(
+                    activity,
+                    "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
+                    payloadJson
+                )
+                clearTapPayload(activity, notifId)
+            }
         }
     }
 
@@ -436,6 +462,7 @@ object LocalNotificationsFunctions {
                     for (subId in subIds) {
                         cancelSingleAlarm(context, subId)
                         removeNotificationInfo(context, subId)
+                        clearTapPayload(context, subId)
                     }
                     removeRepeatDaysParent(context, id)
                     Log.d(TAG, "✅ Day-of-week notification cancelled: $id (${subIds.size} sub-alarms)")
@@ -443,6 +470,7 @@ object LocalNotificationsFunctions {
                     // Cancel single alarm
                     cancelSingleAlarm(context, id)
                     removeNotificationInfo(context, id)
+                    clearTapPayload(context, id)
                     Log.d(TAG, "✅ Notification cancelled: $id")
                 }
 

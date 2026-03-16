@@ -7,7 +7,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.net.Uri
 import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -30,6 +29,13 @@ class LocalNotificationReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
+        // Handle notification dismiss (user swiped away): clear stored tap payload
+        if (intent.action == "com.ikromjon.localnotifications.DISMISS") {
+            val dismissId = intent.getStringExtra("notification_id") ?: return
+            LocalNotificationsFunctions.clearTapPayload(context, dismissId)
+            return
+        }
+
         val id = intent.getStringExtra("notification_id") ?: return
         val title = intent.getStringExtra("title") ?: return
         val body = intent.getStringExtra("body") ?: return
@@ -56,20 +62,10 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         // startActivity() from a BroadcastReceiver is restricted on Android 12+ (API 31).
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
             action = "com.ikromjon.localnotifications.TAP"
-            // Set data URI so NativePHP's onNewIntent() fires the lifecycle event
-            // for warm-start tap handling via NativePHPLifecycle listener.
-            data = Uri.parse(
-                "localnotification://tap?id=${Uri.encode(id)}" +
-                "&title=${Uri.encode(title)}" +
-                "&body=${Uri.encode(body)}" +
-                if (dataJson != null) "&data=${Uri.encode(dataJson)}" else ""
-            )
             putExtra("notification_id", id)
             putExtra("notification_title", title)
             putExtra("notification_body", body)
             if (dataJson != null) putExtra("notification_data", dataJson)
-            // SINGLE_TOP ensures onNewIntent() is called when the activity is
-            // already running, instead of destroying and recreating it.
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
 
@@ -179,6 +175,25 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                 Log.e(TAG, "Error parsing actions: ${e.message}")
             }
         }
+
+        // Set deleteIntent: fires when user swipes away the notification.
+        // Clears the stored tap payload so we don't dispatch a false NotificationTapped.
+        // Does NOT fire on auto-cancel (tap), so the payload persists for tap detection.
+        val dismissIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
+            action = "com.ikromjon.localnotifications.DISMISS"
+            putExtra("notification_id", id)
+        }
+        val dismissPendingIntent = PendingIntent.getBroadcast(
+            context,
+            ("dismiss_$id").hashCode(),
+            dismissIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        builder.setDeleteIntent(dismissPendingIntent)
+
+        // Store tap payload for warm-start detection.
+        // On tap (auto-cancel), this persists. On dismiss (swipe), deleteIntent clears it.
+        LocalNotificationsFunctions.storeTapPayload(context, id, title, body, dataJson)
 
         notificationManager.notify(id.hashCode(), builder.build())
 
