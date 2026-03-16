@@ -109,11 +109,14 @@ On(Events.NotificationTapped, (payload) => {
 });
 ```
 
-## Event Dispatch & Cold-Start Behavior
+## Event Dispatch & Tap Detection (v1.3.4)
 
 - **Pending event flush:** Every bridge function (`schedule`, `cancel`, `cancelAll`, `getPending`, `requestPermission`, `checkPermission`) flushes any queued pending events (e.g. `NotificationTapped` from a cold-start tap). The first bridge call after app launch delivers all queued events.
+- **Warm-start tap detection (Android):** An `Application.ActivityLifecycleCallbacks` runs `detectTappedNotifications()` on every `onResume` with a 500ms delay. When the user taps a notification while the app is open, the event fires immediately when the app returns to foreground — no bridge call needed.
+- **Cold-start navigation replay (Android):** On cold start, a `livewire:navigated` JS listener replays `NotificationTapped` on every `wire:navigate` navigation for 15 seconds. This ensures the event reaches the destination page's `#[OnNative]` handlers even when the first bridge call runs on a different page.
+- **SharedPreferences-based tap tracking (Android):** When a notification fires, a tap payload is stored. On user swipe-dismiss, a `deleteIntent` clears it. On user tap (auto-cancel), the payload persists. The plugin compares stored payloads against `NotificationManager.getActiveNotifications()` to detect taps.
 - **Android `livewire:init` fallback:** On cold start, Livewire may not be loaded when native events are dispatched. The plugin injects a `livewire:init` JS listener as a fallback — events are replayed when Livewire initializes. This is automatic and requires no user action.
-- **iOS limitation:** The `livewire:init` fallback is Android-only. On iOS, the plugin relies on the NativePHP core's WebView user script for Livewire dispatch. If Livewire timing is an issue on iOS cold start, ensure a bridge call (e.g. `checkPermission()`) happens after the page loads.
+- **iOS limitation:** The `livewire:init` and `livewire:navigated` fallbacks are Android-only. On iOS, the plugin relies on the NativePHP core's WebView user script for Livewire dispatch. If Livewire timing is an issue on iOS cold start, ensure a bridge call (e.g. `checkPermission()`) happens after the page loads.
 
 ## Common Patterns
 
@@ -123,6 +126,7 @@ On(Events.NotificationTapped, (payload) => {
 - Notification IDs should be deterministic (e.g. `habit-{id}`) so you can cancel without tracking state.
 - `data` payload is passed through to `NotificationTapped` and `NotificationActionPressed` events.
 - To ensure `NotificationTapped` events are delivered on cold start, make sure your app calls at least one bridge function (e.g. `checkPermission()`) early in the page lifecycle.
+- Action buttons: Visible when the user expands (swipe down) the notification. Max 3 buttons per notification.
 
 ## Required Permissions
 

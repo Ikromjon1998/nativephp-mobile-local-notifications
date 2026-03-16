@@ -19,11 +19,12 @@ Schedule, manage, and cancel local notifications in your NativePHP Mobile app �
 | **nativephp/mobile-firebase** | Push notifications from a server via FCM/APNs | Firebase project, server, internet |
 | **This plugin** | Local notifications scheduled on-device | Nothing — works offline |
 
-## What's New in v1.3.0
+## What's New in v1.3.4
 
-- **JavaScript client library** — Full JS exports for Vue/React (Inertia) apps: `schedule`, `cancel`, `cancelAll`, `getPending`, `requestPermission`, `checkPermission`
-- **Event constants for SPA** — `Events` export for use with NativePHP's `On()` listener
-- **Boost guidelines** — AI development guidelines for facade methods, DTOs, events, and common patterns
+- **Reliable `NotificationTapped` event** — Both warm-start (app open) and cold-start (app killed) notification taps now reliably dispatch to `#[OnNative]` handlers on Android
+- **Immediate warm-start detection** — Tapped notifications are detected instantly when the app returns to foreground via `onResume` lifecycle callback
+- **Cold-start navigation replay** — Tap events replay across `wire:navigate` page transitions so the destination component always receives them
+- **Action button fixes** — Pressing an action button no longer falsely triggers `NotificationTapped`
 
 See the full [CHANGELOG](CHANGELOG.md) for details.
 
