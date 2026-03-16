@@ -113,18 +113,18 @@ On(Events.NotificationTapped, (payload) => {
 
 Publish with `php artisan vendor:publish --tag=local-notifications-config`.
 
-| Key | Default | Platform | Description |
-|-----|---------|----------|-------------|
-| `channel_id` | `nativephp_local_notifications` | Android only | Notification channel ID |
-| `channel_name` | `Local Notifications` | Android only | Notification channel name |
-| `channel_description` | `Notifications scheduled by the app` | Android only | Channel description |
-| `max_actions` | `3` | Android + iOS | Max action buttons per notification |
-| `min_repeat_interval_seconds` | `60` | Android + iOS | Minimum custom repeat interval (PHP validation) |
-| `default_sound` | `true` | Android + iOS | Play sound when no explicit `sound` parameter |
-| `tap_detection_delay_ms` | `500` | Android only | Warm-start tap detection delay |
-| `navigation_replay_duration_ms` | `15000` | Android only | Cold-start `livewire:navigated` replay window |
+| Key | Default | Platform | Description | Why platform-specific? |
+|-----|---------|----------|-------------|----------------------|
+| `channel_id` | `nativephp_local_notifications` | Android only | Notification channel ID | iOS has no notification channels |
+| `channel_name` | `Local Notifications` | Android only | Notification channel name | Channels are Android-only (API 26+) |
+| `channel_description` | `Notifications scheduled by the app` | Android only | Channel description | Channels are Android-only (API 26+) |
+| `max_actions` | `3` | Android + iOS | Max action buttons per notification | Both platforms support action buttons |
+| `min_repeat_interval_seconds` | `60` | Android + iOS | Minimum custom repeat interval | PHP-layer validation, platform-independent |
+| `default_sound` | `true` | Android + iOS | Play sound when no explicit `sound` parameter | Both platforms support sound control |
+| `tap_detection_delay_ms` | `500` | Android only | Warm-start tap detection delay | iOS delivers taps instantly via delegate |
+| `navigation_replay_duration_ms` | `15000` | Android only | Cold-start `livewire:navigated` replay window | Android injects JS replay; iOS uses core WebView script |
 
-Config is injected into bridge calls via `_config` key — both Android (Kotlin) and iOS (Swift) read applicable values at runtime. Android-only keys relate to notification channels and tap detection; iOS uses `UNUserNotificationCenter` delegates instead.
+Config is injected into bridge calls via `_config` key — both Android (Kotlin) and iOS (Swift) read applicable values at runtime.
 
 ## Event Dispatch & Tap Detection
 
