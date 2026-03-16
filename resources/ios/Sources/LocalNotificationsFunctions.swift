@@ -203,7 +203,11 @@ enum LocalNotificationsFunctions {
                 return ["success": false, "error": "Missing required parameter: body"]
             }
 
-            let sound = parameters["sound"] as? Bool ?? true
+            // Read _config for default values from PHP config
+            let config = parameters["_config"] as? [String: Any]
+            let defaultSound = config?["default_sound"] as? Bool ?? true
+
+            let sound = parameters["sound"] as? Bool ?? defaultSound
             let badge = parameters["badge"] as? Int
             let data = parameters["data"] as? [String: Any]
             let repeatInterval = parameters["repeat"] as? String
@@ -240,8 +244,9 @@ enum LocalNotificationsFunctions {
 
             // Register action buttons if provided
             if let actionsArray = parameters["actions"] as? [[String: Any]], !actionsArray.isEmpty {
+                let maxActions = (config?["max_actions"] as? Int) ?? 3
                 let categoryId = "NOTIF_ACTIONS_\(id)"
-                let actions: [UNNotificationAction] = actionsArray.prefix(3).map { actionDict in
+                let actions: [UNNotificationAction] = actionsArray.prefix(maxActions).map { actionDict in
                     let actionId = actionDict["id"] as? String ?? ""
                     let actionTitle = actionDict["title"] as? String ?? ""
                     let isDestructive = actionDict["destructive"] as? Bool ?? false
