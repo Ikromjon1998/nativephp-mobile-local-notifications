@@ -133,6 +133,10 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             val style = NotificationCompat.BigTextStyle()
                 .bigText(bigText)
             builder.setStyle(style)
+        } else if (actionsJson != null) {
+            // BigTextStyle required for action buttons to appear on Samsung One UI.
+            // Without an explicit expanded style, Samsung hides action buttons.
+            builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
         }
 
         // Add action buttons if provided
