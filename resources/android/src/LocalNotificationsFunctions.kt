@@ -8,7 +8,12 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.app.Activity
+import android.app.Application
 import android.os.Build
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
@@ -35,6 +40,8 @@ object LocalNotificationsFunctions {
     const val MAX_ACTIONS = 3
     /** Lock object for thread-safe SharedPreferences access. */
     private val prefsLock = Any()
+    /** Whether the onResume lifecycle callback has been registered. */
+    private var resumeCallbackRegistered = false
 
     /** Holds a weak reference to the current activity for event dispatch. */
     object ActivityHolder {
@@ -139,6 +146,62 @@ object LocalNotificationsFunctions {
     }
 
     /**
+     * Register an Application.ActivityLifecycleCallbacks that checks for tapped notifications
+     * on every onResume. This enables immediate warm-start tap detection without waiting for
+     * the next bridge function call. Uses a 500ms delay to ensure the WebView is ready and
+     * any deleteIntent broadcasts (from swipe-dismiss) have been processed.
+     */
+    private fun registerResumeDetection(activity: FragmentActivity) {
+        if (resumeCallbackRegistered) return
+        resumeCallbackRegistered = true
+
+        activity.application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityResumed(a: Activity) {
+                if (a is FragmentActivity) {
+                    ActivityHolder.set(a)
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        detectTappedNotifications(a)
+                    }, 500)
+                }
+            }
+            override fun onActivityCreated(a: Activity, b: Bundle?) {}
+            override fun onActivityStarted(a: Activity) {}
+            override fun onActivityPaused(a: Activity) {}
+            override fun onActivityStopped(a: Activity) {}
+            override fun onActivitySaveInstanceState(a: Activity, b: Bundle) {}
+            override fun onActivityDestroyed(a: Activity) {}
+        })
+        Log.d(TAG, "Registered onResume callback for tap detection")
+    }
+
+    /**
+     * Inject a JS listener for Livewire's `livewire:navigated` event that replays a tap event.
+     * When using wire:navigate (SPA-like navigation), the new page's Livewire components may not
+     * be hydrated when the initial dispatchEvent JS runs. This replay ensures the event reaches
+     * components on the destination page after navigation completes.
+     */
+    private fun injectNavigationReplay(activity: FragmentActivity, event: String, payloadJson: String) {
+        try {
+            val webView = (activity as? WebViewProvider)?.getWebView() ?: return
+            val eventForJs = event.replace("\\", "\\\\")
+            val js = """
+                (function() {
+                    document.addEventListener('livewire:navigated', function() {
+                        if (window.Livewire && typeof window.Livewire.dispatch === 'function') {
+                            window.Livewire.dispatch('native:$eventForJs', $payloadJson);
+                        }
+                    }, { once: true });
+                })();
+            """.trimIndent()
+            activity.runOnUiThread {
+                webView.evaluateJavascript(js, null)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error injecting navigation replay: ${e.message}", e)
+        }
+    }
+
+    /**
      * Store a pending event in SharedPreferences for dispatch when the bridge is available.
      * Events are stored as a JSON array queue to prevent overwrites.
      */
@@ -166,6 +229,9 @@ object LocalNotificationsFunctions {
      * Finally, detects warm-start taps via SharedPreferences-based tap payload tracking.
      */
     private fun dispatchPendingEvents(activity: FragmentActivity) {
+        // Register onResume callback for immediate warm-start tap detection
+        registerResumeDetection(activity)
+
         // Check if the activity was launched from a notification tap (cold start)
         val intent = activity.intent
         if (intent?.action == "com.ikromjon.localnotifications.TAP") {
@@ -181,12 +247,12 @@ object LocalNotificationsFunctions {
                     put("body", body)
                     if (dataJson != null) put("data", JSONObject(dataJson))
                 }
+                val payloadStr = payload.toString()
+                val eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationTapped"
                 Log.d(TAG, "Dispatching NotificationTapped from activity intent: $id")
-                dispatchEvent(
-                    activity,
-                    "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
-                    payload.toString()
-                )
+                dispatchEvent(activity, eventClass, payloadStr)
+                // Replay on next wire:navigate so the destination page's components receive it
+                injectNavigationReplay(activity, eventClass, payloadStr)
                 // Clear the tap payload to prevent duplicate dispatch from warm-start detection
                 clearTapPayload(activity, id)
             }
@@ -239,12 +305,11 @@ object LocalNotificationsFunctions {
             if (notifHashCode !in activeIds) {
                 // Notification is no longer in the status bar — user tapped it
                 val payloadJson = prefs.getString(key, null) ?: continue
+                val eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationTapped"
                 Log.d(TAG, "Detected tapped notification (warm-start): $notifId")
-                dispatchEvent(
-                    activity,
-                    "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
-                    payloadJson
-                )
+                dispatchEvent(activity, eventClass, payloadJson)
+                // Replay on next wire:navigate so the destination page's components receive it
+                injectNavigationReplay(activity, eventClass, payloadJson)
                 clearTapPayload(activity, notifId)
             }
         }
