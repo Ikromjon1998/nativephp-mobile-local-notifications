@@ -179,6 +179,9 @@ object LocalNotificationsFunctions {
      * When using wire:navigate (SPA-like navigation), the new page's Livewire components may not
      * be hydrated when the initial dispatchEvent JS runs. This replay ensures the event reaches
      * components on the destination page after navigation completes.
+     *
+     * Replays on every `livewire:navigated` for 15 seconds to cover multi-step navigation
+     * (e.g., Today → Settings → Debug). After 15s the listener removes itself.
      */
     private fun injectNavigationReplay(activity: FragmentActivity, event: String, payloadJson: String) {
         try {
@@ -186,11 +189,17 @@ object LocalNotificationsFunctions {
             val eventForJs = event.replace("\\", "\\\\")
             val js = """
                 (function() {
-                    document.addEventListener('livewire:navigated', function() {
+                    var expiry = Date.now() + 15000;
+                    function handler() {
+                        if (Date.now() > expiry) {
+                            document.removeEventListener('livewire:navigated', handler);
+                            return;
+                        }
                         if (window.Livewire && typeof window.Livewire.dispatch === 'function') {
                             window.Livewire.dispatch('native:$eventForJs', $payloadJson);
                         }
-                    }, { once: true });
+                    }
+                    document.addEventListener('livewire:navigated', handler);
                 })();
             """.trimIndent()
             activity.runOnUiThread {

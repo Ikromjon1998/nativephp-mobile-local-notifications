@@ -42,9 +42,11 @@ class NotificationActionReceiver : BroadcastReceiver() {
             }
         }
 
-        // Dismiss the notification
+        // Dismiss the notification and clear the tap payload so detectTappedNotifications()
+        // doesn't falsely think the user tapped it (programmatic cancel != user tap).
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.cancel(notificationId.hashCode())
+        LocalNotificationsFunctions.clearTapPayload(context, notificationId)
 
         // Try to dispatch the event immediately if the app is active
         val activity = LocalNotificationsFunctions.ActivityHolder.get()
