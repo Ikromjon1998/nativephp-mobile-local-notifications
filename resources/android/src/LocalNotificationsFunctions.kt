@@ -8,11 +8,13 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.nativephp.mobile.bridge.BridgeFunction
+import com.nativephp.mobile.lifecycle.NativePHPLifecycle
 import com.nativephp.mobile.utils.NativeActionCoordinator
 import com.nativephp.mobile.utils.WebViewProvider
 import org.json.JSONArray
@@ -45,6 +47,47 @@ object LocalNotificationsFunctions {
         }
 
         fun get(): FragmentActivity? = ref?.get()
+    }
+
+    /** Whether the NativePHPLifecycle listener for warm-start taps has been registered. */
+    private var lifecycleRegistered = false
+
+    /**
+     * Register a NativePHPLifecycle listener for onNewIntent.
+     * Handles warm-start notification taps: when the app is already running and the user
+     * taps a notification, onNewIntent fires with a localnotification:// URI.
+     * We parse the tap data and dispatch NotificationTapped immediately.
+     */
+    private fun registerLifecycleListener() {
+        if (lifecycleRegistered) return
+        lifecycleRegistered = true
+
+        NativePHPLifecycle.on(NativePHPLifecycle.Events.ON_NEW_INTENT) { data ->
+            val url = data["url"] as? String ?: return@on
+            if (!url.startsWith("localnotification://tap")) return@on
+
+            val uri = Uri.parse(url)
+            val id = uri.getQueryParameter("id") ?: return@on
+            val title = uri.getQueryParameter("title") ?: return@on
+            val body = uri.getQueryParameter("body") ?: return@on
+            val dataJson = uri.getQueryParameter("data")
+
+            Log.d(TAG, "Warm-start notification tap via lifecycle: $id")
+
+            val payload = JSONObject().apply {
+                put("id", id)
+                put("title", title)
+                put("body", body)
+                if (dataJson != null) put("data", JSONObject(dataJson))
+            }
+
+            val activity = ActivityHolder.get() ?: return@on
+            dispatchEvent(
+                activity,
+                "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
+                payload.toString()
+            )
+        }
     }
 
     private fun ensureNotificationChannel(context: Context) {
@@ -134,6 +177,9 @@ object LocalNotificationsFunctions {
      * and dispatches the NotificationTapped event from the intent extras.
      */
     private fun dispatchPendingEvents(activity: FragmentActivity) {
+        // Register lifecycle listener for warm-start notification taps
+        registerLifecycleListener()
+
         // Check if the activity was launched from a notification tap
         val intent = activity.intent
         if (intent?.action == "com.ikromjon.localnotifications.TAP") {

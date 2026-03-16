@@ -7,6 +7,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.net.Uri
 import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -55,11 +56,21 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         // startActivity() from a BroadcastReceiver is restricted on Android 12+ (API 31).
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
             action = "com.ikromjon.localnotifications.TAP"
+            // Set data URI so NativePHP's onNewIntent() fires the lifecycle event
+            // for warm-start tap handling via NativePHPLifecycle listener.
+            data = Uri.parse(
+                "localnotification://tap?id=${Uri.encode(id)}" +
+                "&title=${Uri.encode(title)}" +
+                "&body=${Uri.encode(body)}" +
+                if (dataJson != null) "&data=${Uri.encode(dataJson)}" else ""
+            )
             putExtra("notification_id", id)
             putExtra("notification_title", title)
             putExtra("notification_body", body)
             if (dataJson != null) putExtra("notification_data", dataJson)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            // SINGLE_TOP ensures onNewIntent() is called when the activity is
+            // already running, instead of destroying and recreating it.
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
 
         val pendingIntent = if (launchIntent != null) {
