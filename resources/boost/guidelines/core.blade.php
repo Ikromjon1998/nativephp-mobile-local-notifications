@@ -109,6 +109,12 @@ On(Events.NotificationTapped, (payload) => {
 });
 ```
 
+## Event Dispatch & Cold-Start Behavior
+
+- **Pending event flush:** Every bridge function (`schedule`, `cancel`, `cancelAll`, `getPending`, `requestPermission`, `checkPermission`) flushes any queued pending events (e.g. `NotificationTapped` from a cold-start tap). The first bridge call after app launch delivers all queued events.
+- **Android `livewire:init` fallback:** On cold start, Livewire may not be loaded when native events are dispatched. The plugin injects a `livewire:init` JS listener as a fallback — events are replayed when Livewire initializes. This is automatic and requires no user action.
+- **iOS limitation:** The `livewire:init` fallback is Android-only. On iOS, the plugin relies on the NativePHP core's WebView user script for Livewire dispatch. If Livewire timing is an issue on iOS cold start, ensure a bridge call (e.g. `checkPermission()`) happens after the page loads.
+
 ## Common Patterns
 
 - Always call `requestPermission()` before scheduling (Android 13+, iOS).
@@ -116,6 +122,7 @@ On(Events.NotificationTapped, (payload) => {
 - `repeatDays` creates one sub-alarm per day — `cancel()` and `getPending()` handle aggregation automatically.
 - Notification IDs should be deterministic (e.g. `habit-{id}`) so you can cancel without tracking state.
 - `data` payload is passed through to `NotificationTapped` and `NotificationActionPressed` events.
+- To ensure `NotificationTapped` events are delivered on cold start, make sure your app calls at least one bridge function (e.g. `checkPermission()`) early in the page lifecycle.
 
 ## Required Permissions
 

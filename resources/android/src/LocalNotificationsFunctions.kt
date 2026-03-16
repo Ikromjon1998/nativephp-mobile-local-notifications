@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.nativephp.mobile.bridge.BridgeFunction
 import com.nativephp.mobile.utils.NativeActionCoordinator
+import com.nativephp.mobile.utils.WebViewProvider
 import org.json.JSONArray
 import org.json.JSONObject
 import java.lang.ref.WeakReference
@@ -71,12 +72,38 @@ object LocalNotificationsFunctions {
             activity.runOnUiThread {
                 try {
                     NativeActionCoordinator.dispatchEvent(activity, event, payloadJson)
+                    // Fallback: if Livewire wasn't loaded yet, listen for livewire:init
+                    // to dispatch when it becomes available (cold start timing fix)
+                    injectLivewireInitFallback(activity, event, payloadJson)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error dispatching event on UI thread: ${e.message}", e)
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error dispatching event: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Inject a JS fallback that listens for Livewire's `livewire:init` lifecycle event.
+     * If Livewire was already loaded (and NativeActionCoordinator already dispatched),
+     * this is a no-op. Otherwise, it queues the dispatch for when Livewire initializes.
+     */
+    private fun injectLivewireInitFallback(activity: FragmentActivity, event: String, payloadJson: String) {
+        try {
+            val webView = (activity as? WebViewProvider)?.getWebView() ?: return
+            val eventForJs = event.replace("\\", "\\\\")
+            val js = """
+                (function() {
+                    if (window.Livewire && typeof window.Livewire.dispatch === 'function') return;
+                    document.addEventListener('livewire:init', function() {
+                        window.Livewire.dispatch('native:$eventForJs', $payloadJson);
+                    }, { once: true });
+                })();
+            """.trimIndent()
+            webView.evaluateJavascript(js, null)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error injecting livewire:init fallback: ${e.message}", e)
         }
     }
 
@@ -345,11 +372,16 @@ object LocalNotificationsFunctions {
      * Cancel a scheduled notification by identifier.
      * If the ID is a repeatDays parent, cancels all sub-alarms.
      */
-    class Cancel(private val context: Context) : BridgeFunction {
+    class Cancel(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Store activity reference and dispatch any pending tap events
+            ActivityHolder.set(activity)
+            dispatchPendingEvents(activity)
+
             val id = parameters["id"] as? String
                 ?: return mapOf("success" to false, "error" to "Missing required parameter: id")
 
+            val context = activity as Context
             return try {
                 // Check if this is a repeatDays parent with sub-IDs
                 val subIds = getRepeatDaysSubIds(context, id)
@@ -399,8 +431,13 @@ object LocalNotificationsFunctions {
     /**
      * Cancel all scheduled notifications
      */
-    class CancelAll(private val context: Context) : BridgeFunction {
+    class CancelAll(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Store activity reference and dispatch any pending tap events
+            ActivityHolder.set(activity)
+            dispatchPendingEvents(activity)
+
+            val context = activity as Context
             return try {
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val allIds = prefs.getStringSet("notification_ids", emptySet()) ?: emptySet()
@@ -441,8 +478,13 @@ object LocalNotificationsFunctions {
      * Get all pending scheduled notifications.
      * repeatDays sub-alarms are aggregated back into a single parent entry.
      */
-    class GetPending(private val context: Context) : BridgeFunction {
+    class GetPending(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Store activity reference and dispatch any pending tap events
+            ActivityHolder.set(activity)
+            dispatchPendingEvents(activity)
+
+            val context = activity as Context
             return try {
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val allIds = prefs.getStringSet("notification_ids", emptySet()) ?: emptySet()
@@ -556,8 +598,13 @@ object LocalNotificationsFunctions {
     /**
      * Check current notification permission status
      */
-    class CheckPermission(private val context: Context) : BridgeFunction {
+    class CheckPermission(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Store activity reference and dispatch any pending tap events
+            ActivityHolder.set(activity)
+            dispatchPendingEvents(activity)
+
+            val context = activity as Context
             return try {
                 val status = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val hasPermission = ContextCompat.checkSelfPermission(

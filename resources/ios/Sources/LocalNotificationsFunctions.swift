@@ -492,6 +492,10 @@ enum LocalNotificationsFunctions {
     ///   - success: boolean
     class Cancel: BridgeFunction {
         func execute(parameters: [String: Any]) throws -> [String: Any] {
+            // Ensure delegate is registered and dispatch any pending events
+            LocalNotificationDelegate.ensureRegistered()
+            LocalNotificationDelegate.shared.dispatchPendingEvents()
+
             guard let id = parameters["id"] as? String else {
                 return ["success": false, "error": "Missing required parameter: id"]
             }
@@ -526,6 +530,10 @@ enum LocalNotificationsFunctions {
     ///   - success: boolean
     class CancelAll: BridgeFunction {
         func execute(parameters: [String: Any]) throws -> [String: Any] {
+            // Ensure delegate is registered and dispatch any pending events
+            LocalNotificationDelegate.ensureRegistered()
+            LocalNotificationDelegate.shared.dispatchPendingEvents()
+
             let center = UNUserNotificationCenter.current()
             center.removeAllPendingNotificationRequests()
             center.removeAllDeliveredNotifications()
@@ -549,6 +557,10 @@ enum LocalNotificationsFunctions {
     ///   - count: int - Number of pending notifications
     class GetPending: BridgeFunction {
         func execute(parameters: [String: Any]) throws -> [String: Any] {
+            // Ensure delegate is registered and dispatch any pending events
+            LocalNotificationDelegate.ensureRegistered()
+            LocalNotificationDelegate.shared.dispatchPendingEvents()
+
             let center = UNUserNotificationCenter.current()
             let semaphore = DispatchSemaphore(value: 0)
             var result: [String: Any] = [:]
@@ -697,6 +709,10 @@ enum LocalNotificationsFunctions {
     ///   - status: string - "granted", "denied", "notDetermined", "provisional"
     class CheckPermission: BridgeFunction {
         func execute(parameters: [String: Any]) throws -> [String: Any] {
+            // Ensure delegate is registered and dispatch any pending events
+            LocalNotificationDelegate.ensureRegistered()
+            LocalNotificationDelegate.shared.dispatchPendingEvents()
+
             let center = UNUserNotificationCenter.current()
             let semaphore = DispatchSemaphore(value: 0)
             var result: [String: Any] = [:]
