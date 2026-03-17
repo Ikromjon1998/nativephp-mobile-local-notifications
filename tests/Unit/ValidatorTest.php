@@ -9,14 +9,10 @@ describe('basic validation', function (): void {
             'title' => 'Test',
             'body' => 'Body',
         ]);
-
-        expect(true)->toBeTrue();
     });
 
     it('passes with empty array', function (): void {
         NotificationValidator::validate([]);
-
-        expect(true)->toBeTrue();
     });
 });
 
@@ -30,14 +26,10 @@ describe('repeat mutual exclusivity', function (): void {
 
     it('allows repeat without repeatIntervalSeconds', function (): void {
         NotificationValidator::validate(['repeat' => 'daily']);
-
-        expect(true)->toBeTrue();
     });
 
     it('allows repeatIntervalSeconds without repeat', function (): void {
         NotificationValidator::validate(['repeatIntervalSeconds' => 120]);
-
-        expect(true)->toBeTrue();
     });
 });
 
@@ -48,14 +40,10 @@ describe('repeatIntervalSeconds constraints', function (): void {
 
     it('allows exactly the minimum', function (): void {
         NotificationValidator::validate(['repeatIntervalSeconds' => 60]);
-
-        expect(true)->toBeTrue();
     });
 
     it('allows values above the minimum', function (): void {
         NotificationValidator::validate(['repeatIntervalSeconds' => 3600]);
-
-        expect(true)->toBeTrue();
     });
 
     it('respects custom min_repeat_interval_seconds from config', function (): void {
@@ -68,8 +56,6 @@ describe('repeatIntervalSeconds constraints', function (): void {
         config()->set('local-notifications.min_repeat_interval_seconds', 120);
 
         NotificationValidator::validate(['repeatIntervalSeconds' => 120]);
-
-        expect(true)->toBeTrue();
     });
 });
 
@@ -115,8 +101,6 @@ describe('repeatDays validation', function (): void {
             'repeatDays' => [1, 2, 3, 4, 5, 6, 7],
             'at' => 1700000000,
         ]);
-
-        expect(true)->toBeTrue();
     });
 
     it('allows single day', function (): void {
@@ -124,8 +108,6 @@ describe('repeatDays validation', function (): void {
             'repeatDays' => [3],
             'at' => 1700000000,
         ]);
-
-        expect(true)->toBeTrue();
     });
 });
 
@@ -155,8 +137,6 @@ describe('repeatCount validation', function (): void {
             'repeat' => 'daily',
             'repeatCount' => 1,
         ]);
-
-        expect(true)->toBeTrue();
     });
 
     it('allows with repeatIntervalSeconds', function (): void {
@@ -164,8 +144,6 @@ describe('repeatCount validation', function (): void {
             'repeatIntervalSeconds' => 3600,
             'repeatCount' => 5,
         ]);
-
-        expect(true)->toBeTrue();
     });
 
     it('allows with repeatDays', function (): void {
@@ -174,8 +152,6 @@ describe('repeatCount validation', function (): void {
             'at' => 1700000000,
             'repeatCount' => 10,
         ]);
-
-        expect(true)->toBeTrue();
     });
 });
 
@@ -199,8 +175,6 @@ describe('actions validation', function (): void {
                 ['id' => 'a3', 'title' => 'A3'],
             ],
         ]);
-
-        expect(true)->toBeTrue();
     });
 
     it('allows fewer than max actions', function (): void {
@@ -209,24 +183,18 @@ describe('actions validation', function (): void {
                 ['id' => 'a1', 'title' => 'A1'],
             ],
         ]);
-
-        expect(true)->toBeTrue();
     });
 
     it('allows empty actions array', function (): void {
         NotificationValidator::validate([
             'actions' => [],
         ]);
-
-        expect(true)->toBeTrue();
     });
 
     it('skips validation when actions is not an array', function (): void {
         NotificationValidator::validate([
             'actions' => 'not-an-array',
         ]);
-
-        expect(true)->toBeTrue();
     });
 
     it('respects custom max_actions from config', function (): void {
@@ -250,8 +218,6 @@ describe('actions validation', function (): void {
                 ['id' => 'a2', 'title' => 'A2'],
             ],
         ]);
-
-        expect(true)->toBeTrue();
     });
 
     it('allows max_actions set to 1', function (): void {
@@ -262,8 +228,6 @@ describe('actions validation', function (): void {
                 ['id' => 'a1', 'title' => 'A1'],
             ],
         ]);
-
-        expect(true)->toBeTrue();
     });
 
     it('throws at 2 when max_actions is 1', function (): void {

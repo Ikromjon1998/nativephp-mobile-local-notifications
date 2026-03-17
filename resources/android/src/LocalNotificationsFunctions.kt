@@ -51,13 +51,13 @@ object LocalNotificationsFunctions {
 
     /**
      * Apply runtime configuration sent from the PHP layer via the `_config` key.
-     * Called once per Schedule call; values that haven't changed are no-ops.
+     * Called on every bridge call; values that haven't changed are no-ops.
      */
     fun applyConfig(config: Map<*, *>) {
         (config["channel_id"] as? String)?.let { channelId = it }
         (config["channel_name"] as? String)?.let { channelName = it }
         (config["channel_description"] as? String)?.let { channelDescription = it }
-        (config["max_actions"] as? Number)?.let { maxActions = maxOf(1, it.toInt()) }
+        (config["max_actions"] as? Number)?.let { maxActions = minOf(3, maxOf(1, it.toInt())) }
         (config["default_sound"] as? Boolean)?.let { defaultSound = it }
         (config["tap_detection_delay_ms"] as? Number)?.let { tapDetectionDelayMs = it.toLong() }
         (config["navigation_replay_duration_ms"] as? Number)?.let { navigationReplayDurationMs = it.toLong() }

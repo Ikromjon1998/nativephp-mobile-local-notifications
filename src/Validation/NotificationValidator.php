@@ -24,7 +24,7 @@ final class NotificationValidator
             );
         }
 
-        $minInterval = self::configValue('min_repeat_interval_seconds', 60);
+        $minInterval = max(1, (int) self::configValue('min_repeat_interval_seconds', 60));
 
         if ($hasRepeatIntervalSeconds && $options['repeatIntervalSeconds'] < $minInterval) {
             throw new \InvalidArgumentException(
@@ -69,7 +69,7 @@ final class NotificationValidator
         }
 
         if (isset($options['actions'])) {
-            $maxActions = max(1, (int) self::configValue('max_actions', 3));
+            $maxActions = min(3, max(1, (int) self::configValue('max_actions', 3)));
             if (is_array($options['actions']) && count($options['actions']) > $maxActions) {
                 $label = $maxActions === 1 ? 'action button' : 'action buttons';
                 throw new \InvalidArgumentException(

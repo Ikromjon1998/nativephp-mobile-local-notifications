@@ -244,7 +244,7 @@ enum LocalNotificationsFunctions {
 
             // Register action buttons if provided
             if let actionsArray = parameters["actions"] as? [[String: Any]], !actionsArray.isEmpty {
-                let maxActions = max(1, (config?["max_actions"] as? Int) ?? 3)
+                let maxActions = min(3, max(1, (config?["max_actions"] as? Int) ?? 3))
                 let categoryId = "NOTIF_ACTIONS_\(id)"
                 let actions: [UNNotificationAction] = actionsArray.prefix(maxActions).map { actionDict in
                     let actionId = actionDict["id"] as? String ?? ""
