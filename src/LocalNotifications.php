@@ -21,9 +21,6 @@ class LocalNotifications implements LocalNotificationsInterface
             ? $options->toArray()
             : $this->normalizeOptions($options);
 
-        // Inject configurable values for the native layer
-        $data['_config'] = $this->nativeConfig();
-
         return $this->call('LocalNotifications.Schedule', $data);
     }
 
@@ -104,14 +101,26 @@ class LocalNotifications implements LocalNotificationsInterface
     protected function nativeConfig(): array
     {
         return [
-            'channel_id' => config('local-notifications.channel_id', 'nativephp_local_notifications'),
-            'channel_name' => config('local-notifications.channel_name', 'Local Notifications'),
-            'channel_description' => config('local-notifications.channel_description', 'Notifications scheduled by the app'),
-            'max_actions' => config('local-notifications.max_actions', 3),
-            'default_sound' => config('local-notifications.default_sound', true),
-            'tap_detection_delay_ms' => config('local-notifications.tap_detection_delay_ms', 500),
-            'navigation_replay_duration_ms' => config('local-notifications.navigation_replay_duration_ms', 15000),
+            'channel_id' => $this->configValue('channel_id', 'nativephp_local_notifications'),
+            'channel_name' => $this->configValue('channel_name', 'Local Notifications'),
+            'channel_description' => $this->configValue('channel_description', 'Notifications scheduled by the app'),
+            'max_actions' => $this->configValue('max_actions', 3),
+            'default_sound' => $this->configValue('default_sound', true),
+            'tap_detection_delay_ms' => $this->configValue('tap_detection_delay_ms', 500),
+            'navigation_replay_duration_ms' => $this->configValue('navigation_replay_duration_ms', 15000),
         ];
+    }
+
+    /**
+     * Read a config value with a fallback for environments where config() is unavailable.
+     */
+    protected function configValue(string $key, mixed $default = null): mixed
+    {
+        if (function_exists('config')) {
+            return config("local-notifications.{$key}", $default);
+        }
+
+        return $default;
     }
 
     /**
@@ -125,6 +134,10 @@ class LocalNotifications implements LocalNotificationsInterface
         if (! function_exists('nativephp_call')) {
             return [];
         }
+
+        // Inject config on every bridge call so native code can apply
+        // settings (e.g. tap detection delay) before the first schedule().
+        $data['_config'] = $this->nativeConfig();
 
         $result = nativephp_call($function, json_encode($data));
 

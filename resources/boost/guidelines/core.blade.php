@@ -124,7 +124,7 @@ Publish with `php artisan vendor:publish --tag=local-notifications-config`.
 | `tap_detection_delay_ms` | `500` | Android only | Warm-start tap detection delay | iOS delivers taps instantly via delegate |
 | `navigation_replay_duration_ms` | `15000` | Android only | Cold-start `livewire:navigated` replay window | Android injects JS replay; iOS uses core WebView script |
 
-Config is injected into bridge calls via `_config` key — both Android (Kotlin) and iOS (Swift) read applicable values at runtime.
+Config is injected into **every** bridge call via `_config` key — both Android (Kotlin) and iOS (Swift) read applicable values at runtime, even before the first `schedule()` call.
 
 ## Event Dispatch & Tap Detection
 

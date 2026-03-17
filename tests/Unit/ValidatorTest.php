@@ -275,5 +275,5 @@ describe('actions validation', function (): void {
                 ['id' => 'a2', 'title' => 'A2'],
             ],
         ]);
-    })->throws(InvalidArgumentException::class, 'at most 1 action buttons');
+    })->throws(InvalidArgumentException::class, 'at most 1 action button');
 });

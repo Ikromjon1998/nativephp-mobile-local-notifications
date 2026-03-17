@@ -69,10 +69,11 @@ final class NotificationValidator
         }
 
         if (isset($options['actions'])) {
-            $maxActions = self::configValue('max_actions', 3);
+            $maxActions = max(1, (int) self::configValue('max_actions', 3));
             if (is_array($options['actions']) && count($options['actions']) > $maxActions) {
+                $label = $maxActions === 1 ? 'action button' : 'action buttons';
                 throw new \InvalidArgumentException(
-                    "A notification may have at most {$maxActions} action buttons.",
+                    "A notification may have at most {$maxActions} {$label}.",
                 );
             }
         }

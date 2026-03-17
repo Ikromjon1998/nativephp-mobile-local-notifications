@@ -502,6 +502,7 @@ describe('cancel', function (): void {
 
         $result = $this->notifications->cancel('cancel-me');
 
+        unset($capturedData['_config']);
         expect($capturedFunction)->toBe('LocalNotifications.Cancel')
             ->and($capturedData)->toBe(['id' => 'cancel-me'])
             ->and($result)->toBe(['success' => true, 'id' => 'cancel-me']);
@@ -544,6 +545,7 @@ describe('cancelAll', function (): void {
 
         $result = $this->notifications->cancelAll();
 
+        unset($capturedData['_config']);
         expect($capturedFunction)->toBe('LocalNotifications.CancelAll')
             ->and($capturedData)->toBe([])
             ->and($result)->toBe(['success' => true]);

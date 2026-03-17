@@ -24,8 +24,9 @@ return [
     | Action Buttons
     |--------------------------------------------------------------------------
     |
-    | Maximum number of action buttons per notification. Both Android and iOS
-    | enforce a platform limit of 3, but you may want to set a lower limit.
+    | Maximum number of action buttons per notification. The default is 3,
+    | which is the recommended limit for both platforms. Must be at least 1.
+    | Both Android and iOS will truncate actions beyond this limit.
     |
     */
 

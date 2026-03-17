@@ -57,7 +57,7 @@ object LocalNotificationsFunctions {
         (config["channel_id"] as? String)?.let { channelId = it }
         (config["channel_name"] as? String)?.let { channelName = it }
         (config["channel_description"] as? String)?.let { channelDescription = it }
-        (config["max_actions"] as? Number)?.let { maxActions = it.toInt() }
+        (config["max_actions"] as? Number)?.let { maxActions = maxOf(1, it.toInt()) }
         (config["default_sound"] as? Boolean)?.let { defaultSound = it }
         (config["tap_detection_delay_ms"] as? Number)?.let { tapDetectionDelayMs = it.toLong() }
         (config["navigation_replay_duration_ms"] as? Number)?.let { navigationReplayDurationMs = it.toLong() }
@@ -168,8 +168,9 @@ object LocalNotificationsFunctions {
     /**
      * Register an Application.ActivityLifecycleCallbacks that checks for tapped notifications
      * on every onResume. This enables immediate warm-start tap detection without waiting for
-     * the next bridge function call. Uses a 500ms delay to ensure the WebView is ready and
-     * any deleteIntent broadcasts (from swipe-dismiss) have been processed.
+     * the next bridge function call. Uses a configurable delay (tapDetectionDelayMs, default 500ms)
+     * to ensure the WebView is ready and any deleteIntent broadcasts (from swipe-dismiss) have
+     * been processed.
      */
     private fun registerResumeDetection(activity: FragmentActivity) {
         if (resumeCallbackRegistered) return
@@ -200,8 +201,9 @@ object LocalNotificationsFunctions {
      * be hydrated when the initial dispatchEvent JS runs. This replay ensures the event reaches
      * components on the destination page after navigation completes.
      *
-     * Replays on every `livewire:navigated` for 15 seconds to cover multi-step navigation
-     * (e.g., Today → Settings → Debug). After 15s the listener removes itself.
+     * Replays on every `livewire:navigated` for a configurable duration (navigationReplayDurationMs,
+     * default 15s) to cover multi-step navigation (e.g., Today → Settings → Debug). After the
+     * window expires the listener removes itself.
      */
     private fun injectNavigationReplay(activity: FragmentActivity, event: String, payloadJson: String) {
         try {
@@ -543,6 +545,8 @@ object LocalNotificationsFunctions {
      */
     class Cancel(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Apply runtime config from PHP layer
+            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
             // Store activity reference and dispatch any pending tap events
             ActivityHolder.set(activity)
             dispatchPendingEvents(activity)
@@ -604,6 +608,8 @@ object LocalNotificationsFunctions {
      */
     class CancelAll(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Apply runtime config from PHP layer
+            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
             // Store activity reference and dispatch any pending tap events
             ActivityHolder.set(activity)
             dispatchPendingEvents(activity)
@@ -651,6 +657,8 @@ object LocalNotificationsFunctions {
      */
     class GetPending(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Apply runtime config from PHP layer
+            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
             // Store activity reference and dispatch any pending tap events
             ActivityHolder.set(activity)
             dispatchPendingEvents(activity)
@@ -717,6 +725,8 @@ object LocalNotificationsFunctions {
      */
     class RequestPermission(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Apply runtime config from PHP layer
+            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
             // Store activity reference and dispatch any pending tap events
             ActivityHolder.set(activity)
             dispatchPendingEvents(activity)
@@ -771,6 +781,8 @@ object LocalNotificationsFunctions {
      */
     class CheckPermission(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Apply runtime config from PHP layer
+            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
             // Store activity reference and dispatch any pending tap events
             ActivityHolder.set(activity)
             dispatchPendingEvents(activity)

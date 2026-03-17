@@ -161,7 +161,7 @@ describe('config flows to bridge', function (): void {
         expect($capturedData['_config']['navigation_replay_duration_ms'])->toBe(30000);
     });
 
-    it('does not inject _config into cancel calls', function (): void {
+    it('injects _config into cancel calls', function (): void {
         $capturedData = null;
 
         stubNativephpCall(function (string $function, string $data) use (&$capturedData): string {
@@ -172,10 +172,11 @@ describe('config flows to bridge', function (): void {
 
         (new LocalNotifications)->cancel('test-id');
 
-        expect($capturedData)->not->toHaveKey('_config');
+        expect($capturedData)->toHaveKey('_config')
+            ->and($capturedData['_config'])->toHaveKey('tap_detection_delay_ms');
     });
 
-    it('does not inject _config into cancelAll calls', function (): void {
+    it('injects _config into cancelAll calls', function (): void {
         $capturedData = null;
 
         stubNativephpCall(function (string $function, string $data) use (&$capturedData): string {
@@ -186,10 +187,11 @@ describe('config flows to bridge', function (): void {
 
         (new LocalNotifications)->cancelAll();
 
-        expect($capturedData)->not->toHaveKey('_config');
+        expect($capturedData)->toHaveKey('_config')
+            ->and($capturedData['_config'])->toHaveKey('tap_detection_delay_ms');
     });
 
-    it('does not inject _config into getPending calls', function (): void {
+    it('injects _config into getPending calls', function (): void {
         $capturedData = null;
 
         stubNativephpCall(function (string $function, string $data) use (&$capturedData): string {
@@ -200,7 +202,38 @@ describe('config flows to bridge', function (): void {
 
         (new LocalNotifications)->getPending();
 
-        expect($capturedData)->not->toHaveKey('_config');
+        expect($capturedData)->toHaveKey('_config')
+            ->and($capturedData['_config'])->toHaveKey('tap_detection_delay_ms');
+    });
+
+    it('injects _config into requestPermission calls', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['granted' => true]);
+        });
+
+        (new LocalNotifications)->requestPermission();
+
+        expect($capturedData)->toHaveKey('_config')
+            ->and($capturedData['_config'])->toHaveKey('tap_detection_delay_ms');
+    });
+
+    it('injects _config into checkPermission calls', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['status' => 'granted']);
+        });
+
+        (new LocalNotifications)->checkPermission();
+
+        expect($capturedData)->toHaveKey('_config')
+            ->and($capturedData['_config'])->toHaveKey('tap_detection_delay_ms');
     });
 });
 
