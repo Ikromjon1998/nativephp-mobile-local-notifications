@@ -4,19 +4,15 @@ use Ikromjon\LocalNotifications\Validation\NotificationValidator;
 
 describe('basic validation', function (): void {
     it('passes with valid minimal options', function (): void {
-        NotificationValidator::validate([
+        expect(fn () => NotificationValidator::validate([
             'id' => 'test',
             'title' => 'Test',
             'body' => 'Body',
-        ]);
-
-        expect(true)->toBeTrue();
+        ]))->not->toThrow(InvalidArgumentException::class);
     });
 
     it('passes with empty array', function (): void {
-        NotificationValidator::validate([]);
-
-        expect(true)->toBeTrue();
+        expect(fn () => NotificationValidator::validate([]))->not->toThrow(InvalidArgumentException::class);
     });
 });
 
@@ -29,15 +25,11 @@ describe('repeat mutual exclusivity', function (): void {
     })->throws(InvalidArgumentException::class, 'Cannot use both "repeat" and "repeatIntervalSeconds"');
 
     it('allows repeat without repeatIntervalSeconds', function (): void {
-        NotificationValidator::validate(['repeat' => 'daily']);
-
-        expect(true)->toBeTrue();
+        expect(fn () => NotificationValidator::validate(['repeat' => 'daily']))->not->toThrow(InvalidArgumentException::class);
     });
 
     it('allows repeatIntervalSeconds without repeat', function (): void {
-        NotificationValidator::validate(['repeatIntervalSeconds' => 120]);
-
-        expect(true)->toBeTrue();
+        expect(fn () => NotificationValidator::validate(['repeatIntervalSeconds' => 120]))->not->toThrow(InvalidArgumentException::class);
     });
 });
 
@@ -47,15 +39,11 @@ describe('repeatIntervalSeconds constraints', function (): void {
     })->throws(InvalidArgumentException::class, 'at least 60 seconds');
 
     it('allows exactly the minimum', function (): void {
-        NotificationValidator::validate(['repeatIntervalSeconds' => 60]);
-
-        expect(true)->toBeTrue();
+        expect(fn () => NotificationValidator::validate(['repeatIntervalSeconds' => 60]))->not->toThrow(InvalidArgumentException::class);
     });
 
     it('allows values above the minimum', function (): void {
-        NotificationValidator::validate(['repeatIntervalSeconds' => 3600]);
-
-        expect(true)->toBeTrue();
+        expect(fn () => NotificationValidator::validate(['repeatIntervalSeconds' => 3600]))->not->toThrow(InvalidArgumentException::class);
     });
 
     it('respects custom min_repeat_interval_seconds from config', function (): void {
@@ -67,9 +55,7 @@ describe('repeatIntervalSeconds constraints', function (): void {
     it('allows value at custom minimum', function (): void {
         config()->set('local-notifications.min_repeat_interval_seconds', 120);
 
-        NotificationValidator::validate(['repeatIntervalSeconds' => 120]);
-
-        expect(true)->toBeTrue();
+        expect(fn () => NotificationValidator::validate(['repeatIntervalSeconds' => 120]))->not->toThrow(InvalidArgumentException::class);
     });
 });
 
@@ -111,21 +97,17 @@ describe('repeatDays validation', function (): void {
     })->throws(InvalidArgumentException::class, 'between 1 (Monday) and 7 (Sunday)');
 
     it('allows all valid days 1 through 7', function (): void {
-        NotificationValidator::validate([
+        expect(fn () => NotificationValidator::validate([
             'repeatDays' => [1, 2, 3, 4, 5, 6, 7],
             'at' => 1700000000,
-        ]);
-
-        expect(true)->toBeTrue();
+        ]))->not->toThrow(InvalidArgumentException::class);
     });
 
     it('allows single day', function (): void {
-        NotificationValidator::validate([
+        expect(fn () => NotificationValidator::validate([
             'repeatDays' => [3],
             'at' => 1700000000,
-        ]);
-
-        expect(true)->toBeTrue();
+        ]))->not->toThrow(InvalidArgumentException::class);
     });
 });
 
@@ -151,31 +133,25 @@ describe('repeatCount validation', function (): void {
     })->throws(InvalidArgumentException::class, '"repeatCount" requires a repeat mechanism');
 
     it('allows with repeat', function (): void {
-        NotificationValidator::validate([
+        expect(fn () => NotificationValidator::validate([
             'repeat' => 'daily',
             'repeatCount' => 1,
-        ]);
-
-        expect(true)->toBeTrue();
+        ]))->not->toThrow(InvalidArgumentException::class);
     });
 
     it('allows with repeatIntervalSeconds', function (): void {
-        NotificationValidator::validate([
+        expect(fn () => NotificationValidator::validate([
             'repeatIntervalSeconds' => 3600,
             'repeatCount' => 5,
-        ]);
-
-        expect(true)->toBeTrue();
+        ]))->not->toThrow(InvalidArgumentException::class);
     });
 
     it('allows with repeatDays', function (): void {
-        NotificationValidator::validate([
+        expect(fn () => NotificationValidator::validate([
             'repeatDays' => [1, 3, 5],
             'at' => 1700000000,
             'repeatCount' => 10,
-        ]);
-
-        expect(true)->toBeTrue();
+        ]))->not->toThrow(InvalidArgumentException::class);
     });
 });
 
@@ -192,41 +168,33 @@ describe('actions validation', function (): void {
     })->throws(InvalidArgumentException::class, 'at most 3 action buttons');
 
     it('allows exactly max actions', function (): void {
-        NotificationValidator::validate([
+        expect(fn () => NotificationValidator::validate([
             'actions' => [
                 ['id' => 'a1', 'title' => 'A1'],
                 ['id' => 'a2', 'title' => 'A2'],
                 ['id' => 'a3', 'title' => 'A3'],
             ],
-        ]);
-
-        expect(true)->toBeTrue();
+        ]))->not->toThrow(InvalidArgumentException::class);
     });
 
     it('allows fewer than max actions', function (): void {
-        NotificationValidator::validate([
+        expect(fn () => NotificationValidator::validate([
             'actions' => [
                 ['id' => 'a1', 'title' => 'A1'],
             ],
-        ]);
-
-        expect(true)->toBeTrue();
+        ]))->not->toThrow(InvalidArgumentException::class);
     });
 
     it('allows empty actions array', function (): void {
-        NotificationValidator::validate([
+        expect(fn () => NotificationValidator::validate([
             'actions' => [],
-        ]);
-
-        expect(true)->toBeTrue();
+        ]))->not->toThrow(InvalidArgumentException::class);
     });
 
     it('skips validation when actions is not an array', function (): void {
-        NotificationValidator::validate([
+        expect(fn () => NotificationValidator::validate([
             'actions' => 'not-an-array',
-        ]);
-
-        expect(true)->toBeTrue();
+        ]))->not->toThrow(InvalidArgumentException::class);
     });
 
     it('respects custom max_actions from config', function (): void {
@@ -244,26 +212,22 @@ describe('actions validation', function (): void {
     it('allows at custom max_actions limit', function (): void {
         config()->set('local-notifications.max_actions', 2);
 
-        NotificationValidator::validate([
+        expect(fn () => NotificationValidator::validate([
             'actions' => [
                 ['id' => 'a1', 'title' => 'A1'],
                 ['id' => 'a2', 'title' => 'A2'],
             ],
-        ]);
-
-        expect(true)->toBeTrue();
+        ]))->not->toThrow(InvalidArgumentException::class);
     });
 
     it('allows max_actions set to 1', function (): void {
         config()->set('local-notifications.max_actions', 1);
 
-        NotificationValidator::validate([
+        expect(fn () => NotificationValidator::validate([
             'actions' => [
                 ['id' => 'a1', 'title' => 'A1'],
             ],
-        ]);
-
-        expect(true)->toBeTrue();
+        ]))->not->toThrow(InvalidArgumentException::class);
     });
 
     it('throws at 2 when max_actions is 1', function (): void {

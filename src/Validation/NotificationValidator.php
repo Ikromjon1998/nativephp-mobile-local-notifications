@@ -24,7 +24,7 @@ final class NotificationValidator
             );
         }
 
-        $minInterval = self::configValue('min_repeat_interval_seconds', 60);
+        $minInterval = max(1, (int) self::configValue('min_repeat_interval_seconds', 60));
 
         if ($hasRepeatIntervalSeconds && $options['repeatIntervalSeconds'] < $minInterval) {
             throw new \InvalidArgumentException(

@@ -51,7 +51,7 @@ object LocalNotificationsFunctions {
 
     /**
      * Apply runtime configuration sent from the PHP layer via the `_config` key.
-     * Called once per Schedule call; values that haven't changed are no-ops.
+     * Called on every bridge call; values that haven't changed are no-ops.
      */
     fun applyConfig(config: Map<*, *>) {
         (config["channel_id"] as? String)?.let { channelId = it }

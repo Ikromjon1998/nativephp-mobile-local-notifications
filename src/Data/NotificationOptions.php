@@ -107,11 +107,8 @@ final readonly class NotificationOptions
             $result['bigText'] = $this->bigText;
         }
 
-        if ($this->actions !== null) {
-            $result['actions'] = array_map(
-                fn (NotificationAction $action): array => $action->toArray(),
-                $this->actions,
-            );
+        if ($actionsArray !== null) {
+            $result['actions'] = $actionsArray;
         }
 
         return $result;
