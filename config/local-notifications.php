@@ -11,6 +11,9 @@ return [
     | created automatically with IMPORTANCE_HIGH. Users can override the
     | channel settings in their device's notification settings.
     |
+    | Change channel_id if you use multiple notification plugins and need
+    | separate channels (e.g. one for reminders, one for messages).
+    |
     */
 
     'channel_id' => env('LOCAL_NOTIFICATIONS_CHANNEL_ID', 'nativephp_local_notifications'),
@@ -66,6 +69,8 @@ return [
     | gives the system time to process deleteIntent broadcasts for dismissed
     | notifications.
     |
+    | Most apps should not change this value.
+    |
     */
 
     'tap_detection_delay_ms' => 500,
@@ -78,6 +83,8 @@ return [
     | When using wire:navigate (SPA-like navigation), cold-start tap events
     | are replayed on each livewire:navigated event for this duration. After
     | the window expires, the replay listener removes itself.
+    |
+    | Most apps should not change this value.
     |
     */
 

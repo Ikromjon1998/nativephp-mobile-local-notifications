@@ -21,6 +21,8 @@ class LocalNotificationsServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->loadViewsFrom(__DIR__.'/../resources/views', 'local-notifications');
+
         if ($this->app->runningInConsole()) {
             $this->publishes([
                 __DIR__.'/../config/local-notifications.php' => config_path('local-notifications.php'),
