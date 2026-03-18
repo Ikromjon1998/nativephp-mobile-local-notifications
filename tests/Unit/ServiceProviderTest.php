@@ -28,7 +28,7 @@ it('renders the init blade component', function (): void {
     expect($html)
         ->toContain('LocalNotifications.CheckPermission')
         ->toContain('/_native/api/call')
-        ->toContain('DOMContentLoaded');
+        ->toContain('livewire:navigated');
 });
 
 it('merges default config values', function (): void {

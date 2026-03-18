@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-03-19
+
+### Fixed
+
+- **Init component fires after Livewire hydration** — Changed `<x-local-notifications::init />` to flush on `livewire:navigated` (after components are hydrated) instead of `DOMContentLoaded` (before components are ready). Previously, the cold-start tap event was dispatched via JS injection before Livewire components had registered their event listeners, causing the event to be silently lost on the initial page load. The event was only received after navigating away and back (via the `livewire:navigated` replay). Now the flush triggers 300ms after `livewire:navigated`, ensuring components are ready to receive the event immediately.
+- **Removed unnecessary CSRF header from init component** — The `/_native/api/call` endpoint is intercepted by the native bridge, not Laravel's web stack, so the CSRF token is not needed.
+
 ## [1.4.0] - 2026-03-18
 
 ### Added
@@ -160,6 +167,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Survives device reboot (Android)
 - NotificationScheduled, PermissionGranted, PermissionDenied events
 
+[1.4.1]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.3.5...v1.4.0
 [1.3.5]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.3.3...v1.3.4

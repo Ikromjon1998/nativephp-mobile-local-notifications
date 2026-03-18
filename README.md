@@ -98,17 +98,18 @@ LOCAL_NOTIFICATIONS_CHANNEL_NAME="My App Alerts"
 
 ## Cold-Start Tap Events
 
-When a user taps a notification while the app is closed (cold start), the `NotificationTapped` event is queued on the native side but only delivered when a bridge function is called. To flush these events automatically, add the init component once to your app layout:
+When a user taps a notification while the app is closed (cold start), the `NotificationTapped` event is queued on the native side but only delivered when a bridge function is called. To flush these events automatically, add the init component once to your app layout **after `@livewireScripts`**:
 
 ```blade
 {{-- resources/views/layouts/app.blade.php --}}
-<head>
-    ...
+    @livewireScripts
     <x-local-notifications::init />
-</head>
+</body>
 ```
 
-This renders a small script that calls `CheckPermission` on page load, which flushes any queued cold-start tap events. No manual `checkPermission()` call in `mount()` is needed.
+The component waits for `livewire:navigated` (which fires after Livewire components are hydrated), then triggers a bridge call to flush any queued cold-start events. This ensures the `NotificationTapped` event reaches your mounted components reliably.
+
+> **Important:** Place the component **after `@livewireScripts`**, not in `<head>`. It must load after Livewire so it can wait for component hydration.
 
 > **Without the component**, you would need to manually call `LocalNotifications::checkPermission()` (or any other bridge function) in your Livewire component's `mount()` method to trigger the flush.
 

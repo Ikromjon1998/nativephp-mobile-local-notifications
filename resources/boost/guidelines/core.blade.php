@@ -128,13 +128,16 @@ Config is injected into **every** bridge call via `_config` key — both Android
 
 ## Cold-Start Tap Events
 
-Add the init Blade component once to your app layout to auto-flush cold-start tap events:
+Add the init Blade component once to your app layout **after `@livewireScripts`** to auto-flush cold-start tap events:
 
 ```blade
+@livewireScripts
 <x-local-notifications::init />
 ```
 
-This renders a script that calls `CheckPermission` on `DOMContentLoaded`, flushing any queued `NotificationTapped` events. No manual `checkPermission()` in `mount()` needed.
+This waits for `livewire:navigated` (after components are hydrated), then triggers a `CheckPermission` bridge call to flush any queued `NotificationTapped` events. No manual `checkPermission()` in `mount()` needed.
+
+**Important:** Must be placed after `@livewireScripts`, not in `<head>`. Flushing before component hydration causes events to be silently lost.
 
 ## Event Dispatch & Tap Detection
 
