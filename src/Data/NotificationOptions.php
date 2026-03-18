@@ -38,12 +38,17 @@ final readonly class NotificationOptions
      */
     public function toArray(): array
     {
+        $actionsArray = $this->actions !== null
+            ? array_map(fn (NotificationAction $action): array => $action->toArray(), $this->actions)
+            : null;
+
         NotificationValidator::validate([
             'repeat' => $this->repeat,
             'repeatIntervalSeconds' => $this->repeatIntervalSeconds,
             'repeatDays' => $this->repeatDays,
             'repeatCount' => $this->repeatCount,
             'at' => $this->at,
+            'actions' => $actionsArray,
         ]);
 
         $result = [
@@ -102,11 +107,8 @@ final readonly class NotificationOptions
             $result['bigText'] = $this->bigText;
         }
 
-        if ($this->actions !== null) {
-            $result['actions'] = array_map(
-                fn (NotificationAction $action): array => $action->toArray(),
-                $this->actions,
-            );
+        if ($actionsArray !== null) {
+            $result['actions'] = $actionsArray;
         }
 
         return $result;

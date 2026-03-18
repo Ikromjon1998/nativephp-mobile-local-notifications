@@ -45,7 +45,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         try {
         val sound = intent.getBooleanExtra("sound", true)
-        val channelId = intent.getStringExtra("channel_id") ?: LocalNotificationsFunctions.CHANNEL_ID
+        val channelId = intent.getStringExtra("channel_id") ?: "nativephp_local_notifications"
         val dataJson = intent.getStringExtra("data")
         val subtitle = intent.getStringExtra("subtitle")
         val imageUrl = intent.getStringExtra("image")
@@ -143,7 +143,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         if (actionsJson != null) {
             try {
                 val actions = JSONArray(actionsJson)
-                for (i in 0 until minOf(actions.length(), LocalNotificationsFunctions.MAX_ACTIONS)) {
+                for (i in 0 until minOf(actions.length(), LocalNotificationsFunctions.maxActions)) {
                     val action = actions.getJSONObject(i)
                     val actionId = action.getString("id")
                     val actionTitle = action.getString("title")

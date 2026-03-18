@@ -94,6 +94,36 @@ class LocalNotifications implements LocalNotificationsInterface
     }
 
     /**
+     * Build the config values to pass to the native layer.
+     *
+     * @return array<string, mixed>
+     */
+    protected function nativeConfig(): array
+    {
+        return [
+            'channel_id' => $this->configValue('channel_id', 'nativephp_local_notifications'),
+            'channel_name' => $this->configValue('channel_name', 'Local Notifications'),
+            'channel_description' => $this->configValue('channel_description', 'Notifications scheduled by the app'),
+            'max_actions' => $this->configValue('max_actions', 3),
+            'default_sound' => $this->configValue('default_sound', true),
+            'tap_detection_delay_ms' => $this->configValue('tap_detection_delay_ms', 500),
+            'navigation_replay_duration_ms' => $this->configValue('navigation_replay_duration_ms', 15000),
+        ];
+    }
+
+    /**
+     * Read a config value with a fallback for environments where config() is unavailable.
+     */
+    protected function configValue(string $key, mixed $default = null): mixed
+    {
+        if (function_exists('config')) {
+            return config("local-notifications.{$key}", $default);
+        }
+
+        return $default;
+    }
+
+    /**
      * Make a bridge call to the native layer.
      *
      * @param  array<string, mixed>  $data
@@ -104,6 +134,10 @@ class LocalNotifications implements LocalNotificationsInterface
         if (! function_exists('nativephp_call')) {
             return [];
         }
+
+        // Inject config on every bridge call so native code can apply
+        // settings (e.g. tap detection delay) before the first schedule().
+        $data['_config'] = $this->nativeConfig();
 
         $result = nativephp_call($function, json_encode($data));
 

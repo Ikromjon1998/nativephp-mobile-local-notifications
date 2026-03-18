@@ -1,7 +1,7 @@
 # Epic 11: Android Exact Alarm Reliability
 
 **Priority:** Medium
-**Status:** Partial — Core features done, optional enhancements remain
+**Status:** Partial — Core features done (v1.1.1), tap detection timing configurable (v1.4.0), optional enhancements remain
 
 ## Description
 

@@ -26,6 +26,7 @@ describe('schedule', function (): void {
             'delay' => 60,
         ]);
 
+        unset($capturedData['_config']);
         expect($capturedFunction)->toBe('LocalNotifications.Schedule')
             ->and($capturedData)->toBe([
                 'id' => 'test-1',
@@ -60,6 +61,7 @@ describe('schedule', function (): void {
             'bigText' => 'This is a much longer body text for the expanded view.',
         ]);
 
+        unset($capturedData['_config']);
         expect($capturedData)->toBe([
             'id' => 'full-test',
             'title' => 'Full Test',
@@ -180,6 +182,7 @@ describe('schedule', function (): void {
 
         $this->notifications->schedule([]);
 
+        unset($capturedData['_config']);
         expect($capturedData)->toBe([]);
     });
 
@@ -419,6 +422,20 @@ describe('schedule', function (): void {
         ]);
     })->throws(InvalidArgumentException::class, '"repeatCount" requires a repeat mechanism');
 
+    it('throws when more than max_actions action buttons are provided', function (): void {
+        $this->notifications->schedule([
+            'id' => 'too-many-actions',
+            'title' => 'Too Many',
+            'body' => 'Body',
+            'actions' => [
+                ['id' => 'a1', 'title' => 'Action 1'],
+                ['id' => 'a2', 'title' => 'Action 2'],
+                ['id' => 'a3', 'title' => 'Action 3'],
+                ['id' => 'a4', 'title' => 'Action 4'],
+            ],
+        ]);
+    })->throws(InvalidArgumentException::class, 'at most 3 action buttons');
+
     it('passes string repeat values unchanged', function (): void {
         $capturedData = null;
 
@@ -437,6 +454,38 @@ describe('schedule', function (): void {
 
         expect($capturedData['repeat'])->toBe('weekly');
     });
+
+    it('injects _config with default values into schedule bridge call', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'config-test',
+            'title' => 'Config Test',
+            'body' => 'Body',
+        ]);
+
+        expect($capturedData)->toHaveKey('_config')
+            ->and($capturedData['_config'])->toHaveKeys([
+                'channel_id',
+                'channel_name',
+                'channel_description',
+                'max_actions',
+                'default_sound',
+                'tap_detection_delay_ms',
+                'navigation_replay_duration_ms',
+            ])
+            ->and($capturedData['_config']['channel_id'])->toBe('nativephp_local_notifications')
+            ->and($capturedData['_config']['max_actions'])->toBe(3)
+            ->and($capturedData['_config']['default_sound'])->toBeTrue()
+            ->and($capturedData['_config']['tap_detection_delay_ms'])->toBe(500)
+            ->and($capturedData['_config']['navigation_replay_duration_ms'])->toBe(15000);
+    });
 });
 
 describe('cancel', function (): void {
@@ -453,6 +502,7 @@ describe('cancel', function (): void {
 
         $result = $this->notifications->cancel('cancel-me');
 
+        unset($capturedData['_config']);
         expect($capturedFunction)->toBe('LocalNotifications.Cancel')
             ->and($capturedData)->toBe(['id' => 'cancel-me'])
             ->and($result)->toBe(['success' => true, 'id' => 'cancel-me']);
@@ -495,6 +545,7 @@ describe('cancelAll', function (): void {
 
         $result = $this->notifications->cancelAll();
 
+        unset($capturedData['_config']);
         expect($capturedFunction)->toBe('LocalNotifications.CancelAll')
             ->and($capturedData)->toBe([])
             ->and($result)->toBe(['success' => true]);

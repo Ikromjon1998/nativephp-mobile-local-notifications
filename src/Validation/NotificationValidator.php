@@ -24,9 +24,11 @@ final class NotificationValidator
             );
         }
 
-        if ($hasRepeatIntervalSeconds && $options['repeatIntervalSeconds'] < 60) {
+        $minInterval = max(1, (int) self::configValue('min_repeat_interval_seconds', 60));
+
+        if ($hasRepeatIntervalSeconds && $options['repeatIntervalSeconds'] < $minInterval) {
             throw new \InvalidArgumentException(
-                'repeatIntervalSeconds must be at least 60 seconds.',
+                "repeatIntervalSeconds must be at least {$minInterval} seconds.",
             );
         }
 
@@ -65,5 +67,28 @@ final class NotificationValidator
                 );
             }
         }
+
+        if (isset($options['actions'])) {
+            $maxActions = max(1, (int) self::configValue('max_actions', 3));
+            if (is_array($options['actions']) && count($options['actions']) > $maxActions) {
+                $label = $maxActions === 1 ? 'action button' : 'action buttons';
+                throw new \InvalidArgumentException(
+                    "A notification may have at most {$maxActions} {$label}.",
+                );
+            }
+        }
+    }
+
+    /**
+     * Read a value from the local-notifications config, with a fallback
+     * for environments where the Laravel config helper is not available.
+     */
+    private static function configValue(string $key, mixed $default = null): mixed
+    {
+        if (function_exists('config')) {
+            return config("local-notifications.{$key}", $default);
+        }
+
+        return $default;
     }
 }

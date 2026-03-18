@@ -3,6 +3,12 @@
 **Priority:** Low
 **Status:** Not Started
 
+## Related Changes
+
+- v1.2.0 added `synchronized` blocks around all SharedPreferences read-modify-write operations
+- v1.3.4 added tap payload storage and cleanup in SharedPreferences
+- v1.4.0 added `channelId` field to persisted notification info for BootReceiver restoration
+
 ## Description
 
 Harden the Android notification storage layer to prevent data loss and improve reliability. Currently, notification metadata is stored as raw JSON in SharedPreferences with no versioning, validation, encryption, or migration strategy.

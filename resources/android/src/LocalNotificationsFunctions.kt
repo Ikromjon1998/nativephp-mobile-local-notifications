@@ -32,16 +32,36 @@ import java.util.Calendar
 object LocalNotificationsFunctions {
 
     private const val TAG = "LocalNotifications"
-    const val CHANNEL_ID = "nativephp_local_notifications"
-    private const val CHANNEL_NAME = "Local Notifications"
     const val PREFS_NAME = "nativephp_local_notifications_prefs"
     private const val PENDING_EVENTS_KEY = "pending_events"
-    /** Maximum number of action buttons per notification (platform limit). */
-    const val MAX_ACTIONS = 3
     /** Lock object for thread-safe SharedPreferences access. */
     private val prefsLock = Any()
     /** Whether the onResume lifecycle callback has been registered. */
     private var resumeCallbackRegistered = false
+
+    // Defaults — overridden at runtime from PHP config via _config parameter
+    private var channelId = "nativephp_local_notifications"
+    private var channelName = "Local Notifications"
+    private var channelDescription = "Notifications scheduled by the app"
+    var maxActions = 3
+        private set
+    private var defaultSound = true
+    private var tapDetectionDelayMs = 500L
+    private var navigationReplayDurationMs = 15000L
+
+    /**
+     * Apply runtime configuration sent from the PHP layer via the `_config` key.
+     * Called on every bridge call; values that haven't changed are no-ops.
+     */
+    fun applyConfig(config: Map<*, *>) {
+        (config["channel_id"] as? String)?.let { channelId = it }
+        (config["channel_name"] as? String)?.let { channelName = it }
+        (config["channel_description"] as? String)?.let { channelDescription = it }
+        (config["max_actions"] as? Number)?.let { maxActions = maxOf(1, it.toInt()) }
+        (config["default_sound"] as? Boolean)?.let { defaultSound = it }
+        (config["tap_detection_delay_ms"] as? Number)?.let { tapDetectionDelayMs = it.toLong() }
+        (config["navigation_replay_duration_ms"] as? Number)?.let { navigationReplayDurationMs = it.toLong() }
+    }
 
     /** Holds a weak reference to the current activity for event dispatch. */
     object ActivityHolder {
@@ -87,18 +107,18 @@ object LocalNotificationsFunctions {
 
     private fun ensureNotificationChannel(context: Context) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notifications scheduled by the app"
-                enableVibration(true)
-            }
-            manager.createNotificationChannel(channel)
-            Log.d(TAG, "Notification channel created: $CHANNEL_ID")
+        // Always call createNotificationChannel — Android handles this idempotently.
+        // If the channel already exists, the system updates name and description
+        // but preserves user-modified settings (importance, vibration, sound).
+        val channel = NotificationChannel(
+            channelId,
+            channelName,
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = channelDescription
+            enableVibration(true)
         }
+        manager.createNotificationChannel(channel)
     }
 
     /**
@@ -148,8 +168,9 @@ object LocalNotificationsFunctions {
     /**
      * Register an Application.ActivityLifecycleCallbacks that checks for tapped notifications
      * on every onResume. This enables immediate warm-start tap detection without waiting for
-     * the next bridge function call. Uses a 500ms delay to ensure the WebView is ready and
-     * any deleteIntent broadcasts (from swipe-dismiss) have been processed.
+     * the next bridge function call. Uses a configurable delay (tapDetectionDelayMs, default 500ms)
+     * to ensure the WebView is ready and any deleteIntent broadcasts (from swipe-dismiss) have
+     * been processed.
      */
     private fun registerResumeDetection(activity: FragmentActivity) {
         if (resumeCallbackRegistered) return
@@ -161,7 +182,7 @@ object LocalNotificationsFunctions {
                     ActivityHolder.set(a)
                     Handler(Looper.getMainLooper()).postDelayed({
                         detectTappedNotifications(a)
-                    }, 500)
+                    }, tapDetectionDelayMs)
                 }
             }
             override fun onActivityCreated(a: Activity, b: Bundle?) {}
@@ -180,8 +201,9 @@ object LocalNotificationsFunctions {
      * be hydrated when the initial dispatchEvent JS runs. This replay ensures the event reaches
      * components on the destination page after navigation completes.
      *
-     * Replays on every `livewire:navigated` for 15 seconds to cover multi-step navigation
-     * (e.g., Today → Settings → Debug). After 15s the listener removes itself.
+     * Replays on every `livewire:navigated` for a configurable duration (navigationReplayDurationMs,
+     * default 15s) to cover multi-step navigation (e.g., Today → Settings → Debug). After the
+     * window expires the listener removes itself.
      */
     private fun injectNavigationReplay(activity: FragmentActivity, event: String, payloadJson: String) {
         try {
@@ -189,7 +211,7 @@ object LocalNotificationsFunctions {
             val eventForJs = event.replace("\\", "\\\\")
             val js = """
                 (function() {
-                    var expiry = Date.now() + 15000;
+                    var expiry = Date.now() + $navigationReplayDurationMs;
                     function handler() {
                         if (Date.now() > expiry) {
                             document.removeEventListener('livewire:navigated', handler);
@@ -329,6 +351,9 @@ object LocalNotificationsFunctions {
      */
     class Schedule(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Apply runtime config from PHP layer
+            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
+
             // Store activity reference and dispatch any pending tap events
             ActivityHolder.set(activity)
             dispatchPendingEvents(activity)
@@ -344,7 +369,7 @@ object LocalNotificationsFunctions {
             val atTimestamp = (parameters["at"] as? Number)?.toLong()
             val repeatInterval = parameters["repeat"] as? String
             val repeatIntervalSeconds = (parameters["repeatIntervalSeconds"] as? Number)?.toLong()
-            val sound = parameters["sound"] as? Boolean ?: true
+            val sound = parameters["sound"] as? Boolean ?: defaultSound
             val badge = (parameters["badge"] as? Number)?.toInt()
             val data = parameters["data"] as? Map<*, *>
             val subtitle = parameters["subtitle"] as? String
@@ -482,7 +507,7 @@ object LocalNotificationsFunctions {
             putExtra("title", title)
             putExtra("body", body)
             putExtra("sound", sound)
-            putExtra("channel_id", CHANNEL_ID)
+            putExtra("channel_id", channelId)
             if (badge != null) putExtra("badge", badge)
             if (repeatMs != 0L) putExtra("repeat_ms", repeatMs)
             if (repeatType != null) putExtra("repeat_type", repeatType)
@@ -520,6 +545,8 @@ object LocalNotificationsFunctions {
      */
     class Cancel(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Apply runtime config from PHP layer
+            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
             // Store activity reference and dispatch any pending tap events
             ActivityHolder.set(activity)
             dispatchPendingEvents(activity)
@@ -581,6 +608,8 @@ object LocalNotificationsFunctions {
      */
     class CancelAll(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Apply runtime config from PHP layer
+            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
             // Store activity reference and dispatch any pending tap events
             ActivityHolder.set(activity)
             dispatchPendingEvents(activity)
@@ -628,6 +657,8 @@ object LocalNotificationsFunctions {
      */
     class GetPending(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Apply runtime config from PHP layer
+            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
             // Store activity reference and dispatch any pending tap events
             ActivityHolder.set(activity)
             dispatchPendingEvents(activity)
@@ -694,6 +725,8 @@ object LocalNotificationsFunctions {
      */
     class RequestPermission(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Apply runtime config from PHP layer
+            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
             // Store activity reference and dispatch any pending tap events
             ActivityHolder.set(activity)
             dispatchPendingEvents(activity)
@@ -748,6 +781,8 @@ object LocalNotificationsFunctions {
      */
     class CheckPermission(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
+            // Apply runtime config from PHP layer
+            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
             // Store activity reference and dispatch any pending tap events
             ActivityHolder.set(activity)
             dispatchPendingEvents(activity)
@@ -781,7 +816,7 @@ object LocalNotificationsFunctions {
      */
     private fun serializeActions(actions: List<*>): JSONArray {
         val actionsJson = JSONArray()
-        for (action in actions.take(MAX_ACTIONS)) {
+        for (action in actions.take(maxActions)) {
             val actionMap = action as? Map<*, *> ?: continue
             actionsJson.put(JSONObject().apply {
                 put("id", actionMap["id"]?.toString() ?: "")
@@ -821,6 +856,7 @@ object LocalNotificationsFunctions {
                 put("body", body)
                 put("triggerTimeMs", triggerTimeMs)
                 put("repeatMs", repeatMs)
+                put("channelId", channelId)
                 if (repeatType != null) put("repeatType", repeatType)
                 if (remainingCount != null) put("remainingCount", remainingCount)
                 put("sound", sound)

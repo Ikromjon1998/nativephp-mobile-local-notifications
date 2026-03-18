@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-03-17
+
+### Added
+
+- **Publishable config file** — `config/local-notifications.php` with all customizable values: channel ID/name/description, max actions, min repeat interval, default sound, tap detection delay, and navigation replay duration. Publish with `php artisan vendor:publish --tag=local-notifications-config`.
+- **ServiceProvider `boot()` method** — Registers config merging and publishing for the `local-notifications` config key.
+- **Config-driven validation** — `NotificationValidator` now reads `max_actions` and `min_repeat_interval_seconds` from config instead of hardcoded values. Validates action button count at the PHP layer, including when using the `NotificationOptions` DTO. `max_actions` is clamped to >= 1 with correct singular/plural error messages.
+- **Runtime native config on all bridge calls** — Every bridge call (`schedule`, `cancel`, `cancelAll`, `getPending`, `requestPermission`, `checkPermission`) injects `_config` so native code applies settings immediately — even before the first `schedule()` call.
+- **iOS: Configurable default sound and max actions** — iOS now reads `default_sound` and `max_actions` from the `_config` bridge parameter, matching Android behavior.
+- **Android: Configurable notification channel** — Channel ID, name, and description are now set from PHP config instead of hardcoded Kotlin constants.
+- **Android: Configurable tap detection delay** — The `onResume` warm-start tap detection delay is now configurable via `tap_detection_delay_ms`.
+- **Android: Configurable navigation replay duration** — The `livewire:navigated` cold-start replay window is now configurable via `navigation_replay_duration_ms`.
+- **Android: Runtime `max_actions` config** — Android now reads `max_actions` from the `_config` bridge parameter instead of using a hardcoded constant.
+
 ## [1.3.5] - 2026-03-16
 
 ### Fixed
@@ -144,6 +158,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Survives device reboot (Android)
 - NotificationScheduled, PermissionGranted, PermissionDenied events
 
+[1.4.0]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.3.5...v1.4.0
 [1.3.5]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/compare/v1.3.2...v1.3.3

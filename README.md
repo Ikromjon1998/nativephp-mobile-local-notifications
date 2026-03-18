@@ -19,12 +19,12 @@ Schedule, manage, and cancel local notifications in your NativePHP Mobile app �
 | **nativephp/mobile-firebase** | Push notifications from a server via FCM/APNs | Firebase project, server, internet |
 | **This plugin** | Local notifications scheduled on-device | Nothing — works offline |
 
-## What's New in v1.3.4
+## What's New in v1.4.0
 
-- **Reliable `NotificationTapped` event** — Both warm-start (app open) and cold-start (app killed) notification taps now reliably dispatch to `#[OnNative]` handlers on Android
-- **Immediate warm-start detection** — Tapped notifications are detected instantly when the app returns to foreground via `onResume` lifecycle callback
-- **Cold-start navigation replay** — Tap events replay across `wire:navigate` page transitions so the destination component always receives them
-- **Action button fixes** — Pressing an action button no longer falsely triggers `NotificationTapped`
+- **Publishable config** — Customize channel ID/name, max actions, repeat constraints, sound defaults, and timing via `config/local-notifications.php`
+- **Runtime native config** — PHP config values flow to both Android and iOS at runtime via the `_config` bridge parameter
+- **Config-driven validation** — Action count and repeat interval limits read from config
+- **Cross-platform config support** — `default_sound` and `max_actions` are now respected on both Android and iOS
 
 See the full [CHANGELOG](CHANGELOG.md) for details.
 
@@ -64,6 +64,34 @@ Build your app (plugin requires a native build — it does not work with Jump):
 php artisan native:run android
 # or
 php artisan native:run ios
+```
+
+## Configuration
+
+Optionally publish the config file to customize defaults:
+
+```bash
+php artisan vendor:publish --tag=local-notifications-config
+```
+
+This creates `config/local-notifications.php` where you can set:
+
+| Key | Default | Platform | Description | Why platform-specific? |
+|-----|---------|----------|-------------|----------------------|
+| `channel_id` | `nativephp_local_notifications` | Android only | Notification channel ID | iOS has no notification channels — all notifications go through `UNUserNotificationCenter` directly |
+| `channel_name` | `Local Notifications` | Android only | Notification channel name | Same as above — channels are an Android-only concept (API 26+) |
+| `channel_description` | `Notifications scheduled by the app` | Android only | Channel description | Same as above |
+| `max_actions` | `3` | Android + iOS | Max action buttons per notification | Both platforms support action buttons — Android via `NotificationCompat`, iOS via `UNNotificationAction` |
+| `min_repeat_interval_seconds` | `60` | Android + iOS | Minimum custom repeat interval | Validated in PHP before the bridge call, so it applies regardless of platform |
+| `default_sound` | `true` | Android + iOS | Play sound when no explicit `sound` parameter | Both platforms support sound control — Android via `NotificationChannel`, iOS via `UNNotificationSound` |
+| `tap_detection_delay_ms` | `500` | Android only | Warm-start tap detection delay | iOS delivers taps instantly via `UNUserNotificationCenterDelegate` — no polling or delay needed |
+| `navigation_replay_duration_ms` | `15000` | Android only | Cold-start `livewire:navigated` replay window | Android injects JS to replay events after navigation; iOS relies on the NativePHP core WebView user script instead |
+
+You can also use environment variables for channel settings:
+
+```env
+LOCAL_NOTIFICATIONS_CHANNEL_ID=my_app_notifications
+LOCAL_NOTIFICATIONS_CHANNEL_NAME="My App Alerts"
 ```
 
 ## Usage (PHP)
@@ -561,13 +589,17 @@ composer analyse
 
 Use it as a reference, fork it as a starter for your own app, or contribute to it.
 
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, development workflow, and guidelines.
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a list of changes in each release.
 
 ## Support
 
-For questions or issues, contact: ikromjon98.98@icloud.com
+For questions or issues, use [GitHub Issues](https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/issues) or contact: ikromjon98.98@icloud.com
 
 ## License
 

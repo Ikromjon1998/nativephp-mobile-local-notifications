@@ -3,9 +3,13 @@
 **Priority:** Medium
 **Status:** Not Started
 
+## Prerequisites
+
+- Epic 6 (Notification Channels) — v1.4.0 made the default channel configurable. Priority control on Android requires separate channels per importance level, which is part of Epic 6's remaining scope.
+
 ## Description
 
-Allow developers to control the urgency and display behavior of individual notifications. Currently, all notifications use a hardcoded `IMPORTANCE_HIGH` with no way to differentiate between urgent alerts and low-priority updates.
+Allow developers to control the urgency and display behavior of individual notifications. Currently, the default channel uses `IMPORTANCE_HIGH` (configurable in v1.4.0 via `config/local-notifications.php` channel settings) with no per-notification priority control.
 
 ## Scope
 

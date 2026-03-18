@@ -50,13 +50,15 @@ class BootReceiver : BroadcastReceiver() {
                     continue
                 }
 
+                val channelId = if (info.has("channelId")) info.getString("channelId") else "nativephp_local_notifications"
+
                 val notifyIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
                     action = "com.ikromjon.localnotifications.NOTIFY"
                     putExtra("notification_id", id)
                     putExtra("title", title)
                     putExtra("body", body)
                     putExtra("sound", sound)
-                    putExtra("channel_id", "nativephp_local_notifications")
+                    putExtra("channel_id", channelId)
                     if (repeatMs != 0L) putExtra("repeat_ms", repeatMs)
                     if (repeatType != null) putExtra("repeat_type", repeatType)
                     if (remainingCount > 0) putExtra("remaining_count", remainingCount)
