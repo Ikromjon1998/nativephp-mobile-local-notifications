@@ -98,7 +98,9 @@ LOCAL_NOTIFICATIONS_CHANNEL_NAME="My App Alerts"
 
 ## Cold-Start Tap Events
 
-When a user taps a notification while the app is closed (cold start), the `NotificationTapped` event is queued on the native side but only delivered when a bridge function is called. To flush these events automatically, add the init component once to your app layout **after `@livewireScripts`**:
+When a user taps a notification while the app is closed (cold start), the `NotificationTapped` event is queued on the native side but only delivered when a bridge function is called. The init component automates this — but each step matters:
+
+### 1. Add the init component after `@livewireScripts`
 
 ```blade
 {{-- resources/views/layouts/app.blade.php --}}
@@ -107,11 +109,34 @@ When a user taps a notification while the app is closed (cold start), the `Notif
 </body>
 ```
 
-The component waits for `livewire:navigated` (which fires after Livewire components are hydrated), then triggers a bridge call to flush any queued cold-start events. This ensures the `NotificationTapped` event reaches your mounted components reliably.
+**Why after `@livewireScripts`?** The component waits for `livewire:navigated`, which fires after Livewire components are hydrated. If placed in `<head>` or before Livewire, events are dispatched before components are listening — they get silently lost.
 
-> **Important:** Place the component **after `@livewireScripts`**, not in `<head>`. It must load after Livewire so it can wait for component hydration.
+### 2. Put the listener on your landing page component
 
-> **Without the component**, you would need to manually call `LocalNotifications::checkPermission()` (or any other bridge function) in your Livewire component's `mount()` method to trigger the flush.
+```php
+// The component at route "/" — the page that opens on cold start
+#[OnNative(NotificationTapped::class)]
+public function onTapped(string $id = '', string $title = '', string $body = '', array $data = []): void
+{
+    // Handle the tap
+}
+```
+
+**Why the landing page?** On cold start, the app always opens to `/`. Only components mounted on that page can receive the event. If your listener is on `/settings`, it won't be mounted when the event fires.
+
+### 3. Use named parameters (Livewire 4)
+
+```php
+// Wrong — Livewire 4 maps payload keys to named params, $data stays empty
+public function onTapped(array $data = []): void
+
+// Correct — matches the payload keys: id, title, body, data
+public function onTapped(string $id = '', string $title = '', string $body = '', array $data = []): void
+```
+
+**Why named parameters?** Livewire 4 dispatches event payloads as named arguments (`{id, title, body, data}`), not a single array. A parameter named `$data` only receives the `data` key from the payload, not the entire payload.
+
+> **Without the init component**, you would need to manually call `LocalNotifications::checkPermission()` (or any other bridge function) after Livewire hydration to trigger the flush.
 
 ## Usage (PHP)
 
