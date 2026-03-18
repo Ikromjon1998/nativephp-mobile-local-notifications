@@ -589,13 +589,17 @@ composer analyse
 
 Use it as a reference, fork it as a starter for your own app, or contribute to it.
 
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, development workflow, and guidelines.
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a list of changes in each release.
 
 ## Support
 
-For questions or issues, contact: ikromjon98.98@icloud.com
+For questions or issues, use [GitHub Issues](https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/issues) or contact: ikromjon98.98@icloud.com
 
 ## License
 
