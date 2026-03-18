@@ -32,13 +32,13 @@ use Ikromjon\LocalNotifications\Facades\LocalNotifications;
 | `repeatIntervalSeconds` | int | No | Custom interval >= 60s. Mutually exclusive with `repeat` |
 | `repeatDays` | array\<int\> | No | ISO weekdays (1=Mon..7=Sun). Requires `at`. Mutually exclusive with `repeat` |
 | `repeatCount` | int | No | Limit repetitions (min 1) |
-| `sound` | bool | No | Default `true` |
+| `sound` | bool | No | Default from `config('local-notifications.default_sound')`, initially `true` |
 | `badge` | int | No | App icon badge (iOS) |
 | `data` | array | No | Custom payload passed through to events |
 | `subtitle` | string | No | iOS subtitle / Android subtext |
 | `image` | string | No | http/https URL for rich notification image |
 | `bigText` | string | No | Expanded text on notification pull-down |
-| `actions` | array | No | Up to 3 buttons: `[{id, title, destructive?, input?}]` |
+| `actions` | array | No | Action buttons (limit from `config('local-notifications.max_actions')`, default 3): `[{id, title, destructive?, input?}]` |
 
 ### Type-Safe DTOs
 
@@ -113,22 +113,32 @@ On(Events.NotificationTapped, (payload) => {
 
 Publish with `php artisan vendor:publish --tag=local-notifications-config`.
 
-| Key | Default | Platform | Description | Why platform-specific? |
-|-----|---------|----------|-------------|----------------------|
-| `channel_id` | `nativephp_local_notifications` | Android only | Notification channel ID | iOS has no notification channels |
-| `channel_name` | `Local Notifications` | Android only | Notification channel name | Channels are Android-only (API 26+) |
-| `channel_description` | `Notifications scheduled by the app` | Android only | Channel description | Channels are Android-only (API 26+) |
-| `max_actions` | `3` | Android + iOS | Max action buttons per notification | Both platforms support action buttons |
-| `min_repeat_interval_seconds` | `60` | Android + iOS | Minimum custom repeat interval | PHP-layer validation, platform-independent |
-| `default_sound` | `true` | Android + iOS | Play sound when no explicit `sound` parameter | Both platforms support sound control |
-| `tap_detection_delay_ms` | `500` | Android only | Warm-start tap detection delay | iOS delivers taps instantly via delegate |
-| `navigation_replay_duration_ms` | `15000` | Android only | Cold-start `livewire:navigated` replay window | Android injects JS replay; iOS uses core WebView script |
+| Key | Default | Platform | Description |
+|-----|---------|----------|-------------|
+| `channel_id` | `nativephp_local_notifications` | Android | Notification channel ID |
+| `channel_name` | `Local Notifications` | Android | Channel name in device settings |
+| `channel_description` | `Notifications scheduled by the app` | Android | Channel description |
+| `max_actions` | `3` | Both | Max action buttons per notification |
+| `min_repeat_interval_seconds` | `60` | Both | Minimum custom repeat interval |
+| `default_sound` | `true` | Both | Play sound when no explicit `sound` parameter |
+| `tap_detection_delay_ms` | `500` | Android | Warm-start tap detection delay (advanced) |
+| `navigation_replay_duration_ms` | `15000` | Android | Cold-start event replay window (advanced) |
 
 Config is injected into **every** bridge call via `_config` key — both Android (Kotlin) and iOS (Swift) read applicable values at runtime, even before the first `schedule()` call.
 
+## Cold-Start Tap Events
+
+Add the init Blade component once to your app layout to auto-flush cold-start tap events:
+
+```blade
+<x-local-notifications::init />
+```
+
+This renders a script that calls `CheckPermission` on `DOMContentLoaded`, flushing any queued `NotificationTapped` events. No manual `checkPermission()` in `mount()` needed.
+
 ## Event Dispatch & Tap Detection
 
-- **Pending event flush:** Every bridge function flushes any queued pending events (e.g. `NotificationTapped` from a cold-start tap). The first bridge call after app launch delivers all queued events.
+- **Pending event flush:** Every bridge function flushes any queued pending events (e.g. `NotificationTapped` from a cold-start tap). The first bridge call after app launch delivers all queued events. The `<x-local-notifications::init />` Blade component automates this by triggering a `CheckPermission` bridge call on page load.
 - **Warm-start tap detection (Android):** An `Application.ActivityLifecycleCallbacks` runs `detectTappedNotifications()` on every `onResume` with configurable delay (`tap_detection_delay_ms`). When the user taps a notification while the app is open, the event fires immediately when the app returns to foreground — no bridge call needed.
 - **Cold-start navigation replay (Android):** On cold start, a `livewire:navigated` JS listener replays `NotificationTapped` on every `wire:navigate` navigation for configurable duration (`navigation_replay_duration_ms`). This ensures the event reaches the destination page's `#[OnNative]` handlers even when the first bridge call runs on a different page.
 - **SharedPreferences-based tap tracking (Android):** When a notification fires, a tap payload is stored. On user swipe-dismiss, a `deleteIntent` clears it. On user tap (auto-cancel), the payload persists. The plugin compares stored payloads against `NotificationManager.getActiveNotifications()` to detect taps.
@@ -142,8 +152,8 @@ Config is injected into **every** bridge call via `_config` key — both Android
 - `repeatDays` creates one sub-alarm per day — `cancel()` and `getPending()` handle aggregation automatically.
 - Notification IDs should be deterministic (e.g. `habit-{id}`) so you can cancel without tracking state.
 - `data` payload is passed through to `NotificationTapped` and `NotificationActionPressed` events.
-- To ensure `NotificationTapped` events are delivered on cold start, make sure your app calls at least one bridge function (e.g. `checkPermission()`) early in the page lifecycle.
-- Action buttons: Visible when the user expands (swipe down) the notification. Max 3 buttons per notification.
+- To ensure `NotificationTapped` events are delivered on cold start, add `<x-local-notifications::init />` to your layout, or call at least one bridge function (e.g. `checkPermission()`) early in the page lifecycle.
+- Action buttons: Visible when the user expands (swipe down) the notification. Limit configurable via `max_actions` (default 3).
 
 ## Required Permissions
 

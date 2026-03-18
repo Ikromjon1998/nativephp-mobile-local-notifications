@@ -5,10 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.4.0] - 2026-03-17
+## [1.4.0] - 2026-03-18
 
 ### Added
 
+- **`<x-local-notifications::init />` Blade component** — Drop-in component that auto-flushes cold-start notification tap events on page load. Add it once to your app layout and `NotificationTapped` events from cold starts are delivered automatically — no manual `checkPermission()` call in `mount()` needed. ([#14](https://github.com/Ikromjon1998/nativephp-mobile-local-notifications/issues/14))
+- **View namespace registration** — Service provider now registers a `local-notifications` view namespace for the Blade component.
 - **Publishable config file** — `config/local-notifications.php` with all customizable values: channel ID/name/description, max actions, min repeat interval, default sound, tap detection delay, and navigation replay duration. Publish with `php artisan vendor:publish --tag=local-notifications-config`.
 - **ServiceProvider `boot()` method** — Registers config merging and publishing for the `local-notifications` config key.
 - **Config-driven validation** — `NotificationValidator` now reads `max_actions` and `min_repeat_interval_seconds` from config instead of hardcoded values. Validates action button count at the PHP layer, including when using the `NotificationOptions` DTO. `max_actions` is clamped to >= 1 with correct singular/plural error messages.

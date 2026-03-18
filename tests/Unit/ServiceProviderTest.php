@@ -16,6 +16,21 @@ it('resolves LocalNotifications from the container', function (): void {
     expect($instance)->toBeInstanceOf(LocalNotifications::class);
 });
 
+it('registers the local-notifications view namespace', function (): void {
+    $hints = $this->app['view']->getFinder()->getHints();
+
+    expect($hints)->toHaveKey('local-notifications');
+});
+
+it('renders the init blade component', function (): void {
+    $html = $this->app['view']->make('local-notifications::components.init')->render();
+
+    expect($html)
+        ->toContain('LocalNotifications.CheckPermission')
+        ->toContain('/_native/api/call')
+        ->toContain('DOMContentLoaded');
+});
+
 it('merges default config values', function (): void {
     expect(config('local-notifications.channel_id'))->toBe('nativephp_local_notifications')
         ->and(config('local-notifications.channel_name'))->toBe('Local Notifications')
