@@ -41,7 +41,7 @@
     ],
 
     "android": {
-        "min_version": 33,
+        "min_version": 26,
         "permissions": [
             "android.permission.POST_NOTIFICATIONS",
             "android.permission.SCHEDULE_EXACT_ALARM",
