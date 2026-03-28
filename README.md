@@ -620,7 +620,7 @@ composer analyse
 
 - PHP 8.3+
 - NativePHP Mobile v3+
-- iOS 18.2+ / Android API 33+
+- iOS 18.2+ / Android API 26+
 
 ## Example App
 
