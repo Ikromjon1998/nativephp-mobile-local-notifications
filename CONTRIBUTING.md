@@ -140,7 +140,7 @@ git checkout -b feature/your-feature-name
 
 ## Testing Native Changes
 
-Since native code can't be unit tested, use the [Daily Habits](https://github.com/Ikromjon1998/daily-habits) example app or your own NativePHP app:
+Since native code can't be unit tested, use your own NativePHP Mobile app:
 
 ```bash
 # In your NativePHP app, point to your local fork

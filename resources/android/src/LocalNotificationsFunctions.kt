@@ -1,4 +1,4 @@
-package com.ikromjon.localnotifications
+package com.nativephp.localnotifications
 
 import android.Manifest
 import android.app.AlarmManager
@@ -265,7 +265,7 @@ object LocalNotificationsFunctions {
 
         // Check if the activity was launched from a notification tap (cold start)
         val intent = activity.intent
-        if (intent?.action == "com.ikromjon.localnotifications.TAP") {
+        if (intent?.action == "com.nativephp.localnotifications.TAP") {
             val id = intent.getStringExtra("notification_id")
             val title = intent.getStringExtra("notification_title")
             val body = intent.getStringExtra("notification_body")
@@ -502,7 +502,7 @@ object LocalNotificationsFunctions {
         repeatCount: Int? = null
     ) {
         val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
-            action = "com.ikromjon.localnotifications.NOTIFY"
+            action = "com.nativephp.localnotifications.NOTIFY"
             putExtra("notification_id", id)
             putExtra("title", title)
             putExtra("body", body)
@@ -584,7 +584,7 @@ object LocalNotificationsFunctions {
 
         private fun cancelSingleAlarm(context: Context, id: String) {
             val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
-                action = "com.ikromjon.localnotifications.NOTIFY"
+                action = "com.nativephp.localnotifications.NOTIFY"
             }
             val requestCode = id.hashCode()
             val pendingIntent = PendingIntent.getBroadcast(
@@ -623,7 +623,7 @@ object LocalNotificationsFunctions {
 
                 for (id in allIds) {
                     val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
-                        action = "com.ikromjon.localnotifications.NOTIFY"
+                        action = "com.nativephp.localnotifications.NOTIFY"
                     }
                     val pendingIntent = PendingIntent.getBroadcast(
                         context,

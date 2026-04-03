@@ -1,4 +1,4 @@
-package com.ikromjon.localnotifications
+package com.nativephp.localnotifications
 
 import android.app.AlarmManager
 import android.app.NotificationManager
@@ -30,7 +30,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         // Handle notification dismiss (user swiped away): clear stored tap payload
-        if (intent.action == "com.ikromjon.localnotifications.DISMISS") {
+        if (intent.action == "com.nativephp.localnotifications.DISMISS") {
             val dismissId = intent.getStringExtra("notification_id") ?: return
             LocalNotificationsFunctions.clearTapPayload(context, dismissId)
             return
@@ -61,7 +61,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         // Using PendingIntent.getActivity() instead of getBroadcast() because
         // startActivity() from a BroadcastReceiver is restricted on Android 12+ (API 31).
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-            action = "com.ikromjon.localnotifications.TAP"
+            action = "com.nativephp.localnotifications.TAP"
             putExtra("notification_id", id)
             putExtra("notification_title", title)
             putExtra("notification_body", body)
@@ -80,7 +80,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             Log.e(TAG, "Could not resolve launch intent for package: ${context.packageName}")
             // Fallback: use a broadcast so the notification still works
             val fallbackIntent = Intent(context, NotificationTapReceiver::class.java).apply {
-                this.action = "com.ikromjon.localnotifications.TAP"
+                this.action = "com.nativephp.localnotifications.TAP"
                 putExtra("notification_id", id)
                 putExtra("notification_title", title)
                 putExtra("notification_body", body)
@@ -150,7 +150,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                     val isInput = action.optBoolean("input", false)
 
                     val actionIntent = Intent(context, NotificationActionReceiver::class.java).apply {
-                        this.action = "com.ikromjon.localnotifications.ACTION"
+                        this.action = "com.nativephp.localnotifications.ACTION"
                         putExtra("notification_id", id)
                         putExtra("action_id", actionId)
                         if (dataJson != null) putExtra("notification_data", dataJson)
@@ -184,7 +184,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         // Clears the stored tap payload so we don't dispatch a false NotificationTapped.
         // Does NOT fire on auto-cancel (tap), so the payload persists for tap detection.
         val dismissIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
-            action = "com.ikromjon.localnotifications.DISMISS"
+            action = "com.nativephp.localnotifications.DISMISS"
             putExtra("notification_id", id)
         }
         val dismissPendingIntent = PendingIntent.getBroadcast(
@@ -285,7 +285,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         }
 
         val rescheduleIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
-            action = "com.ikromjon.localnotifications.NOTIFY"
+            action = "com.nativephp.localnotifications.NOTIFY"
             putExtra("notification_id", id)
             putExtra("title", title)
             putExtra("body", body)

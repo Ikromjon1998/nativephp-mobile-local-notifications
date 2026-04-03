@@ -4,37 +4,37 @@
     "bridge_functions": [
         {
             "name": "LocalNotifications.Schedule",
-            "android": "com.ikromjon.localnotifications.LocalNotificationsFunctions.Schedule",
+            "android": "com.nativephp.localnotifications.LocalNotificationsFunctions.Schedule",
             "ios": "LocalNotificationsFunctions.Schedule",
             "description": "Schedule a local notification at a specific time or after a delay"
         },
         {
             "name": "LocalNotifications.Cancel",
-            "android": "com.ikromjon.localnotifications.LocalNotificationsFunctions.Cancel",
+            "android": "com.nativephp.localnotifications.LocalNotificationsFunctions.Cancel",
             "ios": "LocalNotificationsFunctions.Cancel",
             "description": "Cancel a scheduled notification by its identifier"
         },
         {
             "name": "LocalNotifications.CancelAll",
-            "android": "com.ikromjon.localnotifications.LocalNotificationsFunctions.CancelAll",
+            "android": "com.nativephp.localnotifications.LocalNotificationsFunctions.CancelAll",
             "ios": "LocalNotificationsFunctions.CancelAll",
             "description": "Cancel all scheduled notifications"
         },
         {
             "name": "LocalNotifications.GetPending",
-            "android": "com.ikromjon.localnotifications.LocalNotificationsFunctions.GetPending",
+            "android": "com.nativephp.localnotifications.LocalNotificationsFunctions.GetPending",
             "ios": "LocalNotificationsFunctions.GetPending",
             "description": "Get a list of all pending scheduled notifications"
         },
         {
             "name": "LocalNotifications.RequestPermission",
-            "android": "com.ikromjon.localnotifications.LocalNotificationsFunctions.RequestPermission",
+            "android": "com.nativephp.localnotifications.LocalNotificationsFunctions.RequestPermission",
             "ios": "LocalNotificationsFunctions.RequestPermission",
             "description": "Request permission to show notifications"
         },
         {
             "name": "LocalNotifications.CheckPermission",
-            "android": "com.ikromjon.localnotifications.LocalNotificationsFunctions.CheckPermission",
+            "android": "com.nativephp.localnotifications.LocalNotificationsFunctions.CheckPermission",
             "ios": "LocalNotificationsFunctions.CheckPermission",
             "description": "Check current notification permission status"
         }
@@ -70,7 +70,7 @@
     },
 
     "ios": {
-        "min_version": "18.2"
+        "min_version": "16.0"
     },
 
     "events": [

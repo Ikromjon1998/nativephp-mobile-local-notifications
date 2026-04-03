@@ -163,7 +163,7 @@ This waits for `livewire:navigated` (after components are hydrated), then trigge
 Declared automatically via `nativephp.json` — no manual setup needed.
 
 **Android:** `POST_NOTIFICATIONS`, `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM`, `RECEIVE_BOOT_COMPLETED`, `VIBRATE`
-**iOS:** Runtime authorization for alert, sound, badge. Min version: 18.2.
+**iOS:** Runtime authorization for alert, sound, badge. Min version: 16.0.
 
 No environment variables or API keys required.
 
