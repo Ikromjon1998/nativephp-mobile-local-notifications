@@ -36,5 +36,5 @@ See individual epic files in [`docs/epics/`](docs/epics/) for full details.
 |---|------|------|--------|
 | 12 | Notification Badge Management | [12-badge-management.md](docs/epics/12-badge-management.md) | Not Started |
 | 13 | Custom Notification Icons (Android) | [13-custom-notification-icons.md](docs/epics/13-custom-notification-icons.md) | Not Started |
-| 14 | Lower Minimum OS Requirements | [14-lower-minimum-os-requirements.md](docs/epics/14-lower-minimum-os-requirements.md) | Done (iOS 16.0+, Android API 26+) |
+| 14 | Lower Minimum OS Requirements | [14-lower-minimum-os-requirements.md](docs/epics/14-lower-minimum-os-requirements.md) | N/A — NativePHP enforces Android 29 / iOS 18.0 baseline |
 | 15 | Improved SharedPreferences Persistence | [15-improved-sharedpreferences-persistence.md](docs/epics/15-improved-sharedpreferences-persistence.md) | Not Started |

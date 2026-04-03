@@ -619,7 +619,7 @@ The plugin declares all required permissions automatically via `nativephp.json`.
 **iOS:**
 
 - Notification authorization is requested at runtime via `requestPermission()` (alert, sound, badge)
-- Minimum iOS version: 16.0
+- Minimum iOS version: 18.0 (NativePHP baseline)
 
 **Environment variables:** None required. The plugin works entirely on-device with no external services.
 
@@ -637,7 +637,7 @@ composer analyse
 
 - PHP 8.3+
 - NativePHP Mobile v3+
-- iOS 16.0+ / Android API 26+
+- iOS 18.0+ / Android API 29+ (matches NativePHP Mobile baseline)
 
 ## Example App
 

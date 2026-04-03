@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-04-04
+
+### Changed
+
+- **Aligned min_version with NativePHP Mobile baseline** — Updated `nativephp.json` to Android API 29 and iOS 18.0. NativePHP enforces these as the minimum at build time regardless of plugin declarations, so the previous values (Android 26, iOS 16.0) were cosmetic and misleading.
+- **Closed Epic 14 (Lower OS Requirements) as N/A** — Plugin min_versions cannot go below the NativePHP framework baseline.
+
 ## [1.5.0] - 2026-04-04
 
 ### Changed

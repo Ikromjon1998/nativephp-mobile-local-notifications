@@ -41,7 +41,7 @@
     ],
 
     "android": {
-        "min_version": 26,
+        "min_version": 29,
         "permissions": [
             "android.permission.POST_NOTIFICATIONS",
             "android.permission.SCHEDULE_EXACT_ALARM",
@@ -70,7 +70,7 @@
     },
 
     "ios": {
-        "min_version": "16.0"
+        "min_version": "18.0"
     },
 
     "events": [
