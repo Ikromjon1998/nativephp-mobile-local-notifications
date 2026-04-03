@@ -455,6 +455,75 @@ describe('schedule', function (): void {
         expect($capturedData['repeat'])->toBe('weekly');
     });
 
+    it('returns empty array when bridge returns empty string', function (): void {
+        stubNativephpCall(fn (): string => '');
+
+        $result = $this->notifications->schedule([
+            'id' => 'test-1',
+            'title' => 'Test',
+            'body' => 'Body',
+        ]);
+
+        expect($result)->toBe([]);
+    });
+
+    it('passes zero delay to the bridge', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'zero-delay',
+            'title' => 'Test',
+            'body' => 'Body',
+            'delay' => 0,
+        ]);
+
+        expect($capturedData['delay'])->toBe(0);
+    });
+
+    it('passes sound false to the bridge', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'silent',
+            'title' => 'Test',
+            'body' => 'Body',
+            'sound' => false,
+        ]);
+
+        expect($capturedData['sound'])->toBeFalse();
+    });
+
+    it('passes badge zero to the bridge', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'zero-badge',
+            'title' => 'Test',
+            'body' => 'Body',
+            'badge' => 0,
+        ]);
+
+        expect($capturedData['badge'])->toBe(0);
+    });
+
     it('injects _config with default values into schedule bridge call', function (): void {
         $capturedData = null;
 

@@ -20,12 +20,12 @@ use Ikromjon\LocalNotifications\Facades\LocalNotifications;
 LocalNotifications::requestPermission();
 
 // Schedule a notification in 10 seconds
-LocalNotifications::schedule(
-    id: 'welcome',
-    title: 'Hello!',
-    body: 'Your first local notification',
-    seconds: 10,
-);
+LocalNotifications::schedule([
+    'id' => 'welcome',
+    'title' => 'Hello!',
+    'body' => 'Your first local notification',
+    'delay' => 10,
+]);
 ```
 
 ## How is this different?
