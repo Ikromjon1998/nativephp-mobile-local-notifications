@@ -127,7 +127,7 @@ export async function checkPermission() {
  * @returns {Promise<{success: boolean, id?: string, error?: string}>}
  */
 export async function update(id, options = {}) {
-    return bridgeCall('LocalNotifications.Update', { id, ...options });
+    return bridgeCall('LocalNotifications.Update', { ...options, id });
 }
 
 // ---------------------------------------------------------------------------

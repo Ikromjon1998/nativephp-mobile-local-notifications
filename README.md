@@ -303,6 +303,9 @@ $result = LocalNotifications::checkPermission();
 Update a pending notification's content or timing without canceling and rescheduling manually.
 
 ```php
+use Ikromjon\LocalNotifications\Facades\LocalNotifications;
+use Ikromjon\LocalNotifications\Data\NotificationOptions;
+
 // Update only content (preserves original schedule)
 LocalNotifications::update('reminder-1', [
     'title' => 'Updated Reminder',

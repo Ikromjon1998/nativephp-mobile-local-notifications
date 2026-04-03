@@ -811,10 +811,11 @@ object LocalNotificationsFunctions {
 
     /**
      * Update an existing scheduled notification.
-     * Merges the provided parameters with stored notification info.
-     * If timing properties change, the alarm is rescheduled.
-     * If only content changes, the stored info is updated in place
-     * and any already-delivered notification is refreshed.
+     * Merges the provided parameters with stored notification info and
+     * updates the scheduled alarm based on the resulting notification data.
+     * If timing properties change, the alarm is rescheduled with new timing.
+     * If only content changes, the alarm is rescheduled preserving the original trigger time.
+     * Already-delivered notifications are refreshed if still visible in the status bar.
      */
     class Update(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
@@ -980,13 +981,25 @@ object LocalNotificationsFunctions {
                     scheduleAlarm(context, id, title, body, sound, badge, data, subtitle, imageUrl, bigText, actions, triggerTimeMs, repeatMs, repeatType, repeatCount)
                     saveNotificationInfo(context, id, title, body, triggerTimeMs, repeatMs, repeatType, sound, badge, data, subtitle, imageUrl, bigText, actions, repeatCount)
 
-                    // Update already-delivered notification if visible
+                    // Update already-delivered notification if visible in the status bar
                     val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    val activeIds = notificationManager.activeNotifications.map { it.id }.toSet()
-                    if (id.hashCode() in activeIds) {
-                        // Re-post with updated content via the receiver's build logic
-                        // For simplicity, we just cancel and let the alarm fire again
-                        Log.d(TAG, "Updated delivered notification: $id")
+                    val activeNotification = notificationManager.activeNotifications.firstOrNull { it.id == id.hashCode() }
+                    if (activeNotification != null) {
+                        val rebuiltNotification = android.app.Notification.Builder(context, channelId)
+                            .setSmallIcon(activeNotification.notification.smallIcon ?: context.applicationInfo.icon.let { android.graphics.drawable.Icon.createWithResource(context, it) })
+                            .setContentTitle(title)
+                            .setContentText(body)
+                            .apply {
+                                if (subtitle != null) setSubText(subtitle)
+                                if (!bigText.isNullOrBlank()) {
+                                    setStyle(android.app.Notification.BigTextStyle().bigText(bigText))
+                                }
+                                setAutoCancel(true)
+                            }
+                            .build()
+
+                        notificationManager.notify(id.hashCode(), rebuiltNotification)
+                        Log.d(TAG, "Refreshed delivered notification: $id")
                     }
                 }
 
@@ -1025,6 +1038,9 @@ object LocalNotificationsFunctions {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             alarmManager.cancel(pendingIntent)
             pendingIntent.cancel()
+
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.cancel(requestCode)
         }
     }
 

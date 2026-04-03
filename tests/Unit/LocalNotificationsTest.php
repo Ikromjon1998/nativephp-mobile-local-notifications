@@ -821,9 +821,7 @@ describe('update', function (): void {
         expect($result)->toBe([]);
     });
 
-    it('returns empty array when nativephp_call does not exist', function (): void {
-        // Don't stub nativephp_call — but it's already defined from other tests,
-        // so we test the bridge returns empty string instead
+    it('returns empty array when bridge returns empty string', function (): void {
         stubNativephpCall(fn (): string => '');
 
         $result = $this->notifications->update('no-bridge', [
