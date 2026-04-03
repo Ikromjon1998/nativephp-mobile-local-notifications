@@ -298,6 +298,34 @@ $result = LocalNotifications::checkPermission();
 // Returns: ['status' => 'granted'] or ['status' => 'denied']
 ```
 
+### Update an Existing Notification
+
+Update a pending notification's content or timing without canceling and rescheduling manually.
+
+```php
+// Update only content (preserves original schedule)
+LocalNotifications::update('reminder-1', [
+    'title' => 'Updated Reminder',
+    'body' => 'New reminder text',
+]);
+
+// Update timing (reschedules the notification)
+LocalNotifications::update('reminder-1', [
+    'title' => 'Rescheduled',
+    'body' => 'Moved to tomorrow',
+    'at' => now()->addDay()->timestamp,
+]);
+
+// Update with DTO
+LocalNotifications::update('reminder-1', new NotificationOptions(
+    id: 'reminder-1',
+    title: 'Updated via DTO',
+    body: 'Works with DTOs too',
+));
+```
+
+Returns `['success' => false, 'error' => 'Notification not found: ...']` if the ID doesn't exist.
+
 ## Listening to Events (Livewire)
 
 Use the `#[OnNative]` attribute in your Livewire components:
@@ -307,6 +335,7 @@ use Native\Mobile\Attributes\OnNative;
 use Ikromjon\LocalNotifications\Events\NotificationScheduled;
 use Ikromjon\LocalNotifications\Events\NotificationReceived;
 use Ikromjon\LocalNotifications\Events\NotificationTapped;
+use Ikromjon\LocalNotifications\Events\NotificationUpdated;
 use Ikromjon\LocalNotifications\Events\PermissionGranted;
 use Ikromjon\LocalNotifications\Events\PermissionDenied;
 use Ikromjon\LocalNotifications\Events\NotificationActionPressed;
@@ -315,6 +344,12 @@ use Ikromjon\LocalNotifications\Events\NotificationActionPressed;
 public function onScheduled($data)
 {
     // Notification was scheduled: $data['id'], $data['title'], $data['body']
+}
+
+#[OnNative(NotificationUpdated::class)]
+public function onUpdated($data)
+{
+    // Notification was updated: $data['id'], $data['title'], $data['body']
 }
 
 #[OnNative(NotificationReceived::class)]
@@ -396,6 +431,7 @@ import {
     getPending,
     requestPermission,
     checkPermission,
+    update,
     Events,
 } from '../../vendor/ikromjon/nativephp-mobile-local-notifications/resources/js/index.js';
 
@@ -434,6 +470,9 @@ const { notifications, count } = await getPending();
 
 // Check permission status
 const { status } = await checkPermission();
+
+// Update an existing notification
+await update('reminder-1', { title: 'Updated!', body: 'New body text' });
 ```
 
 ### Listening to Events (JavaScript)

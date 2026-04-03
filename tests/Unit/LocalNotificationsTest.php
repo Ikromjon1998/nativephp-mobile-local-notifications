@@ -1,5 +1,6 @@
 <?php
 
+use Ikromjon\LocalNotifications\Data\NotificationOptions;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
 use Ikromjon\LocalNotifications\LocalNotifications;
 
@@ -718,4 +719,152 @@ describe('checkPermission', function (): void {
 
         expect($result)->toBe([]);
     });
+});
+
+describe('update', function (): void {
+    it('calls the bridge with correct function name and merged id', function (): void {
+        $capturedFunction = null;
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedFunction, &$capturedData) {
+            $capturedFunction = $function;
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true, 'id' => 'update-1']);
+        });
+
+        $result = $this->notifications->update('update-1', [
+            'id' => 'ignored',
+            'title' => 'Updated Title',
+            'body' => 'Updated Body',
+        ]);
+
+        unset($capturedData['_config']);
+        expect($capturedFunction)->toBe('LocalNotifications.Update')
+            ->and($capturedData['id'])->toBe('update-1')
+            ->and($capturedData['title'])->toBe('Updated Title')
+            ->and($capturedData['body'])->toBe('Updated Body')
+            ->and($result)->toBe(['success' => true, 'id' => 'update-1']);
+    });
+
+    it('overrides array id with the explicit id parameter', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->update('correct-id', [
+            'id' => 'wrong-id',
+            'title' => 'Test',
+            'body' => 'Body',
+        ]);
+
+        expect($capturedData['id'])->toBe('correct-id');
+    });
+
+    it('accepts NotificationOptions DTO', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $options = new NotificationOptions(
+            id: 'dto-id',
+            title: 'DTO Title',
+            body: 'DTO Body',
+        );
+
+        $this->notifications->update('override-id', $options);
+
+        expect($capturedData['id'])->toBe('override-id')
+            ->and($capturedData['title'])->toBe('DTO Title');
+    });
+
+    it('passes partial update options to the bridge', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->update('partial-update', [
+            'id' => 'partial-update',
+            'title' => 'New Title Only',
+            'body' => 'Body',
+        ]);
+
+        unset($capturedData['_config']);
+        expect($capturedData)->toBe([
+            'id' => 'partial-update',
+            'title' => 'New Title Only',
+            'body' => 'Body',
+        ]);
+    });
+
+    it('returns empty array when bridge returns null', function (): void {
+        stubNativephpCallReturnsNull();
+
+        $result = $this->notifications->update('test-id', [
+            'id' => 'test-id',
+            'title' => 'Test',
+            'body' => 'Body',
+        ]);
+
+        expect($result)->toBe([]);
+    });
+
+    it('returns empty array when nativephp_call does not exist', function (): void {
+        // Don't stub nativephp_call — but it's already defined from other tests,
+        // so we test the bridge returns empty string instead
+        stubNativephpCall(fn (): string => '');
+
+        $result = $this->notifications->update('no-bridge', [
+            'id' => 'no-bridge',
+            'title' => 'Test',
+            'body' => 'Body',
+        ]);
+
+        expect($result)->toBe([]);
+    });
+
+    it('injects _config into update bridge call', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->update('config-test', [
+            'id' => 'config-test',
+            'title' => 'Test',
+            'body' => 'Body',
+        ]);
+
+        expect($capturedData)->toHaveKey('_config')
+            ->and($capturedData['_config'])->toHaveKeys([
+                'channel_id',
+                'max_actions',
+                'default_sound',
+            ]);
+    });
+
+    it('validates options through normalizeOptions', function (): void {
+        $this->notifications->update('bad-update', [
+            'id' => 'bad-update',
+            'title' => 'Test',
+            'body' => 'Body',
+            'repeat' => 'daily',
+            'repeatIntervalSeconds' => 3600,
+        ]);
+    })->throws(InvalidArgumentException::class, 'Cannot use both "repeat" and "repeatIntervalSeconds"');
 });

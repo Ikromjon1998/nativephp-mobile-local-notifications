@@ -48,4 +48,12 @@ interface LocalNotificationsInterface
      * @return array<string, mixed>
      */
     public function checkPermission(): array;
+
+    /**
+     * Update an existing scheduled notification.
+     *
+     * @param  NotificationOptions|array<string, mixed>  $options
+     * @return array<string, mixed>
+     */
+    public function update(string $id, NotificationOptions|array $options): array;
 }

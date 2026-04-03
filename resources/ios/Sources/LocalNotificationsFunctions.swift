@@ -707,6 +707,281 @@ enum LocalNotificationsFunctions {
         }
     }
 
+    // MARK: - LocalNotifications.Update
+
+    /// Update an existing scheduled notification.
+    ///
+    /// Looks up the pending notification by ID, merges new parameters,
+    /// removes the old request, and adds a new one.
+    /// If the notification ID doesn't exist, returns an error.
+    ///
+    /// Parameters: same as Schedule, but `id` refers to an existing notification
+    /// Returns:
+    ///   - success: boolean
+    /// Events:
+    ///   - Fires NotificationUpdated on success
+    class Update: BridgeFunction {
+        func execute(parameters: [String: Any]) throws -> [String: Any] {
+            LocalNotificationDelegate.ensureRegistered()
+            LocalNotificationDelegate.shared.dispatchPendingEvents()
+
+            guard let id = parameters["id"] as? String else {
+                return ["success": false, "error": "Missing required parameter: id"]
+            }
+
+            let config = parameters["_config"] as? [String: Any]
+            let center = UNUserNotificationCenter.current()
+
+            // Look up existing notification
+            let semaphoreFind = DispatchSemaphore(value: 0)
+            var existingRequest: UNNotificationRequest?
+            var allRequests: [UNNotificationRequest] = []
+
+            center.getPendingNotificationRequests { requests in
+                allRequests = requests
+                // Check for exact ID match or day-of-week sub-IDs
+                existingRequest = requests.first { $0.identifier == id }
+                    ?? requests.first { $0.identifier.hasPrefix("\(id)_day_") }
+                semaphoreFind.signal()
+            }
+            semaphoreFind.wait()
+
+            // Check if it's a day-of-week parent
+            let daySubRequests = allRequests.filter { $0.identifier.hasPrefix("\(id)_day_") }
+            let isDayOfWeek = !daySubRequests.isEmpty
+
+            guard existingRequest != nil || isDayOfWeek else {
+                return ["success": false, "error": "Notification not found: \(id)"]
+            }
+
+            // Use the first found request as base for merging
+            let baseRequest = isDayOfWeek ? daySubRequests.first! : existingRequest!
+            let existingContent = baseRequest.content
+
+            // Merge content
+            let title = parameters["title"] as? String ?? existingContent.title
+            let body = parameters["body"] as? String ?? existingContent.body
+            let defaultSound = config?["default_sound"] as? Bool ?? true
+            let sound = parameters["sound"] as? Bool ?? defaultSound
+            let badge = parameters["badge"] as? Int ?? existingContent.badge?.intValue
+            let subtitle = parameters["subtitle"] as? String ?? (existingContent.subtitle.isEmpty ? nil : existingContent.subtitle)
+            let imageUrl = parameters["image"] as? String
+            let repeatDays = parameters["repeatDays"] as? [Int]
+
+            // Merge data
+            var userInfo: [String: Any] = ["notification_id": id]
+            if let newData = parameters["data"] as? [String: Any] {
+                for (key, value) in newData {
+                    userInfo[key] = value
+                }
+            } else {
+                // Preserve existing custom data
+                for (key, value) in existingContent.userInfo {
+                    if let key = key as? String, key != "notification_id" {
+                        userInfo[key] = value
+                    }
+                }
+            }
+
+            // Build new content
+            let newContent = UNMutableNotificationContent()
+            newContent.title = title
+            newContent.body = body
+            if let subtitle = subtitle { newContent.subtitle = subtitle }
+            if sound { newContent.sound = .default }
+            if let badge = badge { newContent.badge = NSNumber(value: badge) }
+            newContent.userInfo = userInfo
+
+            // Preserve or update category (action buttons)
+            if let actionsArray = parameters["actions"] as? [[String: Any]], !actionsArray.isEmpty {
+                let maxActions = max(1, (config?["max_actions"] as? Int) ?? 3)
+                let categoryId = "NOTIF_ACTIONS_\(id)"
+                let actions: [UNNotificationAction] = actionsArray.prefix(maxActions).map { actionDict in
+                    let actionId = actionDict["id"] as? String ?? ""
+                    let actionTitle = actionDict["title"] as? String ?? ""
+                    let isDestructive = actionDict["destructive"] as? Bool ?? false
+                    let isInput = actionDict["input"] as? Bool ?? false
+
+                    if isInput {
+                        var options: UNNotificationActionOptions = []
+                        if isDestructive { options.insert(.destructive) }
+                        return UNTextInputNotificationAction(identifier: actionId, title: actionTitle, options: options)
+                    } else {
+                        var options: UNNotificationActionOptions = []
+                        if isDestructive { options.insert(.destructive) }
+                        return UNNotificationAction(identifier: actionId, title: actionTitle, options: options)
+                    }
+                }
+
+                let category = UNNotificationCategory(identifier: categoryId, actions: actions, intentIdentifiers: [], options: [])
+                let semCat = DispatchSemaphore(value: 0)
+                center.getNotificationCategories { existingCategories in
+                    var categories = existingCategories.filter { $0.identifier != categoryId }
+                    categories.insert(category)
+                    center.setNotificationCategories(categories)
+                    semCat.signal()
+                }
+                semCat.wait()
+                newContent.categoryIdentifier = categoryId
+            } else if !existingContent.categoryIdentifier.isEmpty {
+                newContent.categoryIdentifier = existingContent.categoryIdentifier
+            }
+
+            // Attach image if provided
+            if let imgUrl = imageUrl, let url = URL(string: imgUrl),
+               let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+                if let attachment = Schedule.downloadAndAttachImage(from: url) {
+                    newContent.attachments = [attachment]
+                }
+            } else if !existingContent.attachments.isEmpty {
+                newContent.attachments = existingContent.attachments
+            }
+
+            // Check if timing changed
+            let newDelay = parameters["delay"] as? Int
+            let newAt = parameters["at"] as? Int
+            let newRepeat = parameters["repeat"] as? String
+            let newRepeatIntervalSeconds = parameters["repeatIntervalSeconds"] as? Int
+            let newRepeatCount = parameters["repeatCount"] as? Int
+            let timingChanged = newDelay != nil || newAt != nil || newRepeat != nil || newRepeatIntervalSeconds != nil || repeatDays != nil
+
+            if isDayOfWeek {
+                // Remove all existing sub-requests
+                let subIds = daySubRequests.map { $0.identifier }
+                center.removePendingNotificationRequests(withIdentifiers: subIds)
+                center.removeDeliveredNotifications(withIdentifiers: subIds)
+                for subId in subIds {
+                    UserDefaults.standard.removeObject(forKey: "notif_remaining_\(subId)")
+                }
+
+                if timingChanged {
+                    // Re-delegate to Schedule with merged parameters
+                    var mergedParams: [String: Any] = ["id": id, "title": title, "body": body]
+                    if let s = subtitle { mergedParams["subtitle"] = s }
+                    if sound { mergedParams["sound"] = true } else { mergedParams["sound"] = false }
+                    if let b = badge { mergedParams["badge"] = b }
+                    if let d = parameters["data"] as? [String: Any] { mergedParams["data"] = d }
+                    if let img = imageUrl { mergedParams["image"] = img }
+                    if let acts = parameters["actions"] { mergedParams["actions"] = acts }
+                    if let d = newDelay { mergedParams["delay"] = d }
+                    if let a = newAt { mergedParams["at"] = a }
+                    if let r = newRepeat { mergedParams["repeat"] = r }
+                    if let rs = newRepeatIntervalSeconds { mergedParams["repeatIntervalSeconds"] = rs }
+                    if let rd = repeatDays { mergedParams["repeatDays"] = rd }
+                    if let rc = newRepeatCount { mergedParams["repeatCount"] = rc }
+                    if let c = config { mergedParams["_config"] = c }
+
+                    let scheduleResult = try Schedule().execute(parameters: mergedParams)
+                    if scheduleResult["success"] as? Bool != true { return scheduleResult }
+                } else {
+                    // Reschedule sub-alarms with same timing but new content
+                    let semReschedule = DispatchSemaphore(value: 0)
+                    var lastError: Error?
+
+                    for oldRequest in daySubRequests {
+                        let newRequest = UNNotificationRequest(
+                            identifier: oldRequest.identifier,
+                            content: newContent,
+                            trigger: oldRequest.trigger
+                        )
+                        center.add(newRequest) { error in
+                            if let error = error { lastError = error }
+                            semReschedule.signal()
+                        }
+                        semReschedule.wait()
+                    }
+
+                    if let error = lastError {
+                        return ["success": false, "error": error.localizedDescription]
+                    }
+
+                    // Update repeat counts if provided
+                    if let count = newRepeatCount, count >= 1 {
+                        for oldRequest in daySubRequests {
+                            UserDefaults.standard.set(count, forKey: "notif_remaining_\(oldRequest.identifier)")
+                        }
+                    }
+                }
+            } else {
+                // Single notification
+                let requestId = baseRequest.identifier
+
+                // Remove old request
+                center.removePendingNotificationRequests(withIdentifiers: [requestId])
+                center.removeDeliveredNotifications(withIdentifiers: [requestId])
+
+                // Determine trigger
+                var trigger: UNNotificationTrigger?
+
+                if timingChanged {
+                    // Rebuild trigger from new parameters
+                    let repeatInterval = newRepeat
+
+                    if let customSeconds = newRepeatIntervalSeconds, customSeconds >= 60, repeatInterval == nil {
+                        trigger = UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(customSeconds), repeats: true)
+                    } else if let delay = newDelay, delay > 0 {
+                        let repeats = repeatInterval != nil
+                        trigger = UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(delay), repeats: repeats)
+                    } else if let timestamp = newAt {
+                        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+                        var dateComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+                        var repeats = false
+
+                        if let interval = repeatInterval {
+                            repeats = true
+                            switch interval {
+                            case "minute": dateComponents = Calendar.current.dateComponents([.second], from: date)
+                            case "hourly": dateComponents = Calendar.current.dateComponents([.minute, .second], from: date)
+                            case "daily": dateComponents = Calendar.current.dateComponents([.hour, .minute, .second], from: date)
+                            case "weekly": dateComponents = Calendar.current.dateComponents([.weekday, .hour, .minute, .second], from: date)
+                            case "monthly": dateComponents = Calendar.current.dateComponents([.day, .hour, .minute, .second], from: date)
+                            case "yearly": dateComponents = Calendar.current.dateComponents([.month, .day, .hour, .minute, .second], from: date)
+                            default: repeats = false
+                            }
+                        }
+
+                        trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: repeats)
+                    } else {
+                        trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+                    }
+                } else {
+                    // Preserve existing trigger
+                    trigger = baseRequest.trigger
+                }
+
+                let newRequest = UNNotificationRequest(identifier: id, content: newContent, trigger: trigger)
+                let semAdd = DispatchSemaphore(value: 0)
+                var addError: Error?
+
+                center.add(newRequest) { error in
+                    addError = error
+                    semAdd.signal()
+                }
+                semAdd.wait()
+
+                if let error = addError {
+                    return ["success": false, "error": error.localizedDescription]
+                }
+
+                // Update repeat count
+                if let count = newRepeatCount, count >= 1 {
+                    UserDefaults.standard.set(count, forKey: "notif_remaining_\(id)")
+                }
+
+                // Clean up old remaining count if old request ID differs
+                if requestId != id {
+                    UserDefaults.standard.removeObject(forKey: "notif_remaining_\(requestId)")
+                }
+            }
+
+            let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationUpdated"
+            let payload: [String: Any] = ["id": id, "title": title, "body": body]
+            LaravelBridge.shared.send?(eventClass, payload)
+
+            return ["success": true, "id": id]
+        }
+    }
+
     // MARK: - LocalNotifications.CheckPermission
 
     /// Check current notification permission status

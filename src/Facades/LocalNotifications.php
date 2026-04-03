@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static array<string, mixed> getPending()
  * @method static array<string, mixed> requestPermission()
  * @method static array<string, mixed> checkPermission()
+ * @method static array<string, mixed> update(string $id, NotificationOptions|array<string, mixed> $options)
  *
  * @see \Ikromjon\LocalNotifications\LocalNotifications
  */

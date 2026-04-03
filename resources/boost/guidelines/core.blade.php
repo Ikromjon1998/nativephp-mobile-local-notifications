@@ -18,6 +18,7 @@ use Ikromjon\LocalNotifications\Facades\LocalNotifications;
 | `getPending()` | — | `array` | List all pending notifications. Day-of-week sub-alarms are aggregated. |
 | `requestPermission()` | — | `array` | Request notification permission (Android 13+, iOS). |
 | `checkPermission()` | — | `array` | Check current permission status (`granted`, `denied`, `notDetermined`). |
+| `update($id, $options)` | `string`, `NotificationOptions\|array` | `array` | Update an existing notification's content or timing. |
 
 ### Schedule Parameters
 
@@ -65,6 +66,7 @@ LocalNotifications::schedule(new NotificationOptions(
 | Event | Payload | When |
 |-------|---------|------|
 | `NotificationScheduled` | `id`, `title`, `body` | Notification successfully scheduled |
+| `NotificationUpdated` | `id`, `title`, `body` | Notification successfully updated |
 | `NotificationReceived` | `id`, `title`, `body`, `data?` | Notification delivered to device |
 | `NotificationTapped` | `id`, `title`, `body`, `data?` | User tapped the notification |
 | `NotificationActionPressed` | `notificationId`, `actionId`, `data?`, `inputText?` | User pressed an action button |

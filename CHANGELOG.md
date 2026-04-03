@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-04-04
+
+### Added
+
+- **`update()` method** — Update an existing scheduled notification's content or timing without manual cancel + reschedule. Content-only updates preserve the original trigger; timing changes automatically reschedule.
+- **`NotificationUpdated` event** — Dispatched after a successful update, with `id`, `title`, and `body` payload.
+- **Android `Update` bridge function** — Merges new parameters with stored notification info in SharedPreferences, handles both single and day-of-week notifications.
+- **iOS `Update` bridge function** — Looks up pending UNNotificationRequests by ID, merges content, and replaces the request.
+- **JS `update()` function** — `update(id, options)` for Inertia/Vue/React apps.
+- **`NotificationUpdated` JS event constant** — `Events.NotificationUpdated` for use with the NativePHP `On()` listener.
+
 ## [1.5.1] - 2026-04-04
 
 ### Changed

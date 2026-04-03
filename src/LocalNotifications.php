@@ -75,6 +75,23 @@ class LocalNotifications implements LocalNotificationsInterface
     }
 
     /**
+     * Update an existing scheduled notification.
+     *
+     * @param  NotificationOptions|array<string, mixed>  $options
+     * @return array<string, mixed>
+     */
+    public function update(string $id, NotificationOptions|array $options): array
+    {
+        $data = $options instanceof NotificationOptions
+            ? $options->toArray()
+            : $this->normalizeOptions($options);
+
+        $data['id'] = $id;
+
+        return $this->call('LocalNotifications.Update', $data);
+    }
+
+    /**
      * Normalize a raw options array, converting enum values to strings and validating.
      *
      * @param  array<string, mixed>  $options
