@@ -1,4 +1,4 @@
-package com.ikromjon.localnotifications
+package com.nativephp.localnotifications
 
 import android.app.NotificationManager
 import android.content.BroadcastReceiver

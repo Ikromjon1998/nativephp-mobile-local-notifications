@@ -1,4 +1,4 @@
-package com.ikromjon.localnotifications
+package com.nativephp.localnotifications
 
 import android.app.AlarmManager
 import android.app.PendingIntent
@@ -53,7 +53,7 @@ class BootReceiver : BroadcastReceiver() {
                 val channelId = if (info.has("channelId")) info.getString("channelId") else "nativephp_local_notifications"
 
                 val notifyIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
-                    action = "com.ikromjon.localnotifications.NOTIFY"
+                    action = "com.nativephp.localnotifications.NOTIFY"
                     putExtra("notification_id", id)
                     putExtra("title", title)
                     putExtra("body", body)

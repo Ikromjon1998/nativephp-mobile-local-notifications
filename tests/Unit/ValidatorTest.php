@@ -2,6 +2,60 @@
 
 use Ikromjon\LocalNotifications\Validation\NotificationValidator;
 
+describe('empty and edge-case arrays', function (): void {
+    it('allows empty repeatDays array without error', function (): void {
+        expect(fn () => NotificationValidator::validate([
+            'repeatDays' => [],
+            'at' => 1700000000,
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
+
+    it('allows non-sequential repeatDays', function (): void {
+        expect(fn () => NotificationValidator::validate([
+            'repeatDays' => [7, 1],
+            'at' => 1700000000,
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
+
+    it('allows single-element repeatDays', function (): void {
+        expect(fn () => NotificationValidator::validate([
+            'repeatDays' => [4],
+            'at' => 1700000000,
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
+
+    it('allows repeatDays with boundary values 1 and 7', function (): void {
+        expect(fn () => NotificationValidator::validate([
+            'repeatDays' => [1, 7],
+            'at' => 1700000000,
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
+
+    it('allows actions as null', function (): void {
+        expect(fn () => NotificationValidator::validate([
+            'actions' => null,
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
+
+    it('clamps min_repeat_interval_seconds to at least 1', function (): void {
+        config()->set('local-notifications.min_repeat_interval_seconds', 0);
+
+        expect(fn () => NotificationValidator::validate([
+            'repeatIntervalSeconds' => 1,
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
+
+    it('clamps max_actions to at least 1', function (): void {
+        config()->set('local-notifications.max_actions', 0);
+
+        expect(fn () => NotificationValidator::validate([
+            'actions' => [
+                ['id' => 'a1', 'title' => 'A1'],
+            ],
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
+});
+
 describe('basic validation', function (): void {
     it('passes with valid minimal options', function (): void {
         expect(fn () => NotificationValidator::validate([

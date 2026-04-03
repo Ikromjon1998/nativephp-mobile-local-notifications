@@ -14,7 +14,7 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     /// Queue of events to dispatch once the Laravel bridge becomes available.
     /// Prevents silent event loss during cold start when LaravelBridge.shared.send is nil.
     private var pendingEvents: [(eventClass: String, payload: [String: Any])] = []
-    private let pendingQueue = DispatchQueue(label: "com.ikromjon.localnotifications.pending")
+    private let pendingQueue = DispatchQueue(label: "com.nativephp.localnotifications.pending")
 
     static func ensureRegistered() {
         if !isRegistered {

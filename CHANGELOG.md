@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-04-04
+
+### Changed
+
+- **Lowered iOS minimum version from 18.2 to 16.0** — All notification APIs used are available since iOS 10. The previous 18.2 requirement unnecessarily excluded most devices.
+- **Renamed internal Android action strings** — Changed `com.ikromjon.localnotifications.*` intent actions and Kotlin package to `com.nativephp.localnotifications.*` for consistency with the NativePHP ecosystem. This is an internal change with no impact on the public PHP API.
+- **Renamed iOS DispatchQueue label** — Changed from `com.ikromjon.localnotifications.pending` to `com.nativephp.localnotifications.pending`.
+- **Updated `nativephp.json` bridge function references** — Android bridge function paths now use `com.nativephp.localnotifications` package.
+
+### Added
+
+- **Quick Start section in README** — Concise example showing the simplest path to scheduling a notification.
+
+### Fixed
+
+- **CONTRIBUTING.md** — Removed hardcoded reference to the Daily Habits example app in the testing section.
+- **ROADMAP.md** — Updated Epic 6 (Channels) status to "Partial" and Epic 14 (Lower OS Requirements) to "Done" to reflect current state.
+
 ## [1.4.1] - 2026-03-19
 
 ### Fixed

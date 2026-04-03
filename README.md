@@ -11,6 +11,23 @@
 
 Schedule, manage, and cancel local notifications in your NativePHP Mobile app — no server or Firebase required.
 
+## Quick Start
+
+```php
+use Ikromjon\LocalNotifications\Facades\LocalNotifications;
+
+// Request permission (required on Android 13+ and iOS)
+LocalNotifications::requestPermission();
+
+// Schedule a notification in 10 seconds
+LocalNotifications::schedule([
+    'id' => 'welcome',
+    'title' => 'Hello!',
+    'body' => 'Your first local notification',
+    'delay' => 10,
+]);
+```
+
 ## How is this different?
 
 | Plugin | What it does | Requires |
@@ -602,7 +619,7 @@ The plugin declares all required permissions automatically via `nativephp.json`.
 **iOS:**
 
 - Notification authorization is requested at runtime via `requestPermission()` (alert, sound, badge)
-- Minimum iOS version: 18.2
+- Minimum iOS version: 16.0
 
 **Environment variables:** None required. The plugin works entirely on-device with no external services.
 
@@ -620,7 +637,7 @@ composer analyse
 
 - PHP 8.3+
 - NativePHP Mobile v3+
-- iOS 18.2+ / Android API 26+
+- iOS 16.0+ / Android API 26+
 
 ## Example App
 

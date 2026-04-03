@@ -5,6 +5,30 @@ use Ikromjon\LocalNotifications\Data\NotificationOptions;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
 use Ikromjon\LocalNotifications\LocalNotifications;
 
+describe('RepeatInterval', function (): void {
+    it('has correct string values for all cases', function (): void {
+        expect(RepeatInterval::Minute->value)->toBe('minute')
+            ->and(RepeatInterval::Hourly->value)->toBe('hourly')
+            ->and(RepeatInterval::Daily->value)->toBe('daily')
+            ->and(RepeatInterval::Weekly->value)->toBe('weekly')
+            ->and(RepeatInterval::Monthly->value)->toBe('monthly')
+            ->and(RepeatInterval::Yearly->value)->toBe('yearly');
+    });
+
+    it('has exactly 6 cases', function (): void {
+        expect(RepeatInterval::cases())->toHaveCount(6);
+    });
+
+    it('can be created from string value', function (): void {
+        expect(RepeatInterval::from('daily'))->toBe(RepeatInterval::Daily)
+            ->and(RepeatInterval::from('weekly'))->toBe(RepeatInterval::Weekly);
+    });
+
+    it('returns null for invalid string with tryFrom', function (): void {
+        expect(RepeatInterval::tryFrom('biweekly'))->toBeNull();
+    });
+});
+
 describe('NotificationAction', function (): void {
     it('creates with required fields only', function (): void {
         $action = new NotificationAction(id: 'reply', title: 'Reply');
@@ -41,6 +65,26 @@ describe('NotificationAction', function (): void {
             'id' => 'reply',
             'title' => 'Reply',
             'input' => true,
+        ]);
+    });
+
+    it('includes both flags when both are true', function (): void {
+        $action = new NotificationAction(id: 'reply-delete', title: 'Reply & Delete', destructive: true, input: true);
+
+        expect($action->toArray())->toBe([
+            'id' => 'reply-delete',
+            'title' => 'Reply & Delete',
+            'destructive' => true,
+            'input' => true,
+        ]);
+    });
+
+    it('excludes false flags from array', function (): void {
+        $action = new NotificationAction(id: 'basic', title: 'Basic', destructive: false, input: false);
+
+        expect($action->toArray())->toBe([
+            'id' => 'basic',
+            'title' => 'Basic',
         ]);
     });
 });
@@ -359,6 +403,97 @@ describe('NotificationOptions', function (): void {
         );
 
         expect($options->toArray()['actions'])->toHaveCount(3);
+    });
+
+    it('includes zero delay in array', function (): void {
+        $options = new NotificationOptions(
+            id: 'zero-delay',
+            title: 'Test',
+            body: 'Body',
+            delay: 0,
+        );
+
+        expect($options->toArray())->toHaveKey('delay', 0);
+    });
+
+    it('includes zero badge in array', function (): void {
+        $options = new NotificationOptions(
+            id: 'zero-badge',
+            title: 'Test',
+            body: 'Body',
+            badge: 0,
+        );
+
+        expect($options->toArray())->toHaveKey('badge', 0);
+    });
+
+    it('includes zero at in array', function (): void {
+        $options = new NotificationOptions(
+            id: 'zero-at',
+            title: 'Test',
+            body: 'Body',
+            at: 0,
+        );
+
+        expect($options->toArray())->toHaveKey('at', 0);
+    });
+
+    it('includes sound false in array', function (): void {
+        $options = new NotificationOptions(
+            id: 'silent',
+            title: 'Test',
+            body: 'Body',
+            sound: false,
+        );
+
+        expect($options->toArray()['sound'])->toBeFalse();
+    });
+
+    it('excludes null optional fields from array', function (): void {
+        $options = new NotificationOptions(
+            id: 'minimal',
+            title: 'Test',
+            body: 'Body',
+        );
+
+        $array = $options->toArray();
+
+        expect($array)->not->toHaveKey('delay')
+            ->and($array)->not->toHaveKey('at')
+            ->and($array)->not->toHaveKey('repeat')
+            ->and($array)->not->toHaveKey('sound')
+            ->and($array)->not->toHaveKey('badge')
+            ->and($array)->not->toHaveKey('data')
+            ->and($array)->not->toHaveKey('subtitle')
+            ->and($array)->not->toHaveKey('image')
+            ->and($array)->not->toHaveKey('bigText')
+            ->and($array)->not->toHaveKey('actions')
+            ->and($array)->not->toHaveKey('repeatIntervalSeconds')
+            ->and($array)->not->toHaveKey('repeatDays')
+            ->and($array)->not->toHaveKey('repeatCount');
+    });
+
+    it('handles empty actions array', function (): void {
+        $options = new NotificationOptions(
+            id: 'no-actions',
+            title: 'Test',
+            body: 'Body',
+            actions: [],
+        );
+
+        expect($options->toArray()['actions'])->toBe([]);
+    });
+
+    it('preserves non-sequential repeatDays order', function (): void {
+        $options = new NotificationOptions(
+            id: 'non-seq',
+            title: 'Test',
+            body: 'Body',
+            at: 1700000000,
+            repeatDays: [7, 1, 3],
+        );
+
+        expect($options->toArray()['repeatDays'])->toBe([7, 1, 3]);
     });
 
     it('can be passed to schedule method', function (): void {
