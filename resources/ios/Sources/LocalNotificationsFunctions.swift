@@ -389,7 +389,8 @@ enum LocalNotificationsFunctions {
             // Merge parameters with existing content
             let title = parameters["title"] as? String ?? existingContent.title
             let body = parameters["body"] as? String ?? existingContent.body
-            let sound = parameters["sound"] as? Bool ?? defaultSound
+            let existingSound = existingContent.sound != nil
+            let sound = parameters["sound"] as? Bool ?? existingSound
             let badge = parameters["badge"] as? Int ?? existingContent.badge?.intValue
             let subtitle = parameters["subtitle"] as? String
                 ?? (existingContent.subtitle.isEmpty ? nil : existingContent.subtitle)
@@ -430,9 +431,19 @@ enum LocalNotificationsFunctions {
             let newRepeatDays = parameters["repeatDays"] as? [Int]
             let newRepeatCount = parameters["repeatCount"] as? Int
             let timingChanged = newDelay != nil || newAt != nil || newRepeat != nil
-                || newRepeatIntervalSeconds != nil || newRepeatDays != nil
+                || newRepeatIntervalSeconds != nil
+
+            // Cannot convert a single notification to day-of-week via update
+            if newRepeatDays != nil && !isDayOfWeek {
+                return [
+                    "success": false,
+                    "error": "Cannot add repeatDays to a non-day-of-week notification. Cancel and recreate it instead."
+                ]
+            }
 
             if isDayOfWeek {
+                let dayTimingChanged = timingChanged || newRepeatDays != nil
+
                 // Remove all existing sub-requests
                 let subIds = daySubRequests.map { $0.identifier }
                 center.removePendingNotificationRequests(withIdentifiers: subIds)
@@ -441,7 +452,7 @@ enum LocalNotificationsFunctions {
                     UserDefaults.standard.removeObject(forKey: "notif_remaining_\(subId)")
                 }
 
-                if timingChanged {
+                if dayTimingChanged {
                     // Re-delegate to Schedule with merged params
                     var mergedParams: [String: Any] = [
                         "id": id, "title": title, "body": body, "sound": sound

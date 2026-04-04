@@ -543,11 +543,21 @@ object LocalNotificationsFunctions {
                 val newRepeatCount = (parameters["repeatCount"] as? Number)?.toInt()
 
                 val timingChanged = newDelay != null || newAt != null || newRepeat != null
-                    || newRepeatIntervalSeconds != null || newRepeatDays != null
+                    || newRepeatIntervalSeconds != null
 
                 ensureNotificationChannel(context)
 
-                if (subIds != null && !timingChanged) {
+                // Cannot convert a single notification to day-of-week via update
+                if (newRepeatDays != null && subIds == null) {
+                    return mapOf(
+                        "success" to false,
+                        "error" to "Cannot add repeatDays to a non-day-of-week notification. Cancel and recreate it instead."
+                    )
+                }
+
+                val dayTimingChanged = timingChanged || newRepeatDays != null
+
+                if (subIds != null && !dayTimingChanged) {
                     // Content-only update for day-of-week sub-alarms
                     for (subId in subIds) {
                         val subJson = prefs.getString("notification_$subId", null) ?: continue
@@ -558,7 +568,7 @@ object LocalNotificationsFunctions {
                         NotificationScheduler.scheduleAlarm(context, subId, params, sub.optLong("triggerTimeMs"), sub.optLong("repeatMs"), sub.optString("repeatType", null), remainingCount, channelId)
                         NotificationScheduler.saveNotificationInfo(context, subId, params, sub.optLong("triggerTimeMs"), sub.optLong("repeatMs"), sub.optString("repeatType", null), remainingCount, channelId)
                     }
-                } else if (subIds != null && timingChanged) {
+                } else if (subIds != null && dayTimingChanged) {
                     // Cancel all sub-alarms and re-delegate to Schedule
                     for (subId in subIds) {
                         NotificationScheduler.cancelAlarm(context, subId)
