@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Ikromjon\LocalNotifications;
 
 use Ikromjon\LocalNotifications\Contracts\LocalNotificationsInterface;
@@ -72,6 +74,23 @@ class LocalNotifications implements LocalNotificationsInterface
     public function checkPermission(): array
     {
         return $this->call('LocalNotifications.CheckPermission');
+    }
+
+    /**
+     * Update an existing scheduled notification.
+     *
+     * @param  NotificationOptions|array<string, mixed>  $options
+     * @return array<string, mixed>
+     */
+    public function update(string $id, NotificationOptions|array $options): array
+    {
+        $data = $options instanceof NotificationOptions
+            ? $options->toArray()
+            : $this->normalizeOptions($options);
+
+        $data['id'] = $id;
+
+        return $this->call('LocalNotifications.Update', $data);
     }
 
     /**

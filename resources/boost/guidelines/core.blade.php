@@ -18,6 +18,7 @@ use Ikromjon\LocalNotifications\Facades\LocalNotifications;
 | `getPending()` | — | `array` | List all pending notifications. Day-of-week sub-alarms are aggregated. |
 | `requestPermission()` | — | `array` | Request notification permission (Android 13+, iOS). |
 | `checkPermission()` | — | `array` | Check current permission status (`granted`, `denied`, `notDetermined`). |
+| `update($id, $options)` | `string`, `NotificationOptions\|array` | `array` | Update an existing notification's content or timing. |
 
 ### Schedule Parameters
 
@@ -65,6 +66,7 @@ LocalNotifications::schedule(new NotificationOptions(
 | Event | Payload | When |
 |-------|---------|------|
 | `NotificationScheduled` | `id`, `title`, `body` | Notification successfully scheduled |
+| `NotificationUpdated` | `id`, `title`, `body` | Notification successfully updated |
 | `NotificationReceived` | `id`, `title`, `body`, `data?` | Notification delivered to device |
 | `NotificationTapped` | `id`, `title`, `body`, `data?` | User tapped the notification |
 | `NotificationActionPressed` | `notificationId`, `actionId`, `data?`, `inputText?` | User pressed an action button |
@@ -148,10 +150,38 @@ This waits for `livewire:navigated` (after components are hydrated), then trigge
 - **Android `livewire:init` fallback:** On cold start, Livewire may not be loaded when native events are dispatched. The plugin injects a `livewire:init` JS listener as a fallback — events are replayed when Livewire initializes. This is automatic and requires no user action.
 - **iOS limitation:** The `livewire:init` and `livewire:navigated` fallbacks are Android-only. On iOS, the plugin relies on the NativePHP core's WebView user script for Livewire dispatch. If Livewire timing is an issue on iOS cold start, ensure a bridge call (e.g. `checkPermission()`) happens after the page loads.
 
+## Native Code Architecture
+
+### Android (Kotlin) — `resources/android/src/`
+
+| File | Purpose |
+|------|---------|
+| `LocalNotificationsFunctions.kt` | Bridge functions (`Schedule`, `Cancel`, `CancelAll`, `GetPending`, `Update`, `RequestPermission`, `CheckPermission`). Each inner class implements `BridgeFunction.execute()`. Uses `initBridgeCall()` for common setup (delegate, activity, config extraction). Also holds `ActivityHolder`, tap detection, pending event queue, and Livewire fallback JS injection. |
+| `NotificationScheduler.kt` | Shared utilities extracted from bridge functions. Contains `NotificationParams` data class, parameter parsing (`parseParams`, `mergeParams`), trigger/repeat calculation, alarm scheduling/cancellation, SharedPreferences persistence, day-of-week alarm management, and event dispatch helpers. |
+| `LocalNotificationReceiver.kt` | `BroadcastReceiver` that fires when AlarmManager triggers. Builds and displays the notification, dispatches `NotificationReceived` event, handles self-rescheduling for repeats, and manages dismiss intents for tap detection. |
+| `NotificationTapReceiver.kt` | Handles notification tap broadcasts (fallback path). |
+| `NotificationActionReceiver.kt` | Handles action button press broadcasts, extracts `RemoteInput` text for input actions. |
+| `BootReceiver.kt` | Restores alarms from SharedPreferences after device reboot. Uses `NotificationScheduler.calculateNextTrigger()` for calendar-based repeats. |
+
+### iOS (Swift) — `resources/ios/Sources/`
+
+| File | Purpose |
+|------|---------|
+| `LocalNotificationsFunctions.swift` | Bridge functions (`Schedule`, `Cancel`, `CancelAll`, `GetPending`, `Update`, `RequestPermission`, `CheckPermission`). Each inner class conforms to `BridgeFunction`. Uses `initBridgeCall()` for common setup. Also holds `LocalNotificationDelegate` (UNUserNotificationCenterDelegate) for tap/receive/action event handling. |
+| `NotificationHelper.swift` | Shared utilities: `buildContent()` (UNMutableNotificationContent), `registerActions()` (UNNotificationCategory), `attachImage()` (URL validation + download), `buildTrigger()` (delay/timestamp/repeat → UNNotificationTrigger), `scheduleDayOfWeekRequests()`, and `extractCustomData()`. |
+
+### Key Patterns in Native Code
+
+- **`initBridgeCall()`**: Every bridge function calls this first. It extracts the NativePHP delegate, gets the current activity/dispatch queue, and reads config values. Eliminates ~15 lines of boilerplate per function.
+- **`NotificationParams` (Android)**: Data class that holds parsed notification parameters (id, title, body, sound, badge, data, subtitle, image, bigText, actions). Created via `NotificationScheduler.parseParams()`.
+- **Merge semantics (Update)**: New parameters override existing stored values; missing parameters fall back to the stored notification's values. Uses `NotificationScheduler.mergeParams()` (Android) or manual JSON merging (iOS).
+- **Day-of-week sub-IDs**: `repeatDays` creates one alarm/request per day with ID format `{id}_day_{isoDay}`. Parent tracking enables `cancel()` and `getPending()` to aggregate them.
+- **Self-rescheduling repeats (Android)**: Instead of `setRepeating()`, each alarm fires once and `LocalNotificationReceiver` schedules the next occurrence via `setExactAndAllowWhileIdle()`.
+
 ## Common Patterns
 
 - Always call `requestPermission()` before scheduling (Android 13+, iOS).
-- Use `cancel(id)` before `schedule()` when updating an existing notification.
+- Use `update(id, options)` to modify an existing notification — it merges new values with existing ones.
 - `repeatDays` creates one sub-alarm per day — `cancel()` and `getPending()` handle aggregation automatically.
 - Notification IDs should be deterministic (e.g. `habit-{id}`) so you can cancel without tracking state.
 - `data` payload is passed through to `NotificationTapped` and `NotificationActionPressed` events.

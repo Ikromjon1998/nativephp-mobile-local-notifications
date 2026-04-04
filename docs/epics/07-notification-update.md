@@ -1,7 +1,7 @@
 # Epic 7: Notification Update & Modification
 
 **Priority:** Medium
-**Status:** Not Started
+**Status:** Done
 
 ## Description
 
@@ -19,8 +19,8 @@ Allow updating an already-scheduled notification without canceling and reschedul
 
 ## Acceptance Criteria
 
-- [ ] Updating a pending notification preserves its trigger time when only content changes
-- [ ] Updating timing properties correctly reschedules the notification
-- [ ] Updating an already-delivered notification updates its display on Android
-- [ ] Error returned for non-existent notification IDs
-- [ ] `NotificationUpdated` event fires on success
+- [x] Updating a pending notification preserves its trigger time when only content changes
+- [x] Updating timing properties correctly reschedules the notification
+- [x] Updating an already-delivered notification updates its display on Android
+- [x] Error returned for non-existent notification IDs
+- [x] `NotificationUpdated` event fires on success

@@ -37,6 +37,12 @@
             "android": "com.nativephp.localnotifications.LocalNotificationsFunctions.CheckPermission",
             "ios": "LocalNotificationsFunctions.CheckPermission",
             "description": "Check current notification permission status"
+        },
+        {
+            "name": "LocalNotifications.Update",
+            "android": "com.nativephp.localnotifications.LocalNotificationsFunctions.Update",
+            "ios": "LocalNotificationsFunctions.Update",
+            "description": "Update an existing scheduled notification"
         }
     ],
 
@@ -79,6 +85,7 @@
         "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
         "Ikromjon\\LocalNotifications\\Events\\PermissionGranted",
         "Ikromjon\\LocalNotifications\\Events\\PermissionDenied",
-        "Ikromjon\\LocalNotifications\\Events\\NotificationActionPressed"
+        "Ikromjon\\LocalNotifications\\Events\\NotificationActionPressed",
+        "Ikromjon\\LocalNotifications\\Events\\NotificationUpdated"
     ]
 }

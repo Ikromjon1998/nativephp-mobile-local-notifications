@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 use Ikromjon\LocalNotifications\Events\NotificationActionPressed;
 use Ikromjon\LocalNotifications\Events\NotificationReceived;
 use Ikromjon\LocalNotifications\Events\NotificationScheduled;
 use Ikromjon\LocalNotifications\Events\NotificationTapped;
+use Ikromjon\LocalNotifications\Events\NotificationUpdated;
 use Ikromjon\LocalNotifications\Events\PermissionDenied;
 use Ikromjon\LocalNotifications\Events\PermissionGranted;
 
@@ -88,6 +91,30 @@ describe('PermissionDenied', function (): void {
         $event = new PermissionDenied;
 
         expect($event)->toBeInstanceOf(PermissionDenied::class);
+    });
+});
+
+describe('NotificationUpdated', function (): void {
+    it('stores id, title, and body', function (): void {
+        $event = new NotificationUpdated(
+            id: 'updated-id',
+            title: 'Updated Title',
+            body: 'Updated Body',
+        );
+
+        expect($event->id)->toBe('updated-id')
+            ->and($event->title)->toBe('Updated Title')
+            ->and($event->body)->toBe('Updated Body');
+    });
+
+    it('has readonly properties', function (): void {
+        $event = new NotificationUpdated('id', 'title', 'body');
+
+        $reflection = new ReflectionClass($event);
+
+        expect($reflection->getProperty('id')->isReadOnly())->toBeTrue()
+            ->and($reflection->getProperty('title')->isReadOnly())->toBeTrue()
+            ->and($reflection->getProperty('body')->isReadOnly())->toBeTrue();
     });
 });
 

@@ -279,7 +279,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         // the next trigger. For fixed intervals, simply add repeatMs.
         val now = System.currentTimeMillis()
         val nextTriggerMs = if (repeatType == "monthly" || repeatType == "yearly") {
-            LocalNotificationsFunctions.calculateNextTrigger(repeatType, now)
+            NotificationScheduler.calculateNextTrigger(repeatType, now)
         } else {
             now + repeatMs
         }

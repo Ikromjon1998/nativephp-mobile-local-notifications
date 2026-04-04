@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Ikromjon\LocalNotifications\LocalNotifications;
 
 it('registers LocalNotifications as a singleton', function (): void {

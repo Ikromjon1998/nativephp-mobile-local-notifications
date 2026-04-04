@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Ikromjon\LocalNotifications\Tests;
 
 use Ikromjon\LocalNotifications\LocalNotificationsServiceProvider;

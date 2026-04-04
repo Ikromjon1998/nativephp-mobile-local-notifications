@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * Stub the nativephp_call function with a custom callback.
  */

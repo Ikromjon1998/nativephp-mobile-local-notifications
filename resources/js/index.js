@@ -104,6 +104,32 @@ export async function checkPermission() {
     return bridgeCall('LocalNotifications.CheckPermission');
 }
 
+/**
+ * Update an existing scheduled notification.
+ *
+ * @param {string} id - The notification identifier to update
+ * @param {Object} options - Properties to update (same as schedule, but id is separate)
+ * @param {string} [options.title] - Updated title
+ * @param {string} [options.body] - Updated body text
+ * @param {number} [options.delay] - New delay in seconds from now
+ * @param {number} [options.at] - New Unix timestamp to fire at
+ * @param {string} [options.repeat] - New repeat interval
+ * @param {number} [options.repeatIntervalSeconds] - New custom repeat interval
+ * @param {number[]} [options.repeatDays] - New days of week
+ * @param {number} [options.repeatCount] - New repetition limit
+ * @param {boolean} [options.sound] - Play sound
+ * @param {number} [options.badge] - Badge number
+ * @param {Object} [options.data] - Custom data payload
+ * @param {string} [options.subtitle] - Subtitle text
+ * @param {string} [options.image] - Image URL
+ * @param {string} [options.bigText] - Expanded body text
+ * @param {Array<{id: string, title: string, destructive?: boolean, input?: boolean}>} [options.actions] - Action buttons
+ * @returns {Promise<{success: boolean, id?: string, error?: string}>}
+ */
+export async function update(id, options = {}) {
+    return bridgeCall('LocalNotifications.Update', { ...options, id });
+}
+
 // ---------------------------------------------------------------------------
 // Event Constants
 // ---------------------------------------------------------------------------
@@ -126,4 +152,5 @@ export const Events = {
     NotificationActionPressed: 'Ikromjon\\LocalNotifications\\Events\\NotificationActionPressed',
     PermissionGranted: 'Ikromjon\\LocalNotifications\\Events\\PermissionGranted',
     PermissionDenied: 'Ikromjon\\LocalNotifications\\Events\\PermissionDenied',
+    NotificationUpdated: 'Ikromjon\\LocalNotifications\\Events\\NotificationUpdated',
 };

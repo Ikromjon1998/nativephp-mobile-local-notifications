@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Ikromjon\LocalNotifications\Facades\LocalNotifications;
 use Ikromjon\LocalNotifications\LocalNotifications as LocalNotificationsClass;
 
@@ -59,4 +61,16 @@ it('proxies checkPermission calls to the underlying class', function (): void {
     $result = LocalNotifications::checkPermission();
 
     expect($result)->toBe(['status' => 'granted']);
+});
+
+it('proxies update calls to the underlying class', function (): void {
+    stubNativephpCall(fn () => json_encode(['success' => true, 'id' => 'update-test']));
+
+    $result = LocalNotifications::update('update-test', [
+        'id' => 'update-test',
+        'title' => 'Updated',
+        'body' => 'Body',
+    ]);
+
+    expect($result)->toBe(['success' => true, 'id' => 'update-test']);
 });
