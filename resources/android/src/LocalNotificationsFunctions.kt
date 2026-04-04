@@ -23,20 +23,20 @@ import com.nativephp.mobile.utils.WebViewProvider
 import org.json.JSONArray
 import org.json.JSONObject
 import java.lang.ref.WeakReference
-import java.util.Calendar
 
 /**
- * Functions related to local notification operations
- * Namespace: "LocalNotifications.*"
+ * Bridge functions for local notification operations.
+ * Each inner class implements [BridgeFunction] and is registered in nativephp.json.
+ *
+ * Scheduling logic and SharedPreferences persistence are delegated to [NotificationScheduler]
+ * to avoid duplication between Schedule and Update.
  */
 object LocalNotificationsFunctions {
 
     private const val TAG = "LocalNotifications"
     const val PREFS_NAME = "nativephp_local_notifications_prefs"
     private const val PENDING_EVENTS_KEY = "pending_events"
-    /** Lock object for thread-safe SharedPreferences access. */
     private val prefsLock = Any()
-    /** Whether the onResume lifecycle callback has been registered. */
     private var resumeCallbackRegistered = false
 
     // Defaults — overridden at runtime from PHP config via _config parameter
@@ -49,10 +49,7 @@ object LocalNotificationsFunctions {
     private var tapDetectionDelayMs = 500L
     private var navigationReplayDurationMs = 15000L
 
-    /**
-     * Apply runtime configuration sent from the PHP layer via the `_config` key.
-     * Called on every bridge call; values that haven't changed are no-ops.
-     */
+    /** Apply runtime configuration sent from the PHP layer. */
     fun applyConfig(config: Map<*, *>) {
         (config["channel_id"] as? String)?.let { channelId = it }
         (config["channel_name"] as? String)?.let { channelName = it }
@@ -66,54 +63,29 @@ object LocalNotificationsFunctions {
     /** Holds a weak reference to the current activity for event dispatch. */
     object ActivityHolder {
         private var ref: WeakReference<FragmentActivity>? = null
-
-        fun set(activity: FragmentActivity) {
-            ref = WeakReference(activity)
-        }
-
+        fun set(activity: FragmentActivity) { ref = WeakReference(activity) }
         fun get(): FragmentActivity? = ref?.get()
     }
 
-    /**
-     * Store a notification's tap payload in SharedPreferences.
-     * Called when a notification is shown. On user tap (auto-cancel), the payload persists.
-     * On user dismiss (swipe), the deleteIntent clears it via [clearTapPayload].
-     */
-    fun storeTapPayload(context: Context, id: String, title: String, body: String, dataJson: String?) {
-        synchronized(prefsLock) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val payload = JSONObject().apply {
-                put("id", id)
-                put("title", title)
-                put("body", body)
-                if (dataJson != null) put("data", JSONObject(dataJson))
-            }
-            prefs.edit().putString("tap_payload_$id", payload.toString()).apply()
-            Log.d(TAG, "Stored tap payload for: $id")
-        }
+    // -----------------------------------------------------------------------
+    // Common bridge function setup — called at the start of every execute()
+    // -----------------------------------------------------------------------
+
+    /** Apply config, store activity ref, and flush pending events. */
+    private fun initBridgeCall(activity: FragmentActivity, parameters: Map<String, Any>) {
+        (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
+        ActivityHolder.set(activity)
+        dispatchPendingEvents(activity)
     }
 
-    /**
-     * Clear a stored tap payload. Called from deleteIntent when user swipe-dismisses
-     * a notification, preventing a false NotificationTapped dispatch.
-     */
-    fun clearTapPayload(context: Context, id: String) {
-        synchronized(prefsLock) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit().remove("tap_payload_$id").apply()
-            Log.d(TAG, "Cleared tap payload for dismissed notification: $id")
-        }
-    }
+    // -----------------------------------------------------------------------
+    // Notification Channel
+    // -----------------------------------------------------------------------
 
-    private fun ensureNotificationChannel(context: Context) {
+    fun ensureNotificationChannel(context: Context) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        // Always call createNotificationChannel — Android handles this idempotently.
-        // If the channel already exists, the system updates name and description
-        // but preserves user-modified settings (importance, vibration, sound).
         val channel = NotificationChannel(
-            channelId,
-            channelName,
-            NotificationManager.IMPORTANCE_HIGH
+            channelId, channelName, NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = channelDescription
             enableVibration(true)
@@ -121,17 +93,15 @@ object LocalNotificationsFunctions {
         manager.createNotificationChannel(channel)
     }
 
-    /**
-     * Dispatch an event to the PHP layer via the bridge.
-     * Requires an active activity reference.
-     */
+    // -----------------------------------------------------------------------
+    // Event Dispatch
+    // -----------------------------------------------------------------------
+
     fun dispatchEvent(activity: FragmentActivity, event: String, payloadJson: String) {
         try {
             activity.runOnUiThread {
                 try {
                     NativeActionCoordinator.dispatchEvent(activity, event, payloadJson)
-                    // Fallback: if Livewire wasn't loaded yet, listen for livewire:init
-                    // to dispatch when it becomes available (cold start timing fix)
                     injectLivewireInitFallback(activity, event, payloadJson)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error dispatching event on UI thread: ${e.message}", e)
@@ -142,11 +112,6 @@ object LocalNotificationsFunctions {
         }
     }
 
-    /**
-     * Inject a JS fallback that listens for Livewire's `livewire:init` lifecycle event.
-     * If Livewire was already loaded (and NativeActionCoordinator already dispatched),
-     * this is a no-op. Otherwise, it queues the dispatch for when Livewire initializes.
-     */
     private fun injectLivewireInitFallback(activity: FragmentActivity, event: String, payloadJson: String) {
         try {
             val webView = (activity as? WebViewProvider)?.getWebView() ?: return
@@ -165,13 +130,46 @@ object LocalNotificationsFunctions {
         }
     }
 
-    /**
-     * Register an Application.ActivityLifecycleCallbacks that checks for tapped notifications
-     * on every onResume. This enables immediate warm-start tap detection without waiting for
-     * the next bridge function call. Uses a configurable delay (tapDetectionDelayMs, default 500ms)
-     * to ensure the WebView is ready and any deleteIntent broadcasts (from swipe-dismiss) have
-     * been processed.
-     */
+    // -----------------------------------------------------------------------
+    // Tap Detection & Pending Events
+    // -----------------------------------------------------------------------
+
+    fun storeTapPayload(context: Context, id: String, title: String, body: String, dataJson: String?) {
+        synchronized(prefsLock) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val payload = JSONObject().apply {
+                put("id", id)
+                put("title", title)
+                put("body", body)
+                if (dataJson != null) put("data", JSONObject(dataJson))
+            }
+            prefs.edit().putString("tap_payload_$id", payload.toString()).apply()
+            Log.d(TAG, "Stored tap payload for: $id")
+        }
+    }
+
+    fun clearTapPayload(context: Context, id: String) {
+        synchronized(prefsLock) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit().remove("tap_payload_$id").apply()
+            Log.d(TAG, "Cleared tap payload for dismissed notification: $id")
+        }
+    }
+
+    fun storePendingEvent(context: Context, eventClass: String, payload: JSONObject) {
+        synchronized(prefsLock) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val existing = prefs.getString(PENDING_EVENTS_KEY, null)
+            val queue = if (existing != null) JSONArray(existing) else JSONArray()
+            queue.put(JSONObject().apply {
+                put("event", eventClass)
+                put("payload", payload)
+            })
+            prefs.edit().putString(PENDING_EVENTS_KEY, queue.toString()).apply()
+            Log.d(TAG, "Stored pending event ($eventClass), queue size: ${queue.length()}")
+        }
+    }
+
     private fun registerResumeDetection(activity: FragmentActivity) {
         if (resumeCallbackRegistered) return
         resumeCallbackRegistered = true
@@ -195,16 +193,6 @@ object LocalNotificationsFunctions {
         Log.d(TAG, "Registered onResume callback for tap detection")
     }
 
-    /**
-     * Inject a JS listener for Livewire's `livewire:navigated` event that replays a tap event.
-     * When using wire:navigate (SPA-like navigation), the new page's Livewire components may not
-     * be hydrated when the initial dispatchEvent JS runs. This replay ensures the event reaches
-     * components on the destination page after navigation completes.
-     *
-     * Replays on every `livewire:navigated` for a configurable duration (navigationReplayDurationMs,
-     * default 15s) to cover multi-step navigation (e.g., Today → Settings → Debug). After the
-     * window expires the listener removes itself.
-     */
     private fun injectNavigationReplay(activity: FragmentActivity, event: String, payloadJson: String) {
         try {
             val webView = (activity as? WebViewProvider)?.getWebView() ?: return
@@ -224,46 +212,16 @@ object LocalNotificationsFunctions {
                     document.addEventListener('livewire:navigated', handler);
                 })();
             """.trimIndent()
-            activity.runOnUiThread {
-                webView.evaluateJavascript(js, null)
-            }
+            activity.runOnUiThread { webView.evaluateJavascript(js, null) }
         } catch (e: Exception) {
             Log.e(TAG, "Error injecting navigation replay: ${e.message}", e)
         }
     }
 
-    /**
-     * Store a pending event in SharedPreferences for dispatch when the bridge is available.
-     * Events are stored as a JSON array queue to prevent overwrites.
-     */
-    fun storePendingEvent(context: Context, eventClass: String, payload: JSONObject) {
-        synchronized(prefsLock) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val existing = prefs.getString(PENDING_EVENTS_KEY, null)
-            val queue = if (existing != null) JSONArray(existing) else JSONArray()
-
-            val entry = JSONObject().apply {
-                put("event", eventClass)
-                put("payload", payload)
-            }
-            queue.put(entry)
-
-            prefs.edit().putString(PENDING_EVENTS_KEY, queue.toString()).apply()
-            Log.d(TAG, "Stored pending event ($eventClass), queue size: ${queue.length()}")
-        }
-    }
-
-    /**
-     * Check for and dispatch any pending events that were stored while the app was inactive.
-     * Also checks if the activity was launched via a notification tap (PendingIntent.getActivity)
-     * and dispatches the NotificationTapped event from the intent extras.
-     * Finally, detects warm-start taps via SharedPreferences-based tap payload tracking.
-     */
     private fun dispatchPendingEvents(activity: FragmentActivity) {
-        // Register onResume callback for immediate warm-start tap detection
         registerResumeDetection(activity)
 
-        // Check if the activity was launched from a notification tap (cold start)
+        // Cold-start tap from PendingIntent
         val intent = activity.intent
         if (intent?.action == "com.nativephp.localnotifications.TAP") {
             val id = intent.getStringExtra("notification_id")
@@ -282,196 +240,103 @@ object LocalNotificationsFunctions {
                 val eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationTapped"
                 Log.d(TAG, "Dispatching NotificationTapped from activity intent: $id")
                 dispatchEvent(activity, eventClass, payloadStr)
-                // Replay on next wire:navigate so the destination page's components receive it
                 injectNavigationReplay(activity, eventClass, payloadStr)
-                // Clear the tap payload to prevent duplicate dispatch from warm-start detection
                 clearTapPayload(activity, id)
             }
-            // Clear action to prevent re-dispatch on configuration change
             intent.action = null
         }
 
-        // Warm-start tap detection: compare stored tap payloads against active notifications.
-        // If a tap payload exists but the notification is no longer in the status bar,
-        // the user must have tapped it (auto-cancel removes it but deleteIntent does NOT fire).
+        // Warm-start tap detection
         detectTappedNotifications(activity)
 
-        // Dispatch any events stored in SharedPreferences queue
+        // Flush queued events
         val prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val eventsJson = prefs.getString(PENDING_EVENTS_KEY, null) ?: return
-
-        // Remove immediately to prevent duplicate dispatch
         prefs.edit().remove(PENDING_EVENTS_KEY).apply()
 
         val queue = JSONArray(eventsJson)
         Log.d(TAG, "Dispatching ${queue.length()} pending event(s) from queue")
-
         for (i in 0 until queue.length()) {
             val entry = queue.getJSONObject(i)
-            val eventClass = entry.getString("event")
-            val payload = entry.getJSONObject("payload")
-            dispatchEvent(activity, eventClass, payload.toString())
+            dispatchEvent(activity, entry.getString("event"), entry.getJSONObject("payload").toString())
         }
     }
 
-    /**
-     * Detect tapped notifications by comparing stored tap payloads against active notifications.
-     * When a notification is tapped, auto-cancel removes it from the status bar but deleteIntent
-     * does NOT fire, so the tap payload persists. If a payload exists but the notification is gone,
-     * the user must have tapped it.
-     */
     private fun detectTappedNotifications(activity: FragmentActivity) {
         val prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val allKeys = prefs.all.keys.filter { it.startsWith("tap_payload_") }
         if (allKeys.isEmpty()) return
 
-        // Get currently active notification IDs from the status bar
         val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val activeIds = notificationManager.activeNotifications.map { it.id }.toSet()
 
         for (key in allKeys) {
             val notifId = key.removePrefix("tap_payload_")
-            val notifHashCode = notifId.hashCode()
-
-            if (notifHashCode !in activeIds) {
-                // Notification is no longer in the status bar — user tapped it
+            if (notifId.hashCode() !in activeIds) {
                 val payloadJson = prefs.getString(key, null) ?: continue
                 val eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationTapped"
                 Log.d(TAG, "Detected tapped notification (warm-start): $notifId")
                 dispatchEvent(activity, eventClass, payloadJson)
-                // Replay on next wire:navigate so the destination page's components receive it
                 injectNavigationReplay(activity, eventClass, payloadJson)
                 clearTapPayload(activity, notifId)
             }
         }
     }
 
-    /**
-     * Schedule a local notification
-     */
+    // =======================================================================
+    // Bridge Functions
+    // =======================================================================
+
+    /** Schedule a local notification. */
     class Schedule(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
-            // Apply runtime config from PHP layer
-            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
-
-            // Store activity reference and dispatch any pending tap events
-            ActivityHolder.set(activity)
-            dispatchPendingEvents(activity)
+            initBridgeCall(activity, parameters)
 
             val id = parameters["id"] as? String
                 ?: return mapOf("success" to false, "error" to "Missing required parameter: id")
-            val title = parameters["title"] as? String
-                ?: return mapOf("success" to false, "error" to "Missing required parameter: title")
-            val body = parameters["body"] as? String
-                ?: return mapOf("success" to false, "error" to "Missing required parameter: body")
+            if ((parameters["title"] as? String) == null)
+                return mapOf("success" to false, "error" to "Missing required parameter: title")
+            if ((parameters["body"] as? String) == null)
+                return mapOf("success" to false, "error" to "Missing required parameter: body")
 
+            val params = NotificationScheduler.parseParams(parameters, defaultSound)
             val delay = (parameters["delay"] as? Number)?.toLong()
             val atTimestamp = (parameters["at"] as? Number)?.toLong()
             val repeatInterval = parameters["repeat"] as? String
             val repeatIntervalSeconds = (parameters["repeatIntervalSeconds"] as? Number)?.toLong()
-            val sound = parameters["sound"] as? Boolean ?: defaultSound
-            val badge = (parameters["badge"] as? Number)?.toInt()
-            val data = parameters["data"] as? Map<*, *>
-            val subtitle = parameters["subtitle"] as? String
-            val imageUrl = parameters["image"] as? String
-            val bigText = parameters["bigText"] as? String
-            val actions = parameters["actions"] as? List<*>
-
-            val repeatDaysList = (parameters["repeatDays"] as? List<*>)?.mapNotNull {
-                (it as? Number)?.toInt()
-            }?.filter { it in 1..7 }
+            val repeatDaysList = NotificationScheduler.parseRepeatDays(parameters)
             val repeatCount = (parameters["repeatCount"] as? Number)?.toInt()
 
             val context = activity as Context
             ensureNotificationChannel(context)
 
             return try {
-                // Day-of-week scheduling: create one sub-alarm per day
                 if (repeatDaysList != null && repeatDaysList.isNotEmpty() && atTimestamp != null) {
-                    val baseDate = Calendar.getInstance().apply {
-                        timeInMillis = atTimestamp * 1000
-                    }
-                    val subIds = mutableListOf<String>()
-
-                    for (isoDay in repeatDaysList) {
-                        val subId = "${id}_day_$isoDay"
-                        subIds.add(subId)
-
-                        // Convert ISO day (1=Mon..7=Sun) to Java Calendar day (1=Sun..7=Sat)
-                        val calDay = if (isoDay == 7) Calendar.SUNDAY else isoDay + 1
-
-                        val triggerCal = Calendar.getInstance().apply {
-                            set(Calendar.HOUR_OF_DAY, baseDate.get(Calendar.HOUR_OF_DAY))
-                            set(Calendar.MINUTE, baseDate.get(Calendar.MINUTE))
-                            set(Calendar.SECOND, baseDate.get(Calendar.SECOND))
-                            set(Calendar.MILLISECOND, 0)
-                            set(Calendar.DAY_OF_WEEK, calDay)
-                            // If the calculated time is in the past, move to next week
-                            if (timeInMillis <= System.currentTimeMillis()) {
-                                add(Calendar.WEEK_OF_YEAR, 1)
-                            }
-                        }
-
-                        val triggerTimeMs = triggerCal.timeInMillis
-                        val weekMs = AlarmManager.INTERVAL_DAY * 7
-
-                        scheduleAlarm(context, subId, title, body, sound, badge, data, subtitle, imageUrl, bigText, actions, triggerTimeMs, weekMs, "weekly", repeatCount)
-                        saveNotificationInfo(context, subId, title, body, triggerTimeMs, weekMs, "weekly", sound, badge, data, subtitle, imageUrl, bigText, actions, repeatCount)
-                    }
-
-                    // Save a parent entry that tracks the sub-IDs for cancel/getPending
-                    saveRepeatDaysParent(context, id, subIds)
+                    // Day-of-week scheduling
+                    val subIds = NotificationScheduler.scheduleDayOfWeekAlarms(
+                        context, id, params, atTimestamp, repeatDaysList, repeatCount, channelId
+                    )
+                    NotificationScheduler.saveRepeatDaysParent(context, id, subIds)
 
                     Log.d(TAG, "✅ Day-of-week notification scheduled: $id (${subIds.size} sub-alarms)")
-
-                    val payload = JSONObject().apply {
-                        put("id", id)
-                        put("title", title)
-                        put("body", body)
-                    }
-                    dispatchEvent(
-                        activity,
-                        "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled",
-                        payload.toString()
+                    NotificationScheduler.dispatchNotificationEvent(
+                        activity, "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled",
+                        id, params.title, params.body
                     )
-
                     mapOf("success" to true, "id" to id)
                 } else {
                     // Standard single-alarm scheduling
-                    val triggerTimeMs = when {
-                        delay != null && delay > 0 -> System.currentTimeMillis() + (delay * 1000)
-                        atTimestamp != null -> atTimestamp * 1000
-                        else -> System.currentTimeMillis() + 1000
-                    }
+                    val triggerTimeMs = NotificationScheduler.calculateTriggerTimeMs(delay, atTimestamp)
+                    val repeatMs = NotificationScheduler.calculateRepeatMs(repeatInterval, repeatIntervalSeconds)
 
-                    val repeatMs = if (repeatIntervalSeconds != null && repeatIntervalSeconds >= 60 && repeatInterval == null) {
-                        repeatIntervalSeconds * 1000L
-                    } else when (repeatInterval) {
-                        "minute" -> 60_000L
-                        "hourly" -> 3_600_000L
-                        "daily" -> AlarmManager.INTERVAL_DAY
-                        "weekly" -> AlarmManager.INTERVAL_DAY * 7
-                        "monthly" -> -1L
-                        "yearly" -> -2L
-                        else -> 0L
-                    }
-
-                    scheduleAlarm(context, id, title, body, sound, badge, data, subtitle, imageUrl, bigText, actions, triggerTimeMs, repeatMs, repeatInterval, repeatCount)
-                    saveNotificationInfo(context, id, title, body, triggerTimeMs, repeatMs, repeatInterval, sound, badge, data, subtitle, imageUrl, bigText, actions, repeatCount)
+                    NotificationScheduler.scheduleAlarm(context, id, params, triggerTimeMs, repeatMs, repeatInterval, repeatCount, channelId)
+                    NotificationScheduler.saveNotificationInfo(context, id, params, triggerTimeMs, repeatMs, repeatInterval, repeatCount, channelId)
 
                     Log.d(TAG, "✅ Notification scheduled: $id at $triggerTimeMs")
-
-                    val payload = JSONObject().apply {
-                        put("id", id)
-                        put("title", title)
-                        put("body", body)
-                    }
-                    dispatchEvent(
-                        activity,
-                        "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled",
-                        payload.toString()
+                    NotificationScheduler.dispatchNotificationEvent(
+                        activity, "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled",
+                        id, params.title, params.body
                     )
-
                     mapOf("success" to true, "id" to id)
                 }
             } catch (e: Exception) {
@@ -481,164 +346,55 @@ object LocalNotificationsFunctions {
         }
     }
 
-    /**
-     * Schedule a single alarm with the given parameters.
-     */
-    private fun scheduleAlarm(
-        context: Context,
-        id: String,
-        title: String,
-        body: String,
-        sound: Boolean,
-        badge: Int?,
-        data: Map<*, *>?,
-        subtitle: String?,
-        imageUrl: String?,
-        bigText: String?,
-        actions: List<*>?,
-        triggerTimeMs: Long,
-        repeatMs: Long,
-        repeatType: String?,
-        repeatCount: Int? = null
-    ) {
-        val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
-            action = "com.nativephp.localnotifications.NOTIFY"
-            putExtra("notification_id", id)
-            putExtra("title", title)
-            putExtra("body", body)
-            putExtra("sound", sound)
-            putExtra("channel_id", channelId)
-            if (badge != null) putExtra("badge", badge)
-            if (repeatMs != 0L) putExtra("repeat_ms", repeatMs)
-            if (repeatType != null) putExtra("repeat_type", repeatType)
-            if (repeatCount != null) putExtra("remaining_count", repeatCount)
-            if (data != null) {
-                val dataJson = JSONObject(data.mapKeys { it.key.toString() }).toString()
-                putExtra("data", dataJson)
-            }
-            if (subtitle != null) putExtra("subtitle", subtitle)
-            if (imageUrl != null) putExtra("image", imageUrl)
-            if (bigText != null) putExtra("big_text", bigText)
-            if (actions != null) {
-                putExtra("actions", serializeActions(actions).toString())
-            }
-        }
-
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            id.hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            triggerTimeMs,
-            pendingIntent
-        )
-    }
-
-    /**
-     * Cancel a scheduled notification by identifier.
-     * If the ID is a repeatDays parent, cancels all sub-alarms.
-     */
+    /** Cancel a scheduled notification by identifier. */
     class Cancel(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
-            // Apply runtime config from PHP layer
-            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
-            // Store activity reference and dispatch any pending tap events
-            ActivityHolder.set(activity)
-            dispatchPendingEvents(activity)
+            initBridgeCall(activity, parameters)
 
             val id = parameters["id"] as? String
                 ?: return mapOf("success" to false, "error" to "Missing required parameter: id")
 
             val context = activity as Context
             return try {
-                // Check if this is a repeatDays parent with sub-IDs
-                val subIds = getRepeatDaysSubIds(context, id)
+                val subIds = NotificationScheduler.getRepeatDaysSubIds(context, id)
                 if (subIds != null) {
-                    // Cancel all sub-alarms
                     for (subId in subIds) {
-                        cancelSingleAlarm(context, subId)
-                        removeNotificationInfo(context, subId)
+                        NotificationScheduler.cancelAlarm(context, subId)
+                        NotificationScheduler.removeNotificationInfo(context, subId)
                         clearTapPayload(context, subId)
                     }
-                    removeRepeatDaysParent(context, id)
+                    NotificationScheduler.removeRepeatDaysParent(context, id)
                     Log.d(TAG, "✅ Day-of-week notification cancelled: $id (${subIds.size} sub-alarms)")
                 } else {
-                    // Cancel single alarm
-                    cancelSingleAlarm(context, id)
-                    removeNotificationInfo(context, id)
+                    NotificationScheduler.cancelAlarm(context, id)
+                    NotificationScheduler.removeNotificationInfo(context, id)
                     clearTapPayload(context, id)
                     Log.d(TAG, "✅ Notification cancelled: $id")
                 }
-
                 mapOf("success" to true, "id" to id)
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error cancelling notification: ${e.message}", e)
                 mapOf("success" to false, "error" to (e.message ?: "Unknown error"))
             }
         }
-
-        private fun cancelSingleAlarm(context: Context, id: String) {
-            val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
-                action = "com.nativephp.localnotifications.NOTIFY"
-            }
-            val requestCode = id.hashCode()
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                requestCode,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            alarmManager.cancel(pendingIntent)
-            pendingIntent.cancel()
-
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.cancel(requestCode)
-        }
     }
 
-    /**
-     * Cancel all scheduled notifications
-     */
+    /** Cancel all scheduled notifications. */
     class CancelAll(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
-            // Apply runtime config from PHP layer
-            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
-            // Store activity reference and dispatch any pending tap events
-            ActivityHolder.set(activity)
-            dispatchPendingEvents(activity)
+            initBridgeCall(activity, parameters)
 
             val context = activity as Context
             return try {
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val allIds = prefs.getStringSet("notification_ids", emptySet()) ?: emptySet()
 
-                val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-
                 for (id in allIds) {
-                    val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
-                        action = "com.nativephp.localnotifications.NOTIFY"
-                    }
-                    val pendingIntent = PendingIntent.getBroadcast(
-                        context,
-                        id.hashCode(),
-                        intent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
-                    alarmManager.cancel(pendingIntent)
-                    pendingIntent.cancel()
+                    NotificationScheduler.cancelAlarm(context, id)
                 }
 
-                // Clear persisted storage
                 prefs.edit().clear().apply()
 
-                // Cancel all delivered notifications on this channel
                 val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.cancelAll()
 
@@ -651,68 +407,47 @@ object LocalNotificationsFunctions {
         }
     }
 
-    /**
-     * Get all pending scheduled notifications.
-     * repeatDays sub-alarms are aggregated back into a single parent entry.
-     */
+    /** Get all pending scheduled notifications. */
     class GetPending(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
-            // Apply runtime config from PHP layer
-            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
-            // Store activity reference and dispatch any pending tap events
-            ActivityHolder.set(activity)
-            dispatchPendingEvents(activity)
+            initBridgeCall(activity, parameters)
 
             val context = activity as Context
             return try {
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val allIds = prefs.getStringSet("notification_ids", emptySet()) ?: emptySet()
 
-                // Collect sub-IDs that belong to a parent so we can skip them
                 val parentIds = prefs.getStringSet("repeat_days_parent_ids", emptySet()) ?: emptySet()
                 val subIdSet = mutableSetOf<String>()
                 for (parentId in parentIds) {
-                    val subIds = getRepeatDaysSubIds(context, parentId)
-                    if (subIds != null) {
-                        subIdSet.addAll(subIds)
-                    }
+                    NotificationScheduler.getRepeatDaysSubIds(context, parentId)?.let { subIdSet.addAll(it) }
                 }
 
                 val notifications = JSONArray()
 
-                // Add non-sub-ID notifications
                 for (id in allIds) {
                     if (id in subIdSet) continue
                     val infoJson = prefs.getString("notification_$id", null) ?: continue
-                    val info = JSONObject(infoJson)
-                    notifications.put(info)
+                    notifications.put(JSONObject(infoJson))
                 }
 
-                // Add aggregated parent entries for repeatDays
                 for (parentId in parentIds) {
-                    val subIds = getRepeatDaysSubIds(context, parentId) ?: continue
-                    // Use the first sub-alarm's info as the base, add repeatDays metadata
+                    val subIds = NotificationScheduler.getRepeatDaysSubIds(context, parentId) ?: continue
                     val firstSubId = subIds.firstOrNull() ?: continue
                     val firstInfoJson = prefs.getString("notification_$firstSubId", null) ?: continue
                     val parentInfo = JSONObject(firstInfoJson)
                     parentInfo.put("id", parentId)
 
-                    // Collect the days from sub-IDs
                     val days = JSONArray()
                     for (subId in subIds) {
                         val dayStr = subId.substringAfterLast("_day_")
                         days.put(dayStr.toIntOrNull() ?: continue)
                     }
                     parentInfo.put("repeatDays", days)
-
                     notifications.put(parentInfo)
                 }
 
-                mapOf(
-                    "success" to true,
-                    "notifications" to notifications.toString(),
-                    "count" to notifications.length()
-                )
+                mapOf("success" to true, "notifications" to notifications.toString(), "count" to notifications.length())
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error getting pending notifications: ${e.message}", e)
                 mapOf("success" to false, "error" to (e.message ?: "Unknown error"))
@@ -720,53 +455,28 @@ object LocalNotificationsFunctions {
         }
     }
 
-    /**
-     * Request notification permission (Android 13+)
-     */
+    /** Request notification permission (Android 13+). */
     class RequestPermission(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
-            // Apply runtime config from PHP layer
-            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
-            // Store activity reference and dispatch any pending tap events
-            ActivityHolder.set(activity)
-            dispatchPendingEvents(activity)
+            initBridgeCall(activity, parameters)
 
             return try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val hasPermission = ContextCompat.checkSelfPermission(
-                        activity,
-                        Manifest.permission.POST_NOTIFICATIONS
+                        activity, Manifest.permission.POST_NOTIFICATIONS
                     ) == PackageManager.PERMISSION_GRANTED
 
                     if (hasPermission) {
                         Log.d(TAG, "✅ Notification permission already granted")
-
-                        dispatchEvent(
-                            activity,
-                            "Ikromjon\\LocalNotifications\\Events\\PermissionGranted",
-                            "{}"
-                        )
-
+                        dispatchEvent(activity, "Ikromjon\\LocalNotifications\\Events\\PermissionGranted", "{}")
                         return mapOf("granted" to true)
                     }
 
-                    activity.requestPermissions(
-                        arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                        1001
-                    )
-
-                    // Return pending since the result comes asynchronously
+                    activity.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
                     mapOf("granted" to false, "status" to "pending")
                 } else {
-                    // Pre-Android 13, notifications are allowed by default
                     Log.d(TAG, "✅ Notification permission granted (pre-Android 13)")
-
-                    dispatchEvent(
-                        activity,
-                        "Ikromjon\\LocalNotifications\\Events\\PermissionGranted",
-                        "{}"
-                    )
-
+                    dispatchEvent(activity, "Ikromjon\\LocalNotifications\\Events\\PermissionGranted", "{}")
                     mapOf("granted" to true)
                 }
             } catch (e: Exception) {
@@ -776,31 +486,22 @@ object LocalNotificationsFunctions {
         }
     }
 
-    /**
-     * Check current notification permission status
-     */
+    /** Check current notification permission status. */
     class CheckPermission(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
-            // Apply runtime config from PHP layer
-            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
-            // Store activity reference and dispatch any pending tap events
-            ActivityHolder.set(activity)
-            dispatchPendingEvents(activity)
+            initBridgeCall(activity, parameters)
 
             val context = activity as Context
             return try {
                 val status = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val hasPermission = ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.POST_NOTIFICATIONS
+                        context, Manifest.permission.POST_NOTIFICATIONS
                     ) == PackageManager.PERMISSION_GRANTED
-
                     if (hasPermission) "granted" else "denied"
                 } else {
-                    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    if (notificationManager.areNotificationsEnabled()) "granted" else "denied"
+                    val mgr = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    if (mgr.areNotificationsEnabled()) "granted" else "denied"
                 }
-
                 mapOf("status" to status)
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error checking permission: ${e.message}", e)
@@ -811,19 +512,12 @@ object LocalNotificationsFunctions {
 
     /**
      * Update an existing scheduled notification.
-     * Merges the provided parameters with stored notification info and
-     * updates the scheduled alarm based on the resulting notification data.
-     * If timing properties change, the alarm is rescheduled with new timing.
-     * If only content changes, the alarm is rescheduled preserving the original trigger time.
-     * Already-delivered notifications are refreshed if still visible in the status bar.
+     * Merges new parameters with stored notification info. Content-only changes
+     * preserve the original trigger time; timing changes reschedule the alarm.
      */
     class Update(private val activity: FragmentActivity) : BridgeFunction {
         override fun execute(parameters: Map<String, Any>): Map<String, Any> {
-            // Apply runtime config from PHP layer
-            (parameters["_config"] as? Map<*, *>)?.let { applyConfig(it) }
-            // Store activity reference and dispatch any pending tap events
-            ActivityHolder.set(activity)
-            dispatchPendingEvents(activity)
+            initBridgeCall(activity, parameters)
 
             val id = parameters["id"] as? String
                 ?: return mapOf("success" to false, "error" to "Missing required parameter: id")
@@ -831,62 +525,21 @@ object LocalNotificationsFunctions {
             val context = activity as Context
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-            // Check if this is a repeatDays parent
-            val subIds = getRepeatDaysSubIds(context, id)
-
-            // Look up existing notification info
+            val subIds = NotificationScheduler.getRepeatDaysSubIds(context, id)
             val lookupId = if (subIds != null) subIds.firstOrNull() ?: id else id
             val existingJson = prefs.getString("notification_$lookupId", null)
                 ?: return mapOf("success" to false, "error" to "Notification not found: $id")
 
             return try {
                 val existing = JSONObject(existingJson)
-
-                // Merge: new parameters override existing values
-                val title = parameters["title"] as? String ?: existing.optString("title")
-                val body = parameters["body"] as? String ?: existing.optString("body")
-                val sound = parameters["sound"] as? Boolean ?: existing.optBoolean("sound", defaultSound)
-                val badge = (parameters["badge"] as? Number)?.toInt()
-                    ?: if (existing.has("badge")) existing.optInt("badge") else null
-                val subtitle = parameters["subtitle"] as? String
-                    ?: existing.optString("subtitle", null)
-                val imageUrl = parameters["image"] as? String
-                    ?: existing.optString("image", null)
-                val bigText = parameters["bigText"] as? String
-                    ?: existing.optString("bigText", null)
-
-                // Merge data: new data replaces existing entirely if provided
-                val data = parameters["data"] as? Map<*, *>
-                    ?: if (existing.has("data")) {
-                        val dataObj = existing.getJSONObject("data")
-                        val map = mutableMapOf<String, Any>()
-                        for (key in dataObj.keys()) { map[key] = dataObj.get(key) }
-                        map
-                    } else null
-
-                // Merge actions
-                val actions = parameters["actions"] as? List<*>
-                    ?: if (existing.has("actions")) {
-                        val arr = existing.getJSONArray("actions")
-                        (0 until arr.length()).map { i ->
-                            val a = arr.getJSONObject(i)
-                            mapOf(
-                                "id" to a.optString("id"),
-                                "title" to a.optString("title"),
-                                "destructive" to a.optBoolean("destructive", false),
-                                "input" to a.optBoolean("input", false)
-                            )
-                        }
-                    } else null
+                val params = NotificationScheduler.mergeParams(parameters, existing, defaultSound)
 
                 // Timing properties
                 val newDelay = (parameters["delay"] as? Number)?.toLong()
                 val newAt = (parameters["at"] as? Number)?.toLong()
                 val newRepeat = parameters["repeat"] as? String
                 val newRepeatIntervalSeconds = (parameters["repeatIntervalSeconds"] as? Number)?.toLong()
-                val newRepeatDays = (parameters["repeatDays"] as? List<*>)?.mapNotNull {
-                    (it as? Number)?.toInt()
-                }?.filter { it in 1..7 }
+                val newRepeatDays = NotificationScheduler.parseRepeatDays(parameters)
                 val newRepeatCount = (parameters["repeatCount"] as? Number)?.toInt()
 
                 val timingChanged = newDelay != null || newAt != null || newRepeat != null
@@ -895,52 +548,30 @@ object LocalNotificationsFunctions {
                 ensureNotificationChannel(context)
 
                 if (subIds != null && !timingChanged) {
-                    // Update content only for each sub-alarm
+                    // Content-only update for day-of-week sub-alarms
                     for (subId in subIds) {
-                        val subExistingJson = prefs.getString("notification_$subId", null) ?: continue
-                        val subExisting = JSONObject(subExistingJson)
-                        val subTriggerTimeMs = subExisting.optLong("triggerTimeMs")
-                        val subRepeatMs = subExisting.optLong("repeatMs")
-                        val subRepeatType = subExisting.optString("repeatType", null)
-                        val subRemainingCount = if (subExisting.has("remainingCount")) subExisting.optInt("remainingCount") else null
+                        val subJson = prefs.getString("notification_$subId", null) ?: continue
+                        val sub = JSONObject(subJson)
+                        val remainingCount = if (sub.has("remainingCount")) sub.optInt("remainingCount") else null
 
-                        // Cancel and reschedule with new content (alarm timing preserved)
-                        cancelSingleAlarm(context, subId)
-                        scheduleAlarm(context, subId, title, body, sound, badge, data, subtitle, imageUrl, bigText, actions, subTriggerTimeMs, subRepeatMs, subRepeatType, subRemainingCount)
-                        saveNotificationInfo(context, subId, title, body, subTriggerTimeMs, subRepeatMs, subRepeatType, sound, badge, data, subtitle, imageUrl, bigText, actions, subRemainingCount)
+                        NotificationScheduler.cancelAlarm(context, subId)
+                        NotificationScheduler.scheduleAlarm(context, subId, params, sub.optLong("triggerTimeMs"), sub.optLong("repeatMs"), sub.optString("repeatType", null), remainingCount, channelId)
+                        NotificationScheduler.saveNotificationInfo(context, subId, params, sub.optLong("triggerTimeMs"), sub.optLong("repeatMs"), sub.optString("repeatType", null), remainingCount, channelId)
                     }
                 } else if (subIds != null && timingChanged) {
-                    // Cancel all existing sub-alarms
+                    // Cancel all sub-alarms and re-delegate to Schedule
                     for (subId in subIds) {
-                        cancelSingleAlarm(context, subId)
-                        removeNotificationInfo(context, subId)
+                        NotificationScheduler.cancelAlarm(context, subId)
+                        NotificationScheduler.removeNotificationInfo(context, subId)
                         clearTapPayload(context, subId)
                     }
-                    removeRepeatDaysParent(context, id)
+                    NotificationScheduler.removeRepeatDaysParent(context, id)
 
-                    // Re-delegate to Schedule with merged parameters
-                    val mergedParams = mutableMapOf<String, Any>("id" to id, "title" to title, "body" to body, "sound" to sound)
-                    if (badge != null) mergedParams["badge"] = badge
-                    if (data != null) mergedParams["data"] = data
-                    if (subtitle != null) mergedParams["subtitle"] = subtitle
-                    if (imageUrl != null) mergedParams["image"] = imageUrl
-                    if (bigText != null) mergedParams["bigText"] = bigText
-                    if (actions != null) mergedParams["actions"] = actions
-                    if (newDelay != null) mergedParams["delay"] = newDelay
-                    if (newAt != null) mergedParams["at"] = newAt
-                    if (newRepeat != null) mergedParams["repeat"] = newRepeat
-                    if (newRepeatIntervalSeconds != null) mergedParams["repeatIntervalSeconds"] = newRepeatIntervalSeconds
-                    if (newRepeatDays != null) mergedParams["repeatDays"] = newRepeatDays
-                    if (newRepeatCount != null) mergedParams["repeatCount"] = newRepeatCount
-                    (parameters["_config"] as? Map<*, *>)?.let { mergedParams["_config"] = it }
-
+                    val mergedParams = buildMergedScheduleParams(id, params, parameters, newDelay, newAt, newRepeat, newRepeatIntervalSeconds, newRepeatDays, newRepeatCount)
                     val scheduleResult = Schedule(activity).execute(mergedParams)
                     if (scheduleResult["success"] != true) return scheduleResult
                 } else {
                     // Single notification update
-                    val existingTriggerTimeMs = existing.optLong("triggerTimeMs")
-                    val existingRepeatMs = existing.optLong("repeatMs")
-                    val existingRepeatType = existing.optString("repeatType", null)
                     val existingRemainingCount = if (existing.has("remainingCount")) existing.optInt("remainingCount") else null
 
                     val triggerTimeMs: Long
@@ -949,73 +580,32 @@ object LocalNotificationsFunctions {
                     val repeatCount: Int?
 
                     if (timingChanged) {
-                        // Recalculate timing
-                        triggerTimeMs = when {
-                            newDelay != null && newDelay > 0 -> System.currentTimeMillis() + (newDelay * 1000)
-                            newAt != null -> newAt * 1000
-                            else -> existingTriggerTimeMs
-                        }
-                        val newRepeatInterval = newRepeat ?: existingRepeatType
-                        repeatMs = if (newRepeatIntervalSeconds != null && newRepeatIntervalSeconds >= 60 && newRepeatInterval == null) {
-                            newRepeatIntervalSeconds * 1000L
-                        } else when (newRepeatInterval) {
-                            "minute" -> 60_000L
-                            "hourly" -> 3_600_000L
-                            "daily" -> AlarmManager.INTERVAL_DAY
-                            "weekly" -> AlarmManager.INTERVAL_DAY * 7
-                            "monthly" -> -1L
-                            "yearly" -> -2L
-                            else -> 0L
-                        }
-                        repeatType = newRepeatInterval
+                        triggerTimeMs = NotificationScheduler.calculateTriggerTimeMs(newDelay, newAt)
+                            .let { if (newDelay == null && newAt == null) existing.optLong("triggerTimeMs") else it }
+                        val effectiveRepeat = newRepeat ?: existing.optString("repeatType", null)
+                        repeatMs = NotificationScheduler.calculateRepeatMs(effectiveRepeat, newRepeatIntervalSeconds)
+                        repeatType = effectiveRepeat
                         repeatCount = newRepeatCount ?: existingRemainingCount
                     } else {
-                        triggerTimeMs = existingTriggerTimeMs
-                        repeatMs = existingRepeatMs
-                        repeatType = existingRepeatType
+                        triggerTimeMs = existing.optLong("triggerTimeMs")
+                        repeatMs = existing.optLong("repeatMs")
+                        repeatType = existing.optString("repeatType", null)
                         repeatCount = newRepeatCount ?: existingRemainingCount
                     }
 
-                    // Cancel old alarm and schedule new one
-                    cancelSingleAlarm(context, id)
-                    scheduleAlarm(context, id, title, body, sound, badge, data, subtitle, imageUrl, bigText, actions, triggerTimeMs, repeatMs, repeatType, repeatCount)
-                    saveNotificationInfo(context, id, title, body, triggerTimeMs, repeatMs, repeatType, sound, badge, data, subtitle, imageUrl, bigText, actions, repeatCount)
+                    NotificationScheduler.cancelAlarm(context, id)
+                    NotificationScheduler.scheduleAlarm(context, id, params, triggerTimeMs, repeatMs, repeatType, repeatCount, channelId)
+                    NotificationScheduler.saveNotificationInfo(context, id, params, triggerTimeMs, repeatMs, repeatType, repeatCount, channelId)
 
-                    // Update already-delivered notification if visible in the status bar
-                    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    val activeNotification = notificationManager.activeNotifications.firstOrNull { it.id == id.hashCode() }
-                    if (activeNotification != null) {
-                        val rebuiltNotification = android.app.Notification.Builder(context, channelId)
-                            .setSmallIcon(activeNotification.notification.smallIcon ?: context.applicationInfo.icon.let { android.graphics.drawable.Icon.createWithResource(context, it) })
-                            .setContentTitle(title)
-                            .setContentText(body)
-                            .apply {
-                                if (subtitle != null) setSubText(subtitle)
-                                if (!bigText.isNullOrBlank()) {
-                                    setStyle(android.app.Notification.BigTextStyle().bigText(bigText))
-                                }
-                                setAutoCancel(true)
-                            }
-                            .build()
-
-                        notificationManager.notify(id.hashCode(), rebuiltNotification)
-                        Log.d(TAG, "Refreshed delivered notification: $id")
-                    }
+                    // Refresh already-delivered notification if visible
+                    refreshDeliveredNotification(context, id, params)
                 }
 
                 Log.d(TAG, "✅ Notification updated: $id")
-
-                val payload = JSONObject().apply {
-                    put("id", id)
-                    put("title", title)
-                    put("body", body)
-                }
-                dispatchEvent(
-                    activity,
-                    "Ikromjon\\LocalNotifications\\Events\\NotificationUpdated",
-                    payload.toString()
+                NotificationScheduler.dispatchNotificationEvent(
+                    activity, "Ikromjon\\LocalNotifications\\Events\\NotificationUpdated",
+                    id, params.title, params.body
                 )
-
                 mapOf("success" to true, "id" to id)
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error updating notification: ${e.message}", e)
@@ -1023,155 +613,48 @@ object LocalNotificationsFunctions {
             }
         }
 
-        private fun cancelSingleAlarm(context: Context, id: String) {
-            val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
-                action = "com.nativephp.localnotifications.NOTIFY"
-            }
-            val requestCode = id.hashCode()
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                requestCode,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
+        private fun buildMergedScheduleParams(
+            id: String, params: NotificationParams, original: Map<String, Any>,
+            delay: Long?, at: Long?, repeat: String?, repeatIntervalSeconds: Long?,
+            repeatDays: List<Int>?, repeatCount: Int?
+        ): Map<String, Any> {
+            val merged = mutableMapOf<String, Any>("id" to id, "title" to params.title, "body" to params.body, "sound" to params.sound)
+            if (params.badge != null) merged["badge"] = params.badge
+            if (params.data != null) merged["data"] = params.data
+            if (params.subtitle != null) merged["subtitle"] = params.subtitle
+            if (params.imageUrl != null) merged["image"] = params.imageUrl
+            if (params.bigText != null) merged["bigText"] = params.bigText
+            if (params.actions != null) merged["actions"] = params.actions
+            if (delay != null) merged["delay"] = delay
+            if (at != null) merged["at"] = at
+            if (repeat != null) merged["repeat"] = repeat
+            if (repeatIntervalSeconds != null) merged["repeatIntervalSeconds"] = repeatIntervalSeconds
+            if (repeatDays != null) merged["repeatDays"] = repeatDays
+            if (repeatCount != null) merged["repeatCount"] = repeatCount
+            (original["_config"] as? Map<*, *>)?.let { merged["_config"] = it }
+            return merged
+        }
 
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            alarmManager.cancel(pendingIntent)
-            pendingIntent.cancel()
-
+        private fun refreshDeliveredNotification(context: Context, id: String, params: NotificationParams) {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.cancel(requestCode)
-        }
-    }
+            val activeNotification = notificationManager.activeNotifications.firstOrNull { it.id == id.hashCode() } ?: return
 
-    // -- Helper functions --
-
-    /**
-     * Serialize a list of action maps into a JSONArray.
-     */
-    private fun serializeActions(actions: List<*>): JSONArray {
-        val actionsJson = JSONArray()
-        for (action in actions.take(maxActions)) {
-            val actionMap = action as? Map<*, *> ?: continue
-            actionsJson.put(JSONObject().apply {
-                put("id", actionMap["id"]?.toString() ?: "")
-                put("title", actionMap["title"]?.toString() ?: "")
-                put("destructive", actionMap["destructive"] as? Boolean ?: false)
-                put("input", actionMap["input"] as? Boolean ?: false)
-            })
-        }
-        return actionsJson
-    }
-
-    private fun saveNotificationInfo(
-        context: Context,
-        id: String,
-        title: String,
-        body: String,
-        triggerTimeMs: Long,
-        repeatMs: Long,
-        repeatType: String? = null,
-        sound: Boolean,
-        badge: Int?,
-        data: Map<*, *>?,
-        subtitle: String? = null,
-        imageUrl: String? = null,
-        bigText: String? = null,
-        actions: List<*>? = null,
-        remainingCount: Int? = null
-    ) {
-        synchronized(prefsLock) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-            ids.add(id)
-
-            val info = JSONObject().apply {
-                put("id", id)
-                put("title", title)
-                put("body", body)
-                put("triggerTimeMs", triggerTimeMs)
-                put("repeatMs", repeatMs)
-                put("channelId", channelId)
-                if (repeatType != null) put("repeatType", repeatType)
-                if (remainingCount != null) put("remainingCount", remainingCount)
-                put("sound", sound)
-                if (badge != null) put("badge", badge)
-                if (data != null) put("data", JSONObject(data.mapKeys { it.key.toString() }))
-                if (subtitle != null) put("subtitle", subtitle)
-                if (imageUrl != null) put("image", imageUrl)
-                if (bigText != null) put("bigText", bigText)
-                if (actions != null) {
-                    put("actions", serializeActions(actions))
+            val rebuiltNotification = android.app.Notification.Builder(context, channelId)
+                .setSmallIcon(activeNotification.notification.smallIcon
+                    ?: android.graphics.drawable.Icon.createWithResource(context, context.applicationInfo.icon))
+                .setContentTitle(params.title)
+                .setContentText(params.body)
+                .apply {
+                    if (params.subtitle != null) setSubText(params.subtitle)
+                    if (!params.bigText.isNullOrBlank()) {
+                        setStyle(android.app.Notification.BigTextStyle().bigText(params.bigText))
+                    }
+                    setAutoCancel(true)
                 }
-            }
+                .build()
 
-            prefs.edit()
-                .putStringSet("notification_ids", ids)
-                .putString("notification_$id", info.toString())
-                .apply()
-        }
-    }
-
-    /**
-     * Calculate the next trigger time for calendar-based repeat types (monthly/yearly).
-     * Handles variable month lengths and leap years.
-     */
-    fun calculateNextTrigger(repeatType: String, currentTriggerMs: Long): Long {
-        val cal = Calendar.getInstance().apply { timeInMillis = currentTriggerMs }
-        when (repeatType) {
-            "monthly" -> cal.add(Calendar.MONTH, 1)
-            "yearly" -> cal.add(Calendar.YEAR, 1)
-        }
-        return cal.timeInMillis
-    }
-
-    /**
-     * Save a parent entry that maps a logical notification ID to its day-of-week sub-IDs.
-     * Used by Cancel and GetPending to aggregate sub-alarms.
-     */
-    private fun saveRepeatDaysParent(context: Context, parentId: String, subIds: List<String>) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val parentIds = prefs.getStringSet("repeat_days_parent_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-        parentIds.add(parentId)
-
-        val subIdsArray = JSONArray(subIds)
-        prefs.edit()
-            .putStringSet("repeat_days_parent_ids", parentIds)
-            .putString("repeat_days_$parentId", subIdsArray.toString())
-            .apply()
-    }
-
-    /**
-     * Get the sub-IDs for a repeatDays parent, or null if this is not a parent ID.
-     */
-    fun getRepeatDaysSubIds(context: Context, parentId: String): List<String>? {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val json = prefs.getString("repeat_days_$parentId", null) ?: return null
-        val arr = JSONArray(json)
-        return (0 until arr.length()).map { arr.getString(it) }
-    }
-
-    private fun removeRepeatDaysParent(context: Context, parentId: String) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val parentIds = prefs.getStringSet("repeat_days_parent_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-        parentIds.remove(parentId)
-
-        prefs.edit()
-            .putStringSet("repeat_days_parent_ids", parentIds)
-            .remove("repeat_days_$parentId")
-            .apply()
-    }
-
-    private fun removeNotificationInfo(context: Context, id: String) {
-        synchronized(prefsLock) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-            ids.remove(id)
-
-            prefs.edit()
-                .putStringSet("notification_ids", ids)
-                .remove("notification_$id")
-                .apply()
+            notificationManager.notify(id.hashCode(), rebuiltNotification)
+            Log.d(TAG, "Refreshed delivered notification: $id")
         }
     }
 }

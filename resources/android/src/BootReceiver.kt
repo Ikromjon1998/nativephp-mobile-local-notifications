@@ -82,7 +82,7 @@ class BootReceiver : BroadcastReceiver() {
                         // Advance using Calendar until we're in the future
                         var next = triggerTimeMs
                         while (next < now) {
-                            next = LocalNotificationsFunctions.calculateNextTrigger(repeatType, next)
+                            next = NotificationScheduler.calculateNextTrigger(repeatType, next)
                         }
                         next
                     } else {
