@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Ikromjon\LocalNotifications\Events\NotificationActionPressed;
 use Ikromjon\LocalNotifications\Events\NotificationReceived;
 use Ikromjon\LocalNotifications\Events\NotificationScheduled;

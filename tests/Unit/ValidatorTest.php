@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Ikromjon\LocalNotifications\Validation\NotificationValidator;
 
 describe('empty and edge-case arrays', function (): void {

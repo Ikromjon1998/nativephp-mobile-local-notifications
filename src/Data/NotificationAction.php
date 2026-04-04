@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Ikromjon\LocalNotifications\Data;
 
 final readonly class NotificationAction
