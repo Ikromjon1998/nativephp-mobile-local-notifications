@@ -136,6 +136,7 @@ class LocalNotificationMessage
             $this->sound = true;
         } else {
             $this->sound = $enabled;
+            $this->soundName = null;
         }
 
         return $this;

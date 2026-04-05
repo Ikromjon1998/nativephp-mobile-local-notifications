@@ -125,7 +125,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             builder.setSubText(subtitle)
         }
 
-        if (!sound) {
+        if (!sound && soundName == null) {
             builder.setSilent(true)
         }
 
