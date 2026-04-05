@@ -92,6 +92,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val title = intent.getStringExtra("title") ?: return
         val body = intent.getStringExtra("body") ?: return
         val sound = intent.getBooleanExtra("sound", true)
+        val soundName = intent.getStringExtra("sound_name")
         val channelId = intent.getStringExtra("channel_id") ?: "nativephp_local_notifications"
         val dataJson = intent.getStringExtra("notification_data")
         val subtitle = intent.getStringExtra("subtitle")
@@ -107,6 +108,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             putExtra("title", title)
             putExtra("body", body)
             putExtra("sound", sound)
+            if (soundName != null) putExtra("sound_name", soundName)
             putExtra("channel_id", channelId)
             // No repeat — snooze is a one-shot reschedule
             putExtra("repeat_ms", 0L)

@@ -15,6 +15,7 @@ enum NotificationHelper {
         body: String,
         subtitle: String?,
         sound: Bool,
+        soundName: String?,
         badge: Int?,
         data: [String: Any]?
     ) -> UNMutableNotificationContent {
@@ -26,7 +27,9 @@ enum NotificationHelper {
             content.subtitle = subtitle
         }
 
-        if sound {
+        if let soundName = soundName {
+            content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: soundName))
+        } else if sound {
             content.sound = .default
         }
 
@@ -35,6 +38,9 @@ enum NotificationHelper {
         }
 
         var userInfo: [String: Any] = ["notification_id": id]
+        if let soundName = soundName {
+            userInfo["soundName"] = soundName
+        }
         if let data = data {
             for (key, value) in data {
                 userInfo[key] = value
@@ -278,10 +284,13 @@ enum NotificationHelper {
     // MARK: - Custom Data Extraction
 
     /// Extract custom data from userInfo, excluding internal keys.
+    /// Internal userInfo keys that should not be included in the custom data payload.
+    private static let internalKeys: Set<String> = ["notification_id", "action_snooze", "soundName"]
+
     static func extractCustomData(from userInfo: [AnyHashable: Any]) -> [String: Any] {
         var customData: [String: Any] = [:]
         for (key, value) in userInfo {
-            if let key = key as? String, key != "notification_id" {
+            if let key = key as? String, !internalKeys.contains(key) {
                 customData[key] = value
             }
         }

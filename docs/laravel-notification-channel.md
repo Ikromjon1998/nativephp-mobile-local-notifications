@@ -54,7 +54,9 @@ LocalNotificationMessage::create()
     ->repeatIntervalSeconds(7200)
     ->repeatDays([1, 2, 3, 4, 5])
     ->repeatCount(3)
-    ->sound()
+    ->sound()                           // default system sound
+    ->sound('alert.wav')                 // custom sound file
+    ->soundName('chime.caf')             // alternative custom sound method
     ->badge(1)
     ->data(['key' => 'value'])
     ->action('done', 'Done')

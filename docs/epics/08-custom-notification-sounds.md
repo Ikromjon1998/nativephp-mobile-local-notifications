@@ -1,7 +1,7 @@
 # Epic 8: Custom Notification Sounds
 
 **Priority:** Medium
-**Status:** Not Started
+**Status:** Done (v1.9.0)
 
 ## Prerequisites
 
@@ -23,8 +23,8 @@ Allow specifying custom sound files instead of just a boolean on/off toggle. Dev
 
 ## Acceptance Criteria
 
-- [ ] Custom sound files play when the notification is delivered
-- [ ] Default sound still works with `sound: true`
-- [ ] Silent notifications work with `sound: false`
-- [ ] Helpful error when sound file is not found or in unsupported format
+- [x] Custom sound files play when the notification is delivered
+- [x] Default sound still works with `sound: true`
+- [x] Silent notifications work with `sound: false`
+- [x] Helpful error when sound file is not found or in unsupported format
 - [ ] Documentation covers how to add sound files for each platform

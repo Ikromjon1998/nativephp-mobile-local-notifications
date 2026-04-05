@@ -70,6 +70,15 @@ final class NotificationValidator
             }
         }
 
+        if (isset($options['soundName'])) {
+            $soundName = $options['soundName'];
+            if (! is_string($soundName) || ! preg_match('/^[\w\-]+\.\w+$/', $soundName)) {
+                throw new \InvalidArgumentException(
+                    'soundName must be a filename with extension (e.g. "alert.wav"). Only alphanumeric characters, hyphens, and underscores are allowed.',
+                );
+            }
+        }
+
         if (isset($options['actions'])) {
             $maxActions = max(1, (int) self::configValue('max_actions', 3));
             if (is_array($options['actions']) && count($options['actions']) > $maxActions) {

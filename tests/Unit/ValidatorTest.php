@@ -211,6 +211,38 @@ describe('repeatCount validation', function (): void {
     });
 });
 
+describe('soundName validation', function (): void {
+    it('allows valid sound filenames', function (): void {
+        expect(fn () => NotificationValidator::validate([
+            'soundName' => 'alert.wav',
+        ]))->not->toThrow(InvalidArgumentException::class);
+
+        expect(fn () => NotificationValidator::validate([
+            'soundName' => 'my-sound.caf',
+        ]))->not->toThrow(InvalidArgumentException::class);
+
+        expect(fn () => NotificationValidator::validate([
+            'soundName' => 'notification_tone.mp3',
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
+
+    it('throws when soundName has no extension', function (): void {
+        NotificationValidator::validate(['soundName' => 'alert']);
+    })->throws(InvalidArgumentException::class, 'filename with extension');
+
+    it('throws when soundName has invalid characters', function (): void {
+        NotificationValidator::validate(['soundName' => 'my sound.wav']);
+    })->throws(InvalidArgumentException::class, 'filename with extension');
+
+    it('throws when soundName is empty string', function (): void {
+        NotificationValidator::validate(['soundName' => '']);
+    })->throws(InvalidArgumentException::class, 'filename with extension');
+
+    it('throws when soundName has path separators', function (): void {
+        NotificationValidator::validate(['soundName' => 'sounds/alert.wav']);
+    })->throws(InvalidArgumentException::class, 'filename with extension');
+});
+
 describe('actions validation', function (): void {
     it('throws when actions exceed default max of 3', function (): void {
         NotificationValidator::validate([

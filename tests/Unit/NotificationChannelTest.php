@@ -127,6 +127,30 @@ it('sets sound', function (): void {
     expect($array)->toHaveKey('sound', true);
 });
 
+it('sets custom sound name via sound() string overload', function (): void {
+    $array = LocalNotificationMessage::create()
+        ->id('sound-name-test')
+        ->title('Test')
+        ->body('Body')
+        ->sound('alert.wav')
+        ->toArray();
+
+    expect($array)->toHaveKey('sound', true)
+        ->toHaveKey('soundName', 'alert.wav');
+});
+
+it('sets custom sound name via soundName()', function (): void {
+    $array = LocalNotificationMessage::create()
+        ->id('sound-name-test')
+        ->title('Test')
+        ->body('Body')
+        ->soundName('chime.caf')
+        ->toArray();
+
+    expect($array)->toHaveKey('sound', true)
+        ->toHaveKey('soundName', 'chime.caf');
+});
+
 it('disables sound', function (): void {
     $array = LocalNotificationMessage::create()
         ->id('sound-test')

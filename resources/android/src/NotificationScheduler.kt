@@ -19,6 +19,7 @@ data class NotificationParams(
     val title: String,
     val body: String,
     val sound: Boolean,
+    val soundName: String?,
     val badge: Int?,
     val data: Map<*, *>?,
     val subtitle: String?,
@@ -52,6 +53,7 @@ object NotificationScheduler {
             title = parameters["title"] as? String ?: "",
             body = parameters["body"] as? String ?: "",
             sound = parameters["sound"] as? Boolean ?: defaultSound,
+            soundName = parameters["soundName"] as? String,
             badge = (parameters["badge"] as? Number)?.toInt(),
             data = parameters["data"] as? Map<*, *>,
             subtitle = parameters["subtitle"] as? String,
@@ -76,6 +78,8 @@ object NotificationScheduler {
             title = parameters["title"] as? String ?: existing.optString("title"),
             body = parameters["body"] as? String ?: existing.optString("body"),
             sound = parameters["sound"] as? Boolean ?: existing.optBoolean("sound", defaultSound),
+            soundName = parameters["soundName"] as? String
+                ?: existing.optString("soundName", null),
             badge = (parameters["badge"] as? Number)?.toInt()
                 ?: if (existing.has("badge")) existing.optInt("badge") else null,
             data = parameters["data"] as? Map<*, *>
@@ -223,6 +227,7 @@ object NotificationScheduler {
             putExtra("title", params.title)
             putExtra("body", params.body)
             putExtra("sound", params.sound)
+            if (params.soundName != null) putExtra("sound_name", params.soundName)
             putExtra("channel_id", channelId)
             if (params.badge != null) putExtra("badge", params.badge)
             if (repeatMs != 0L) putExtra("repeat_ms", repeatMs)
@@ -312,6 +317,7 @@ object NotificationScheduler {
                 if (repeatType != null) put("repeatType", repeatType)
                 if (remainingCount != null) put("remainingCount", remainingCount)
                 put("sound", params.sound)
+                if (params.soundName != null) put("soundName", params.soundName)
                 if (params.badge != null) put("badge", params.badge)
                 if (params.data != null) put("data", JSONObject(params.data.mapKeys { it.key.toString() }))
                 if (params.subtitle != null) put("subtitle", params.subtitle)

@@ -30,6 +30,8 @@ class LocalNotificationMessage
 
     protected ?bool $sound = null;
 
+    protected ?string $soundName = null;
+
     protected ?int $badge = null;
 
     /** @var array<string, mixed>|null */
@@ -127,9 +129,22 @@ class LocalNotificationMessage
         return $this;
     }
 
-    public function sound(bool $enabled = true): self
+    public function sound(bool|string $sound = true): self
     {
-        $this->sound = $enabled;
+        if (is_string($sound)) {
+            $this->soundName = $sound;
+            $this->sound = true;
+        } else {
+            $this->sound = $sound;
+        }
+
+        return $this;
+    }
+
+    public function soundName(string $name): self
+    {
+        $this->soundName = $name;
+        $this->sound = true;
 
         return $this;
     }
@@ -212,6 +227,10 @@ class LocalNotificationMessage
 
         if ($this->sound !== null) {
             $result['sound'] = $this->sound;
+        }
+
+        if ($this->soundName !== null) {
+            $result['soundName'] = $this->soundName;
         }
 
         if ($this->badge !== null) {

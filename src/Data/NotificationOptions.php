@@ -25,6 +25,7 @@ final readonly class NotificationOptions
         public ?array $repeatDays = null,
         public ?int $repeatCount = null,
         public ?bool $sound = null,
+        public ?string $soundName = null,
         public ?int $badge = null,
         public ?array $data = null,
         public ?string $subtitle = null,
@@ -87,6 +88,10 @@ final readonly class NotificationOptions
 
         if ($this->sound !== null) {
             $result['sound'] = $this->sound;
+        }
+
+        if ($this->soundName !== null) {
+            $result['soundName'] = $this->soundName;
         }
 
         if ($this->badge !== null) {

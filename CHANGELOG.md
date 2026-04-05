@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-04-05
+
+### Added
+
+- **Custom notification sounds** — Optional `soundName` parameter accepts a filename (e.g. `"alert.wav"`) to play a custom sound instead of the system default. Works with both the array API (`'soundName' => 'alert.wav'`) and the fluent builder (`->sound('alert.wav')` or `->soundName('alert.wav')`).
+- **Android per-sound notification channels** — Custom sounds automatically create a dedicated notification channel (`{channel_id}_sound_{name}`) since Android O+ requires sound to be set on the channel. Falls back to the default channel if the sound resource is not found.
+- **iOS named sounds** — Uses `UNNotificationSound(named:)` for custom sound files bundled in the app.
+- **Sound filename validation** — Validates that `soundName` is a proper filename with extension (alphanumeric, hyphens, underscores only). Rejects paths and extensionless names.
+
 ## [1.8.0] - 2026-04-05
 
 ### Added
