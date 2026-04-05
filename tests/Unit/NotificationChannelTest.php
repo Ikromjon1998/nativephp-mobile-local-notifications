@@ -34,8 +34,35 @@ it('generates an id when none is set', function (): void {
         ->body('World')
         ->toArray();
 
-    expect($array['id'])->toBeString()->not->toBeEmpty();
+    expect($array['id'])->toBeString()->not->toBeEmpty()
+        ->toStartWith('ln_');
 });
+
+it('generates unique ids across instances', function (): void {
+    $id1 = LocalNotificationMessage::create()->toArray()['id'];
+    $id2 = LocalNotificationMessage::create()->toArray()['id'];
+
+    expect($id1)->not->toBe($id2);
+});
+
+it('validates options in toArray and throws for invalid soundName', function (): void {
+    LocalNotificationMessage::create()
+        ->id('bad-sound')
+        ->title('Test')
+        ->body('Body')
+        ->soundName('no extension')
+        ->toArray();
+})->throws(InvalidArgumentException::class);
+
+it('validates options in toArray and throws for conflicting repeat', function (): void {
+    LocalNotificationMessage::create()
+        ->id('conflict')
+        ->title('Test')
+        ->body('Body')
+        ->repeat(RepeatInterval::Daily)
+        ->repeatIntervalSeconds(3600)
+        ->toArray();
+})->throws(InvalidArgumentException::class, 'Cannot use both "repeat" and "repeatIntervalSeconds"');
 
 it('sets delay in seconds', function (): void {
     $array = LocalNotificationMessage::create()
@@ -99,6 +126,7 @@ it('sets repeat days', function (): void {
         ->id('days-test')
         ->title('Test')
         ->body('Body')
+        ->at(1700000000)
         ->repeatDays([1, 3, 5])
         ->toArray();
 
@@ -110,6 +138,7 @@ it('sets repeat count', function (): void {
         ->id('count-test')
         ->title('Test')
         ->body('Body')
+        ->repeat(RepeatInterval::Daily)
         ->repeatCount(5)
         ->toArray();
 

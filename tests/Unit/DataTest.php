@@ -4,8 +4,57 @@ declare(strict_types=1);
 
 use Ikromjon\LocalNotifications\Data\NotificationAction;
 use Ikromjon\LocalNotifications\Data\NotificationOptions;
+use Ikromjon\LocalNotifications\Enums\BridgeFunction;
+use Ikromjon\LocalNotifications\Enums\PermissionStatus;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
 use Ikromjon\LocalNotifications\LocalNotifications;
+
+describe('BridgeFunction', function (): void {
+    it('has correct string values for all cases', function (): void {
+        expect(BridgeFunction::Schedule->value)->toBe('LocalNotifications.Schedule')
+            ->and(BridgeFunction::Cancel->value)->toBe('LocalNotifications.Cancel')
+            ->and(BridgeFunction::CancelAll->value)->toBe('LocalNotifications.CancelAll')
+            ->and(BridgeFunction::GetPending->value)->toBe('LocalNotifications.GetPending')
+            ->and(BridgeFunction::RequestPermission->value)->toBe('LocalNotifications.RequestPermission')
+            ->and(BridgeFunction::CheckPermission->value)->toBe('LocalNotifications.CheckPermission')
+            ->and(BridgeFunction::Update->value)->toBe('LocalNotifications.Update');
+    });
+
+    it('has exactly 7 cases', function (): void {
+        expect(BridgeFunction::cases())->toHaveCount(7);
+    });
+
+    it('can be created from string value', function (): void {
+        expect(BridgeFunction::from('LocalNotifications.Schedule'))->toBe(BridgeFunction::Schedule)
+            ->and(BridgeFunction::from('LocalNotifications.Cancel'))->toBe(BridgeFunction::Cancel);
+    });
+
+    it('returns null for invalid string with tryFrom', function (): void {
+        expect(BridgeFunction::tryFrom('InvalidFunction'))->toBeNull();
+    });
+});
+
+describe('PermissionStatus', function (): void {
+    it('has correct string values for all cases', function (): void {
+        expect(PermissionStatus::Granted->value)->toBe('granted')
+            ->and(PermissionStatus::Denied->value)->toBe('denied')
+            ->and(PermissionStatus::NotDetermined->value)->toBe('not_determined');
+    });
+
+    it('has exactly 3 cases', function (): void {
+        expect(PermissionStatus::cases())->toHaveCount(3);
+    });
+
+    it('can be created from string value', function (): void {
+        expect(PermissionStatus::from('granted'))->toBe(PermissionStatus::Granted)
+            ->and(PermissionStatus::from('denied'))->toBe(PermissionStatus::Denied)
+            ->and(PermissionStatus::from('not_determined'))->toBe(PermissionStatus::NotDetermined);
+    });
+
+    it('returns null for invalid string with tryFrom', function (): void {
+        expect(PermissionStatus::tryFrom('unknown'))->toBeNull();
+    });
+});
 
 describe('RepeatInterval', function (): void {
     it('has correct string values for all cases', function (): void {
@@ -147,6 +196,28 @@ describe('NotificationOptions', function (): void {
         );
 
         expect($options->toArray()['repeat'])->toBe('monthly');
+    });
+
+    it('normalizes known repeat string to enum', function (): void {
+        $options = new NotificationOptions(
+            id: 'normalize',
+            title: 'Test',
+            body: 'Body',
+            repeat: 'daily',
+        );
+
+        expect($options->repeat)->toBe(RepeatInterval::Daily);
+    });
+
+    it('preserves unknown repeat string as-is', function (): void {
+        $options = new NotificationOptions(
+            id: 'unknown',
+            title: 'Test',
+            body: 'Body',
+            repeat: 'biweekly',
+        );
+
+        expect($options->repeat)->toBe('biweekly');
     });
 
     it('passes string repeat value unchanged', function (): void {

@@ -6,6 +6,7 @@ namespace Ikromjon\LocalNotifications;
 
 use Ikromjon\LocalNotifications\Contracts\LocalNotificationsInterface;
 use Ikromjon\LocalNotifications\Data\NotificationOptions;
+use Ikromjon\LocalNotifications\Enums\BridgeFunction;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
 use Ikromjon\LocalNotifications\Validation\NotificationValidator;
 
@@ -23,7 +24,7 @@ class LocalNotifications implements LocalNotificationsInterface
             ? $options->toArray()
             : $this->normalizeOptions($options);
 
-        return $this->call('LocalNotifications.Schedule', $data);
+        return $this->call(BridgeFunction::Schedule, $data);
     }
 
     /**
@@ -33,7 +34,7 @@ class LocalNotifications implements LocalNotificationsInterface
      */
     public function cancel(string $id): array
     {
-        return $this->call('LocalNotifications.Cancel', ['id' => $id]);
+        return $this->call(BridgeFunction::Cancel, ['id' => $id]);
     }
 
     /**
@@ -43,7 +44,7 @@ class LocalNotifications implements LocalNotificationsInterface
      */
     public function cancelAll(): array
     {
-        return $this->call('LocalNotifications.CancelAll');
+        return $this->call(BridgeFunction::CancelAll);
     }
 
     /**
@@ -53,7 +54,7 @@ class LocalNotifications implements LocalNotificationsInterface
      */
     public function getPending(): array
     {
-        return $this->call('LocalNotifications.GetPending');
+        return $this->call(BridgeFunction::GetPending);
     }
 
     /**
@@ -63,7 +64,7 @@ class LocalNotifications implements LocalNotificationsInterface
      */
     public function requestPermission(): array
     {
-        return $this->call('LocalNotifications.RequestPermission');
+        return $this->call(BridgeFunction::RequestPermission);
     }
 
     /**
@@ -73,7 +74,7 @@ class LocalNotifications implements LocalNotificationsInterface
      */
     public function checkPermission(): array
     {
-        return $this->call('LocalNotifications.CheckPermission');
+        return $this->call(BridgeFunction::CheckPermission);
     }
 
     /**
@@ -90,7 +91,7 @@ class LocalNotifications implements LocalNotificationsInterface
 
         $data['id'] = $id;
 
-        return $this->call('LocalNotifications.Update', $data);
+        return $this->call(BridgeFunction::Update, $data);
     }
 
     /**
@@ -148,7 +149,7 @@ class LocalNotifications implements LocalNotificationsInterface
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
-    protected function call(string $function, array $data = []): array
+    protected function call(BridgeFunction $function, array $data = []): array
     {
         if (! function_exists('nativephp_call')) {
             return [];
@@ -158,7 +159,7 @@ class LocalNotifications implements LocalNotificationsInterface
         // settings (e.g. tap detection delay) before the first schedule().
         $data['_config'] = $this->nativeConfig();
 
-        $result = nativephp_call($function, json_encode($data));
+        $result = nativephp_call($function->value, json_encode($data));
 
         if (! $result) {
             return [];

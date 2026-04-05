@@ -6,6 +6,7 @@ namespace Ikromjon\LocalNotifications\Notifications;
 
 use Ikromjon\LocalNotifications\Data\NotificationAction;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
+use Ikromjon\LocalNotifications\Validation\NotificationValidator;
 
 class LocalNotificationMessage
 {
@@ -48,7 +49,7 @@ class LocalNotificationMessage
 
     public function __construct()
     {
-        $this->id = (string) mt_rand(100000, 999999);
+        $this->id = uniqid('ln_');
     }
 
     public static function create(): self
@@ -194,6 +195,20 @@ class LocalNotificationMessage
      */
     public function toArray(): array
     {
+        $actionsArray = $this->actions !== null
+            ? array_map(fn (NotificationAction $action): array => $action->toArray(), $this->actions)
+            : null;
+
+        NotificationValidator::validate([
+            'repeat' => $this->repeat,
+            'repeatIntervalSeconds' => $this->repeatIntervalSeconds,
+            'repeatDays' => $this->repeatDays,
+            'repeatCount' => $this->repeatCount,
+            'at' => $this->at,
+            'actions' => $actionsArray,
+            'soundName' => $this->soundName,
+        ]);
+
         $result = [
             'id' => $this->id,
             'title' => $this->title,
