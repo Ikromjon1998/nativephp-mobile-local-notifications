@@ -440,12 +440,16 @@ object NotificationScheduler {
                     put("title", action["title"]?.toString() ?: "")
                     put("destructive", action["destructive"] as? Boolean ?: false)
                     put("input", action["input"] as? Boolean ?: false)
+                    val snooze = (action["snooze"] as? Number)?.toInt() ?: 0
+                    if (snooze > 0) put("snooze", snooze)
                 }
                 is JSONObject -> JSONObject().apply {
                     put("id", action.optString("id", ""))
                     put("title", action.optString("title", ""))
                     put("destructive", action.optBoolean("destructive", false))
                     put("input", action.optBoolean("input", false))
+                    val snooze = action.optInt("snooze", 0)
+                    if (snooze > 0) put("snooze", snooze)
                 }
                 else -> {
                     Log.w(TAG, "serializeActions: skipping unknown type ${action?.javaClass?.name}")
