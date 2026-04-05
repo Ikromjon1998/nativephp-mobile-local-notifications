@@ -84,7 +84,7 @@ LocalNotifications::schedule([
 | `repeatDays` | array\<int\> | No | Days of week to repeat (1=Mon..7=Sun). Requires `at`. Mutually exclusive with `repeat` |
 | `repeatCount` | int | No | Limit how many times the notification repeats (min 1). Requires a repeat mechanism |
 | `sound` | bool | No | Play sound (default from `config('local-notifications.default_sound')`, initially `true`) |
-| `soundName` | string | No | Custom sound filename (e.g. `"alert.wav"`). Overrides `sound` boolean. See [Custom Sounds](#custom-sounds) |
+| `soundName` | string | No | Custom sound filename (e.g. `"alert.wav"`). Overrides `sound` boolean. See [Custom Sounds](custom-sounds.md) |
 | `badge` | int | No | Badge number on app icon (iOS) |
 | `data` | array | No | Custom data payload (available in tapped event) |
 | `subtitle` | string | No | Subtitle text (iOS: subtitle, Android: subtext) |

@@ -129,13 +129,13 @@ class LocalNotificationMessage
         return $this;
     }
 
-    public function sound(bool|string $sound = true): self
+    public function sound(bool|string $enabled = true): self
     {
-        if (is_string($sound)) {
-            $this->soundName = $sound;
+        if (is_string($enabled)) {
+            $this->soundName = $enabled;
             $this->sound = true;
         } else {
-            $this->sound = $sound;
+            $this->sound = $enabled;
         }
 
         return $this;

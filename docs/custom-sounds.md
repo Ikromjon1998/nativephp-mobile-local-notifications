@@ -103,19 +103,22 @@ Sound files must be **under 30 seconds**. If longer, iOS falls back to the defau
 
 The file is referenced by its full filename including extension: `soundName: "alert.wav"`.
 
-## Validation
+## Naming Rules
 
 The `soundName` parameter must be a filename with extension. Only alphanumeric characters, hyphens, and underscores are allowed in the name portion:
 
 ```
-alert.wav        -- valid
-my-sound.caf     -- valid
-notification_01.mp3  -- valid
+alert.wav            -- valid (cross-platform)
+notification_01.mp3  -- valid (cross-platform)
+my_sound.caf         -- valid (cross-platform)
 
-alert            -- invalid (no extension)
-my sound.wav     -- invalid (spaces)
-sounds/alert.wav -- invalid (path separator)
+my-sound.caf         -- valid on iOS, but NOT on Android (hyphens are invalid in res/raw)
+alert                -- invalid (no extension)
+my sound.wav         -- invalid (spaces)
+sounds/alert.wav     -- invalid (path separator)
 ```
+
+> **Android constraint:** Resource names in `res/raw/` only allow lowercase letters, digits, and underscores. Hyphens, uppercase letters, and other special characters will cause `getIdentifier()` to return 0 at runtime, triggering the fallback to the default sound. For cross-platform compatibility, use only **lowercase letters, digits, and underscores** in the filename (e.g., `my_sound.wav` instead of `my-sound.wav`).
 
 Invalid filenames throw an `InvalidArgumentException` at schedule time.
 

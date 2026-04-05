@@ -25,13 +25,13 @@ final readonly class NotificationOptions
         public ?array $repeatDays = null,
         public ?int $repeatCount = null,
         public ?bool $sound = null,
-        public ?string $soundName = null,
         public ?int $badge = null,
         public ?array $data = null,
         public ?string $subtitle = null,
         public ?string $image = null,
         public ?string $bigText = null,
         public ?array $actions = null,
+        public ?string $soundName = null,
     ) {}
 
     /**
@@ -52,6 +52,7 @@ final readonly class NotificationOptions
             'repeatCount' => $this->repeatCount,
             'at' => $this->at,
             'actions' => $actionsArray,
+            'soundName' => $this->soundName,
         ]);
 
         $result = [

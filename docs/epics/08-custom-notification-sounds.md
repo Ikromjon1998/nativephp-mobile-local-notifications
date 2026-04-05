@@ -27,4 +27,4 @@ Allow specifying custom sound files instead of just a boolean on/off toggle. Dev
 - [x] Default sound still works with `sound: true`
 - [x] Silent notifications work with `sound: false`
 - [x] Helpful error when sound file is not found or in unsupported format
-- [ ] Documentation covers how to add sound files for each platform
+- [x] Documentation covers how to add sound files for each platform (see `docs/custom-sounds.md`, linked from the README/scheduling docs)
