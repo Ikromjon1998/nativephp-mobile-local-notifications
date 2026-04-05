@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-04-05
+
+### Fixed
+
+- **Cold-start init component now works with all frontend stacks** — Previously only flushed pending events for Livewire apps (`livewire:navigated`). Now also flushes after `window.load` for Inertia/Vue/React and plain JS apps. Uses a guard flag to prevent double-flushing.
+- **Fixed Livewire event handler examples in README** — Changed from incorrect `$data['id']` single-array pattern to named parameters (`string $id, string $title, string $body`) which is how Livewire 3 and 4 actually dispatch event payloads.
+- **Added event payload keys reference table** in README for all 7 events.
+
 ## [1.7.0] - 2026-04-05
 
 ### Added

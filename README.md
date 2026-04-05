@@ -112,9 +112,11 @@ LOCAL_NOTIFICATIONS_CHANNEL_NAME="My App Alerts"
 
 ## Cold-Start Tap Events
 
-When a user taps a notification while the app is closed (cold start), the `NotificationTapped` event is queued on the native side but only delivered when a bridge function is called. The init component automates this — but each step matters:
+When a user taps a notification while the app is closed (cold start), the `NotificationTapped` event is queued on the native side but only delivered when a bridge function is called. The init component automates this for all frontend stacks.
 
-### 1. Add the init component after `@livewireScripts`
+### 1. Add the init component before `</body>`
+
+**Livewire apps** — place after `@livewireScripts`:
 
 ```blade
 {{-- resources/views/layouts/app.blade.php --}}
@@ -123,7 +125,17 @@ When a user taps a notification while the app is closed (cold start), the `Notif
 </body>
 ```
 
-**Why after `@livewireScripts`?** The component waits for `livewire:navigated`, which fires after Livewire components are hydrated. If placed in `<head>` or before Livewire, events are dispatched before components are listening — they get silently lost.
+**Inertia / Vue / React / plain JS** — place before `</body>`:
+
+```blade
+{{-- resources/views/app.blade.php --}}
+    @inertiaHead
+    @vite(['resources/js/app.js'])
+    <x-local-notifications::init />
+</body>
+```
+
+The component auto-detects the frontend stack. For Livewire, it flushes after `livewire:navigated`. For other stacks, it flushes after `window.load` with a delay to let components mount and register event listeners.
 
 ### 2. Put the listener on your landing page component
 
@@ -138,19 +150,33 @@ public function onTapped(string $id = '', string $title = '', string $body = '',
 
 **Why the landing page?** On cold start, the app always opens to `/`. Only components mounted on that page can receive the event. If your listener is on `/settings`, it won't be mounted when the event fires.
 
-### 3. Use named parameters (Livewire 4)
+### 3. Use named parameters (Livewire 3 & 4)
 
 ```php
-// Wrong — Livewire 4 maps payload keys to named params, $data stays empty
+// Wrong — $data only receives the "data" key from the payload, not the whole event
 public function onTapped(array $data = []): void
 
-// Correct — matches the payload keys: id, title, body, data
+// Correct — parameter names match the payload keys: id, title, body, data
 public function onTapped(string $id = '', string $title = '', string $body = '', array $data = []): void
 ```
 
-**Why named parameters?** Livewire 4 dispatches event payloads as named arguments (`{id, title, body, data}`), not a single array. A parameter named `$data` only receives the `data` key from the payload, not the entire payload.
+**Why named parameters?** Both Livewire 3 and 4 dispatch event payloads as named arguments (`{id, title, body, data}`). Each parameter name maps to a key in the payload. A parameter named `$data` only receives the `data` key (the custom data field), not the entire event payload.
 
-> **Without the init component**, you would need to manually call `LocalNotifications::checkPermission()` (or any other bridge function) after Livewire hydration to trigger the flush.
+### 4. Do NOT call bridge functions in mount() on the landing page
+
+```php
+// WRONG — steals the cold-start event before the WebView is ready
+public function mount(): void
+{
+    LocalNotifications::checkPermission(); // DO NOT do this on the landing page
+}
+```
+
+**What happens:** `mount()` runs on the server → calls `checkPermission()` → native side finds the queued tap, dispatches the event via JavaScript, and clears the intent → but the WebView is still loading, so the JavaScript gets wiped when the HTML arrives → the init component fires later and calls `checkPermission()` again, but the intent is already consumed → the event is lost.
+
+**Fix:** Remove any bridge calls (`checkPermission()`, `schedule()`, etc.) from `mount()` on your landing page component. The init component handles the timing correctly. You can safely call bridge functions in `mount()` on other pages since cold start always opens `/`.
+
+> **Without the init component**, you would need to manually call any bridge function (e.g. `checkPermission()` from JS or `LocalNotifications::checkPermission()` from PHP) after your components mount to trigger the flush — but be careful about the timing issue described above.
 
 ## Usage (PHP)
 
@@ -328,7 +354,7 @@ Returns `['success' => false, 'error' => 'Notification not found: ...']` if the 
 
 ## Listening to Events (Livewire)
 
-Use the `#[OnNative]` attribute in your Livewire components:
+Use the `#[OnNative]` attribute in your Livewire components. Parameter names must match the payload keys — Livewire 3 and 4 both map dispatched payload keys to named method parameters.
 
 ```php
 use Native\Mobile\Attributes\OnNative;
@@ -341,48 +367,60 @@ use Ikromjon\LocalNotifications\Events\PermissionDenied;
 use Ikromjon\LocalNotifications\Events\NotificationActionPressed;
 
 #[OnNative(NotificationScheduled::class)]
-public function onScheduled($data)
+public function onScheduled(string $id = '', string $title = '', string $body = ''): void
 {
-    // Notification was scheduled: $data['id'], $data['title'], $data['body']
+    // Notification was scheduled
 }
 
 #[OnNative(NotificationUpdated::class)]
-public function onUpdated($data)
+public function onUpdated(string $id = '', string $title = '', string $body = ''): void
 {
-    // Notification was updated: $data['id'], $data['title'], $data['body']
+    // Notification was updated
 }
 
 #[OnNative(NotificationReceived::class)]
-public function onReceived($data)
+public function onReceived(string $id = '', string $title = '', string $body = '', ?array $data = null): void
 {
-    // Notification was delivered to the device
+    // Notification was delivered to the device (app in foreground)
 }
 
 #[OnNative(NotificationTapped::class)]
-public function onTapped($data)
+public function onTapped(string $id = '', string $title = '', string $body = '', ?array $data = null): void
 {
-    // User tapped a notification: $data['id'], $data['data']
+    // User tapped a notification
 }
 
 #[OnNative(PermissionGranted::class)]
-public function onPermissionGranted()
+public function onPermissionGranted(): void
 {
     // Permission was granted
 }
 
 #[OnNative(PermissionDenied::class)]
-public function onPermissionDenied()
+public function onPermissionDenied(): void
 {
     // Permission was denied
 }
 
 #[OnNative(NotificationActionPressed::class)]
-public function onActionPressed($data)
+public function onActionPressed(string $notificationId = '', string $actionId = '', ?string $inputText = null, ?array $data = null): void
 {
-    // Action button pressed: $data['notificationId'], $data['actionId']
-    // Text input (if input action): $data['inputText']
+    // Action button pressed
+    // $inputText is set when the action has 'input' => true
 }
 ```
+
+### Event Payload Keys
+
+| Event | Payload keys |
+|-------|-------------|
+| `NotificationScheduled` | `id`, `title`, `body` |
+| `NotificationReceived` | `id`, `title`, `body`, `data` |
+| `NotificationTapped` | `id`, `title`, `body`, `data` |
+| `NotificationUpdated` | `id`, `title`, `body` |
+| `NotificationActionPressed` | `notificationId`, `actionId`, `inputText`, `data` |
+| `PermissionGranted` | _(none)_ |
+| `PermissionDenied` | _(none)_ |
 
 ## Listening to Events (Laravel)
 
@@ -721,9 +759,11 @@ composer analyse
 **[Daily Habits](https://github.com/Ikromjon1998/daily-habits)** is a full, open-source mobile app built with this plugin. It demonstrates:
 
 - Scheduling daily repeating notifications with `RepeatInterval::Daily`
-- Action buttons ("Done" / "Snooze") handled via `NotificationActionPressed`
+- Action buttons ("Done" / "Skip" / "Snooze") handled via `NotificationActionPressed`
+- Laravel Notification channel integration (`DebugLocalNotification` class)
 - Permission management on the Settings screen
 - Notification cancellation when habits are deleted
+- **Notification Debug panel** with 7 test scenarios covering warm/cold start, action buttons, text input, content/timing updates, and the Laravel Notification channel
 
 Use it as a reference, fork it as a starter for your own app, or contribute to it.
 
