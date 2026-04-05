@@ -375,7 +375,11 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         val name = soundName.substringBeforeLast(".")
         val soundChannelId = "${baseChannelId}_sound_$name"
 
-        // Channel already exists — no-op (Android ignores re-creation)
+        // Return early if channel already exists (channels are immutable once created)
+        if (manager.getNotificationChannel(soundChannelId) != null) {
+            return soundChannelId
+        }
+
         val resId = context.resources.getIdentifier(name, "raw", context.packageName)
         if (resId == 0) {
             Log.w(TAG, "Custom sound resource not found: $name (res/raw/$name). Falling back to default channel.")

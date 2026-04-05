@@ -37,14 +37,17 @@ enum NotificationHelper {
             content.badge = NSNumber(value: badge)
         }
 
-        var userInfo: [String: Any] = ["notification_id": id]
-        if let soundName = soundName {
-            userInfo["soundName"] = soundName
-        }
+        // Merge data first, then write internal keys last to prevent
+        // caller data from overwriting reserved keys (notification_id, soundName).
+        var userInfo: [String: Any] = [:]
         if let data = data {
             for (key, value) in data {
                 userInfo[key] = value
             }
+        }
+        userInfo["notification_id"] = id
+        if let soundName = soundName {
+            userInfo["soundName"] = soundName
         }
         content.userInfo = userInfo
 
