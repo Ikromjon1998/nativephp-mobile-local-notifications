@@ -36,13 +36,10 @@ LocalNotifications::schedule([
 | **nativephp/mobile-firebase** | Push notifications from a server via FCM/APNs | Firebase project, server, internet |
 | **This plugin** | Local notifications scheduled on-device | Nothing — works offline |
 
-## What's New in v1.4.0
+## What's New in v1.7.0
 
-- **`<x-local-notifications::init />` Blade component** — Drop it into your layout once and cold-start notification tap events are flushed automatically on every page load. No more manual `checkPermission()` calls in `mount()`.
-- **Publishable config** — Customize channel ID/name, max actions, repeat constraints, sound defaults, and timing via `config/local-notifications.php`
-- **Runtime native config** — PHP config values flow to both Android and iOS at runtime via the `_config` bridge parameter
-- **Config-driven validation** — Action count and repeat interval limits read from config
-- **Cross-platform config support** — `default_sound` and `max_actions` are now respected on both Android and iOS
+- **Laravel Notification channel** — Use the standard `$user->notify()` pattern with `LocalNotificationChannel` and fluent `LocalNotificationMessage` builder
+- **Android action buttons fix** — Fixed a type coercion bug that prevented action buttons from appearing on Android devices
 
 See the full [CHANGELOG](CHANGELOG.md) for details.
 
@@ -609,6 +606,44 @@ $options = new NotificationOptions(
 
 LocalNotifications::schedule($options);
 ```
+
+### Laravel Notification Channel
+
+Use the standard Laravel Notification pattern instead of the Facade:
+
+```php
+use Illuminate\Notifications\Notification;
+use Ikromjon\LocalNotifications\Notifications\LocalNotificationChannel;
+use Ikromjon\LocalNotifications\Notifications\LocalNotificationMessage;
+use Ikromjon\LocalNotifications\Notifications\HasLocalNotification;
+use Ikromjon\LocalNotifications\Enums\RepeatInterval;
+
+class DailyReminderNotification extends Notification implements HasLocalNotification
+{
+    public function via($notifiable): array
+    {
+        return [LocalNotificationChannel::class];
+    }
+
+    public function toLocalNotification($notifiable): LocalNotificationMessage
+    {
+        return LocalNotificationMessage::create()
+            ->id('reminder-' . $notifiable->id)
+            ->title('Daily Reminder')
+            ->body('Time to check in!')
+            ->repeat(RepeatInterval::Daily)
+            ->sound()
+            ->action('done', 'Done')
+            ->action('skip', 'Skip', destructive: true)
+            ->action('snooze', 'Snooze');
+    }
+}
+
+// Send it
+$user->notify(new DailyReminderNotification());
+```
+
+The Facade and DTO approaches continue to work as before — the Notification channel is an additional option for teams that prefer Laravel's built-in notification system.
 
 ### How Repeating Notifications Work
 

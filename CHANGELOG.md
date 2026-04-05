@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-04-05
+
+### Added
+
+- **Laravel Notification channel integration** — Use the standard `$user->notify()` pattern with `LocalNotificationChannel` and fluent `LocalNotificationMessage` builder. Implements `toLocalNotification()` alongside existing Facade usage.
+- **`LocalNotificationMessage`** — Fluent message builder with chainable methods for all notification options (title, body, subtitle, delay, at, repeat, sound, badge, data, image, bigText, action buttons).
+- **`LocalNotificationChannel`** — Laravel Notification channel that sends via the existing `LocalNotifications` service.
+- **`HasLocalNotification` interface** — Type-safe contract for notifications that implement `toLocalNotification()`.
+
+### Fixed
+
+- **Android action buttons not appearing** — Fixed type coercion bug where NativePHP's bridge could pass actions as `JSONArray` or `String` instead of `List<*>`, causing `as? List<*>` safe cast to silently return `null`. Added `coerceToList()` helper that handles `List`, `JSONArray`, and JSON string types. Also fixed `serializeActions()` to handle `JSONObject` elements alongside `Map` elements.
+- **Added debug logging for action buttons** — `LocalNotificationReceiver` and `NotificationScheduler` now log action type info, serialized data, and parse results for easier debugging via `adb logcat`.
+
 ## [1.6.0] - 2026-04-04
 
 ### Added

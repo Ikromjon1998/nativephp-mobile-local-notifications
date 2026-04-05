@@ -52,7 +52,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         val bigText = intent.getStringExtra("big_text")
         val actionsJson = intent.getStringExtra("actions")
 
-        Log.d(TAG, "Notification received: $id - $title")
+        Log.d(TAG, "Notification received: $id - $title, actionsJson=${actionsJson != null} (${actionsJson?.length ?: 0} chars)")
 
         // Build the notification
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -141,8 +141,10 @@ class LocalNotificationReceiver : BroadcastReceiver() {
 
         // Add action buttons if provided
         if (actionsJson != null) {
+            Log.d(TAG, "Actions JSON for $id: $actionsJson")
             try {
                 val actions = JSONArray(actionsJson)
+                Log.d(TAG, "Parsed ${actions.length()} actions for notification $id")
                 for (i in 0 until minOf(actions.length(), LocalNotificationsFunctions.maxActions)) {
                     val action = actions.getJSONObject(i)
                     val actionId = action.getString("id")

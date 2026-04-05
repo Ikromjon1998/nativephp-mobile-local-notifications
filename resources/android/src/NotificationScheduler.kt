@@ -45,6 +45,8 @@ object NotificationScheduler {
      * Used by Schedule for fresh notifications.
      */
     fun parseParams(parameters: Map<String, Any>, defaultSound: Boolean): NotificationParams {
+        val rawActions = parameters["actions"]
+        Log.d(TAG, "parseParams actions type: ${rawActions?.javaClass?.name ?: "null"}, value: $rawActions")
         return NotificationParams(
             id = parameters["id"] as? String ?: "",
             title = parameters["title"] as? String ?: "",
@@ -55,7 +57,7 @@ object NotificationScheduler {
             subtitle = parameters["subtitle"] as? String,
             imageUrl = parameters["image"] as? String,
             bigText = parameters["bigText"] as? String,
-            actions = parameters["actions"] as? List<*>,
+            actions = coerceToList(rawActions),
         )
     }
 
@@ -84,7 +86,7 @@ object NotificationScheduler {
                 ?: existing.optString("image", null),
             bigText = parameters["bigText"] as? String
                 ?: existing.optString("bigText", null),
-            actions = parameters["actions"] as? List<*>
+            actions = coerceToList(parameters["actions"])
                 ?: if (existing.has("actions")) jsonArrayToActionList(existing.getJSONArray("actions")) else null,
         )
     }
@@ -234,7 +236,11 @@ object NotificationScheduler {
             if (params.imageUrl != null) putExtra("image", params.imageUrl)
             if (params.bigText != null) putExtra("big_text", params.bigText)
             if (params.actions != null) {
-                putExtra("actions", serializeActions(params.actions).toString())
+                val serialized = serializeActions(params.actions).toString()
+                Log.d(TAG, "scheduleAlarm: putting actions for $id: $serialized")
+                putExtra("actions", serialized)
+            } else {
+                Log.d(TAG, "scheduleAlarm: no actions for $id")
             }
         }
 
@@ -402,18 +408,51 @@ object NotificationScheduler {
     // -----------------------------------------------------------------------
 
     /**
+     * Coerce a bridge parameter value into a List, handling the various types
+     * that NativePHP's bridge framework may produce (List, JSONArray, or JSON String).
+     */
+    fun coerceToList(raw: Any?): List<*>? {
+        return when (raw) {
+            null -> null
+            is List<*> -> raw
+            is JSONArray -> (0 until raw.length()).map { raw.get(it) }
+            is String -> try {
+                val arr = JSONArray(raw)
+                (0 until arr.length()).map { arr.get(it) }
+            } catch (_: Exception) { null }
+            else -> {
+                Log.w(TAG, "coerceToList: unexpected type ${raw.javaClass.name}")
+                null
+            }
+        }
+    }
+
+    /**
      * Serialize a list of action maps into a JSONArray.
+     * Handles elements being Map, JSONObject, or other types from the bridge.
      */
     fun serializeActions(actions: List<*>, maxActions: Int = LocalNotificationsFunctions.maxActions): JSONArray {
         val actionsJson = JSONArray()
         for (action in actions.take(maxActions)) {
-            val actionMap = action as? Map<*, *> ?: continue
-            actionsJson.put(JSONObject().apply {
-                put("id", actionMap["id"]?.toString() ?: "")
-                put("title", actionMap["title"]?.toString() ?: "")
-                put("destructive", actionMap["destructive"] as? Boolean ?: false)
-                put("input", actionMap["input"] as? Boolean ?: false)
-            })
+            val obj = when (action) {
+                is Map<*, *> -> JSONObject().apply {
+                    put("id", action["id"]?.toString() ?: "")
+                    put("title", action["title"]?.toString() ?: "")
+                    put("destructive", action["destructive"] as? Boolean ?: false)
+                    put("input", action["input"] as? Boolean ?: false)
+                }
+                is JSONObject -> JSONObject().apply {
+                    put("id", action.optString("id", ""))
+                    put("title", action.optString("title", ""))
+                    put("destructive", action.optBoolean("destructive", false))
+                    put("input", action.optBoolean("input", false))
+                }
+                else -> {
+                    Log.w(TAG, "serializeActions: skipping unknown type ${action?.javaClass?.name}")
+                    continue
+                }
+            }
+            actionsJson.put(obj)
         }
         return actionsJson
     }
