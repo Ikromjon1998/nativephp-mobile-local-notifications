@@ -1,6 +1,7 @@
 package com.nativephp.localnotifications
 
 import android.app.AlarmManager
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -8,6 +9,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.AudioAttributes
+import android.net.Uri
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
@@ -45,7 +48,8 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         try {
         val sound = intent.getBooleanExtra("sound", true)
-        val channelId = intent.getStringExtra("channel_id") ?: "nativephp_local_notifications"
+        val soundName = intent.getStringExtra("sound_name")
+        val baseChannelId = intent.getStringExtra("channel_id") ?: "nativephp_local_notifications"
         val dataJson = intent.getStringExtra("data")
         val subtitle = intent.getStringExtra("subtitle")
         val imageUrl = intent.getStringExtra("image")
@@ -56,6 +60,13 @@ class LocalNotificationReceiver : BroadcastReceiver() {
 
         // Build the notification
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        // Resolve the effective channel: use a per-sound channel for custom sounds
+        val channelId = if (soundName != null) {
+            ensureSoundChannel(context, notificationManager, baseChannelId, soundName)
+        } else {
+            baseChannelId
+        }
 
         // Launch the app directly when the user taps the notification.
         // Using PendingIntent.getActivity() instead of getBroadcast() because
@@ -114,7 +125,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             builder.setSubText(subtitle)
         }
 
-        if (!sound) {
+        if (!sound && soundName == null) {
             builder.setSilent(true)
         }
 
@@ -163,7 +174,8 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                             putExtra("title", title)
                             putExtra("body", body)
                             putExtra("sound", sound)
-                            putExtra("channel_id", channelId)
+                            if (soundName != null) putExtra("sound_name", soundName)
+                            putExtra("channel_id", baseChannelId)
                             if (subtitle != null) putExtra("subtitle", subtitle)
                             if (imageUrl != null) putExtra("image", imageUrl)
                             if (bigText != null) putExtra("big_text", bigText)
@@ -262,7 +274,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             // Self-reschedule the next occurrence for repeating notifications.
             // This replaces setRepeating() which is unreliable on modern Android.
             val nextCount = if (remainingCount > 1) remainingCount - 1 else -1
-            rescheduleNext(context, id, title, body, sound, channelId, repeatMs, repeatType, dataJson, subtitle, imageUrl, bigText, actionsJson, nextCount)
+            rescheduleNext(context, id, title, body, sound, soundName, baseChannelId, repeatMs, repeatType, dataJson, subtitle, imageUrl, bigText, actionsJson, nextCount)
         }
         } finally {
             pendingResult.finish()
@@ -280,6 +292,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         title: String,
         body: String,
         sound: Boolean,
+        soundName: String?,
         channelId: String,
         repeatMs: Long,
         repeatType: String?,
@@ -305,6 +318,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             putExtra("title", title)
             putExtra("body", body)
             putExtra("sound", sound)
+            if (soundName != null) putExtra("sound_name", soundName)
             putExtra("channel_id", channelId)
             putExtra("repeat_ms", repeatMs)
             if (repeatType != null) putExtra("repeat_type", repeatType)
@@ -345,6 +359,51 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         }
 
         Log.d(TAG, "Rescheduled repeating notification: $id, next in ${repeatMs / 1000}s")
+    }
+
+    /**
+     * Create (or re-use) a notification channel with a custom sound.
+     * Android O+ requires sound to be set on the channel, not the notification builder.
+     * Channel ID format: {baseChannelId}_sound_{name} (extension stripped).
+     */
+    private fun ensureSoundChannel(
+        context: Context,
+        manager: NotificationManager,
+        baseChannelId: String,
+        soundName: String
+    ): String {
+        val name = soundName.substringBeforeLast(".")
+        val soundChannelId = "${baseChannelId}_sound_$name"
+
+        // Return early if channel already exists (channels are immutable once created)
+        if (manager.getNotificationChannel(soundChannelId) != null) {
+            return soundChannelId
+        }
+
+        val resId = context.resources.getIdentifier(name, "raw", context.packageName)
+        if (resId == 0) {
+            Log.w(TAG, "Custom sound resource not found: $name (res/raw/$name). Falling back to default channel.")
+            return baseChannelId
+        }
+
+        val soundUri = Uri.parse("android.resource://${context.packageName}/raw/$name")
+        val audioAttributes = AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .build()
+
+        val channel = NotificationChannel(
+            soundChannelId,
+            "Notifications ($name)",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Notifications with custom sound: $name"
+            setSound(soundUri, audioAttributes)
+            enableVibration(true)
+        }
+        manager.createNotificationChannel(channel)
+
+        return soundChannelId
     }
 
     /**

@@ -46,6 +46,7 @@ async function bridgeCall(method, params = {}) {
  * @param {number[]} [options.repeatDays] - Days of week (1=Mon..7=Sun). Requires `at`
  * @param {number} [options.repeatCount] - Limit repetitions (min 1)
  * @param {boolean} [options.sound=true] - Play sound
+ * @param {string} [options.soundName] - Custom sound filename (e.g. "alert.wav"). Overrides sound boolean.
  * @param {number} [options.badge] - Badge number on app icon
  * @param {Object} [options.data] - Custom data payload
  * @param {string} [options.subtitle] - Subtitle text
@@ -118,6 +119,7 @@ export async function checkPermission() {
  * @param {number[]} [options.repeatDays] - New days of week
  * @param {number} [options.repeatCount] - New repetition limit
  * @param {boolean} [options.sound] - Play sound
+ * @param {string} [options.soundName] - Custom sound filename (e.g. "alert.wav")
  * @param {number} [options.badge] - Badge number
  * @param {Object} [options.data] - Custom data payload
  * @param {string} [options.subtitle] - Subtitle text

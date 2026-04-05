@@ -52,12 +52,15 @@ class BootReceiver : BroadcastReceiver() {
 
                 val channelId = if (info.has("channelId")) info.getString("channelId") else "nativephp_local_notifications"
 
+                val soundName = if (info.has("soundName")) info.getString("soundName") else null
+
                 val notifyIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
                     action = "com.nativephp.localnotifications.NOTIFY"
                     putExtra("notification_id", id)
                     putExtra("title", title)
                     putExtra("body", body)
                     putExtra("sound", sound)
+                    if (soundName != null) putExtra("sound_name", soundName)
                     putExtra("channel_id", channelId)
                     if (repeatMs != 0L) putExtra("repeat_ms", repeatMs)
                     if (repeatType != null) putExtra("repeat_type", repeatType)

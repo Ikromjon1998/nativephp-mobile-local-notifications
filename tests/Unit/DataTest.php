@@ -440,6 +440,30 @@ describe('NotificationOptions', function (): void {
         expect($options->toArray())->toHaveKey('at', 0);
     });
 
+    it('includes soundName in array', function (): void {
+        $options = new NotificationOptions(
+            id: 'custom-sound',
+            title: 'Test',
+            body: 'Body',
+            sound: true,
+            soundName: 'alert.wav',
+        );
+
+        expect($options->toArray()['soundName'])->toBe('alert.wav')
+            ->and($options->toArray()['sound'])->toBeTrue();
+    });
+
+    it('excludes soundName when null', function (): void {
+        $options = new NotificationOptions(
+            id: 'no-sound-name',
+            title: 'Test',
+            body: 'Body',
+            sound: true,
+        );
+
+        expect($options->toArray())->not->toHaveKey('soundName');
+    });
+
     it('includes sound false in array', function (): void {
         $options = new NotificationOptions(
             id: 'silent',
@@ -464,6 +488,7 @@ describe('NotificationOptions', function (): void {
             ->and($array)->not->toHaveKey('at')
             ->and($array)->not->toHaveKey('repeat')
             ->and($array)->not->toHaveKey('sound')
+            ->and($array)->not->toHaveKey('soundName')
             ->and($array)->not->toHaveKey('badge')
             ->and($array)->not->toHaveKey('data')
             ->and($array)->not->toHaveKey('subtitle')

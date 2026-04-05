@@ -66,6 +66,7 @@ LocalNotifications::schedule([
 | [Events](docs/events.md) | Listen in Livewire, Laravel event listeners, or JavaScript |
 | [Repeat Intervals](docs/repeat-intervals.md) | Standard intervals, custom durations, day-of-week, count limits |
 | [Rich Content](docs/rich-content.md) | Images, subtitles, expanded text |
+| [Custom Sounds](docs/custom-sounds.md) | Custom sound files per notification |
 | [Action Buttons](docs/action-buttons.md) | Tap actions, text input, native snooze |
 | [Laravel Notification Channel](docs/laravel-notification-channel.md) | Standard `$user->notify()` pattern |
 | [JavaScript API](docs/javascript-api.md) | Full API for Vue, React, and Inertia apps |

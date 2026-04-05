@@ -25,7 +25,7 @@ See individual epic files in [`docs/epics/`](docs/epics/) for full details.
 | # | Epic | File | Status |
 |---|------|------|--------|
 | 7 | Notification Update & Modification | [07-notification-update.md](docs/epics/07-notification-update.md) | Done |
-| 8 | Custom Notification Sounds | [08-custom-notification-sounds.md](docs/epics/08-custom-notification-sounds.md) | Not Started |
+| 8 | Custom Notification Sounds | [08-custom-notification-sounds.md](docs/epics/08-custom-notification-sounds.md) | Done |
 | 9 | Notification Priority & Importance Control | [09-notification-priority.md](docs/epics/09-notification-priority.md) | Not Started |
 | 10 | Notification Grouping & Threading | [10-notification-grouping.md](docs/epics/10-notification-grouping.md) | Not Started |
 | 11 | Android Exact Alarm Reliability | [11-android-exact-alarm-reliability.md](docs/epics/11-android-exact-alarm-reliability.md) | In Progress |

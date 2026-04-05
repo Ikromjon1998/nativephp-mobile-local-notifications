@@ -195,6 +195,7 @@ enum LocalNotificationsFunctions {
             let maxActions = max(1, (config?["max_actions"] as? Int) ?? 3)
 
             let sound = parameters["sound"] as? Bool ?? defaultSound
+            let soundName = parameters["soundName"] as? String
             let badge = parameters["badge"] as? Int
             let data = parameters["data"] as? [String: Any]
             let subtitle = parameters["subtitle"] as? String
@@ -206,7 +207,7 @@ enum LocalNotificationsFunctions {
 
             let content = NotificationHelper.buildContent(
                 id: id, title: title, body: body,
-                subtitle: subtitle, sound: sound, badge: badge, data: data
+                subtitle: subtitle, sound: sound, soundName: soundName, badge: badge, data: data
             )
 
             // Action buttons
@@ -434,6 +435,8 @@ enum LocalNotificationsFunctions {
             let body = parameters["body"] as? String ?? existingContent.body
             let existingSound = existingContent.sound != nil
             let sound = parameters["sound"] as? Bool ?? existingSound
+            let existingSoundName = existingContent.userInfo["soundName"] as? String
+            let soundName = parameters["soundName"] as? String ?? existingSoundName
             let badge = parameters["badge"] as? Int ?? existingContent.badge?.intValue
             let subtitle = parameters["subtitle"] as? String
                 ?? (existingContent.subtitle.isEmpty ? nil : existingContent.subtitle)
@@ -449,7 +452,7 @@ enum LocalNotificationsFunctions {
 
             let newContent = NotificationHelper.buildContent(
                 id: id, title: title, body: body,
-                subtitle: subtitle, sound: sound, badge: badge, data: mergedData
+                subtitle: subtitle, sound: sound, soundName: soundName, badge: badge, data: mergedData
             )
 
             // Actions
@@ -500,6 +503,7 @@ enum LocalNotificationsFunctions {
                     var mergedParams: [String: Any] = [
                         "id": id, "title": title, "body": body, "sound": sound
                     ]
+                    if let sn = soundName { mergedParams["soundName"] = sn }
                     if let b = badge { mergedParams["badge"] = b }
                     if let s = subtitle { mergedParams["subtitle"] = s }
                     if let d = mergedData { mergedParams["data"] = d }

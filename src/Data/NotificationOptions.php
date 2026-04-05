@@ -31,6 +31,7 @@ final readonly class NotificationOptions
         public ?string $image = null,
         public ?string $bigText = null,
         public ?array $actions = null,
+        public ?string $soundName = null,
     ) {}
 
     /**
@@ -51,6 +52,7 @@ final readonly class NotificationOptions
             'repeatCount' => $this->repeatCount,
             'at' => $this->at,
             'actions' => $actionsArray,
+            'soundName' => $this->soundName,
         ]);
 
         $result = [
@@ -87,6 +89,10 @@ final readonly class NotificationOptions
 
         if ($this->sound !== null) {
             $result['sound'] = $this->sound;
+        }
+
+        if ($this->soundName !== null) {
+            $result['soundName'] = $this->soundName;
         }
 
         if ($this->badge !== null) {

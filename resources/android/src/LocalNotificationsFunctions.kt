@@ -632,6 +632,7 @@ object LocalNotificationsFunctions {
             repeatDays: List<Int>?, repeatCount: Int?
         ): Map<String, Any> {
             val merged = mutableMapOf<String, Any>("id" to id, "title" to params.title, "body" to params.body, "sound" to params.sound)
+            if (params.soundName != null) merged["soundName"] = params.soundName
             if (params.badge != null) merged["badge"] = params.badge
             if (params.data != null) merged["data"] = params.data
             if (params.subtitle != null) merged["subtitle"] = params.subtitle
