@@ -79,9 +79,11 @@ await schedule({
 
 ## Adding Sound Files
 
+We recommend keeping sound files in `resources/sounds/` in your Laravel project as the canonical source. This makes them easy to discover and manage. For a working example, see the [Daily Habits](https://github.com/Ikromjon1998/daily-habits) app which auto-discovers sounds from this directory and presents them in a picker.
+
 ### Android
 
-Place sound files in `resources/android/res/raw/` in your NativePHP project. Android supports:
+Copy sound files to `nativephp/android/app/src/main/res/raw/` in your NativePHP project (or the equivalent `resources/android/res/raw/` path). Android supports:
 
 - `.wav`
 - `.ogg`

@@ -76,7 +76,7 @@ LocalNotifications::schedule([
 
 ## Example App
 
-**[Daily Habits](https://github.com/Ikromjon1998/daily-habits)** is a full, open-source mobile app built with this plugin. It demonstrates scheduling, action buttons, snooze, the Laravel Notification channel, and a notification debug panel with 7 test scenarios.
+**[Daily Habits](https://github.com/Ikromjon1998/daily-habits)** is a full, open-source mobile app built with this plugin. It demonstrates scheduling, action buttons, snooze, custom sounds, the Laravel Notification channel, and a notification debug panel with 9 test scenarios.
 
 ## Testing
 
