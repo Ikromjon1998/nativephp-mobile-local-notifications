@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-04-05
+
+### Added
+
+- **Native snooze rescheduling** — Action buttons can now include a `snooze` parameter (seconds) that reschedules the notification natively via AlarmManager (Android) or UNTimeIntervalNotificationTrigger (iOS). Works even when the app is killed — no app launch required.
+- **`snooze` property on `NotificationAction`** — `new NotificationAction('snooze', 'Snooze', snooze: 300)` or fluent `->action('snooze', 'Snooze', snooze: 300)` for 5-minute snooze.
+- **Navigation replay for queued pending events** — Cold-start action button events now include `injectNavigationReplay` so they appear in Livewire components after page navigation.
+
+### Fixed
+
+- **Cold-start action button events not showing in logs** — Added navigation replay for queued pending events so they're dispatched on both initial load and subsequent `livewire:navigated` events.
+- **Removed `startActivity()` from `NotificationActionReceiver`** — The call failed silently on Android 12+ (API 31) and is unnecessary. Action button presses now store pending events that flush when the user manually opens the app. Snooze actions reschedule natively without needing the app.
+
 ## [1.7.1] - 2026-04-05
 
 ### Fixed
@@ -211,7 +224,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **composer.json** — Added dev dependencies: `pestphp/pest`, `phpstan/phpstan`, `larastan/larastan`, `orchestra/testbench`
 - **nativephp.json** — Added `NotificationTapReceiver`, `NotificationActionReceiver` to Android receivers and `NotificationActionPressed` to events list
 
-## [1.0.0] - 2025-01-01
+## [1.0.0] - 2026-03-08
 
 ### Added
 

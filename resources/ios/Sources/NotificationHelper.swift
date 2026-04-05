@@ -49,6 +49,7 @@ enum NotificationHelper {
 
     /// Register action buttons as a UNNotificationCategory and set the
     /// categoryIdentifier on the content. Returns the updated content.
+    /// Stores snooze durations in userInfo so the delegate can reschedule on action press.
     @discardableResult
     static func registerActions(
         id: String,
@@ -57,11 +58,17 @@ enum NotificationHelper {
         content: UNMutableNotificationContent
     ) -> UNMutableNotificationContent {
         let categoryId = "NOTIF_ACTIONS_\(id)"
+        var snoozeDurations: [String: Int] = [:]
+
         let actions: [UNNotificationAction] = actionsArray.prefix(maxActions).map { actionDict in
             let actionId = actionDict["id"] as? String ?? ""
             let actionTitle = actionDict["title"] as? String ?? ""
             let isDestructive = actionDict["destructive"] as? Bool ?? false
             let isInput = actionDict["input"] as? Bool ?? false
+
+            if let snooze = actionDict["snooze"] as? Int, snooze > 0 {
+                snoozeDurations[actionId] = snooze
+            }
 
             if isInput {
                 var options: UNNotificationActionOptions = []
@@ -76,6 +83,13 @@ enum NotificationHelper {
                     identifier: actionId, title: actionTitle, options: options
                 )
             }
+        }
+
+        // Store snooze durations in userInfo so didReceive can access them
+        if !snoozeDurations.isEmpty {
+            var userInfo = content.userInfo
+            userInfo["action_snooze"] = snoozeDurations
+            content.userInfo = userInfo
         }
 
         let category = UNNotificationCategory(

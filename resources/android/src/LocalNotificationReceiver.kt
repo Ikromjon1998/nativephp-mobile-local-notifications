@@ -151,11 +151,24 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                     val actionTitle = action.getString("title")
                     val isInput = action.optBoolean("input", false)
 
+                    val snoozeSecs = action.optInt("snooze", 0)
+
                     val actionIntent = Intent(context, NotificationActionReceiver::class.java).apply {
                         this.action = "com.nativephp.localnotifications.ACTION"
                         putExtra("notification_id", id)
                         putExtra("action_id", actionId)
                         if (dataJson != null) putExtra("notification_data", dataJson)
+                        if (snoozeSecs > 0) {
+                            putExtra("snooze_seconds", snoozeSecs)
+                            putExtra("title", title)
+                            putExtra("body", body)
+                            putExtra("sound", sound)
+                            putExtra("channel_id", channelId)
+                            if (subtitle != null) putExtra("subtitle", subtitle)
+                            if (imageUrl != null) putExtra("image", imageUrl)
+                            if (bigText != null) putExtra("big_text", bigText)
+                            if (actionsJson != null) putExtra("actions", actionsJson)
+                        }
                     }
 
                     val actionPendingIntent = PendingIntent.getBroadcast(

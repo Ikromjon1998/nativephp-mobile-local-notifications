@@ -108,16 +108,59 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
                 sendOrQueue(eventClass: eventClass, payload: payload)
             }
         } else {
+            let actionId = response.actionIdentifier
             let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationActionPressed"
-            var payload: [String: Any] = ["notificationId": id, "actionId": response.actionIdentifier]
+            var payload: [String: Any] = ["notificationId": id, "actionId": actionId]
             if !customData.isEmpty { payload["data"] = customData }
             if let textResponse = response as? UNTextInputNotificationResponse {
                 payload["inputText"] = textResponse.userText
             }
+
+            // Handle native snooze rescheduling
+            if let snoozeDurations = userInfo["action_snooze"] as? [String: Int],
+               let snoozeSecs = snoozeDurations[actionId], snoozeSecs > 0 {
+                rescheduleSnooze(
+                    id: id, content: content,
+                    snoozeSecs: snoozeSecs, userInfo: userInfo
+                )
+                payload["snoozed"] = true
+                payload["snoozeSeconds"] = snoozeSecs
+                print("⏰ Snooze scheduled: \(id) in \(snoozeSecs)s")
+            }
+
             sendOrQueue(eventClass: eventClass, payload: payload)
         }
 
         completionHandler()
+    }
+
+    /// Reschedule a notification after a snooze delay using UNTimeIntervalNotificationTrigger.
+    private func rescheduleSnooze(
+        id: String,
+        content: UNNotificationContent,
+        snoozeSecs: Int,
+        userInfo: [AnyHashable: Any]
+    ) {
+        let newContent = content.mutableCopy() as! UNMutableNotificationContent
+        // Ensure sound plays on the snoozed notification
+        if newContent.sound == nil {
+            newContent.sound = .default
+        }
+
+        let trigger = UNTimeIntervalNotificationTrigger(
+            timeInterval: TimeInterval(snoozeSecs), repeats: false
+        )
+        let request = UNNotificationRequest(
+            identifier: id, content: newContent, trigger: trigger
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Snooze reschedule failed: \(error.localizedDescription)")
+            } else {
+                print("✅ Snooze rescheduled: \(id) in \(snoozeSecs)s")
+            }
+        }
     }
 }
 

@@ -272,6 +272,19 @@ LocalNotifications::schedule([
         ['id' => 'delete', 'title' => 'Delete', 'destructive' => true],
     ],
 ]);
+
+// With native snooze (reschedules without opening the app)
+LocalNotifications::schedule([
+    'id' => 'alarm-1',
+    'title' => 'Wake Up!',
+    'body' => 'Time to start your day',
+    'delay' => 10,
+    'actions' => [
+        ['id' => 'dismiss', 'title' => 'Dismiss'],
+        ['id' => 'snooze', 'title' => 'Snooze (5m)', 'snooze' => 300],
+        ['id' => 'snooze10', 'title' => 'Snooze (10m)', 'snooze' => 600],
+    ],
+]);
 ```
 
 ### Schedule Parameters
@@ -293,7 +306,7 @@ LocalNotifications::schedule([
 | `subtitle` | string | No | Subtitle text (iOS: subtitle, Android: subtext) |
 | `image` | string | No | Image URL (http/https only) to display in the notification |
 | `bigText` | string | No | Expanded body text shown when notification is expanded |
-| `actions` | array | No | Action buttons (limit set by `config('local-notifications.max_actions')`, default 3), each with `id`, `title`, optional `destructive` and `input` |
+| `actions` | array | No | Action buttons (limit set by `config('local-notifications.max_actions')`, default 3), each with `id`, `title`, optional `destructive`, `input`, and `snooze` (seconds) |
 
 Either `delay` or `at` should be provided. If neither is set, the notification fires after 1 second.
 
@@ -638,7 +651,7 @@ $options = new NotificationOptions(
     repeatCount: 7,
     actions: [
         new NotificationAction(id: 'done', title: 'Done'),
-        new NotificationAction(id: 'snooze', title: 'Snooze'),
+        new NotificationAction(id: 'snooze', title: 'Snooze', snooze: 300),
     ],
 );
 
@@ -673,7 +686,7 @@ class DailyReminderNotification extends Notification implements HasLocalNotifica
             ->sound()
             ->action('done', 'Done')
             ->action('skip', 'Skip', destructive: true)
-            ->action('snooze', 'Snooze');
+            ->action('snooze', 'Snooze (5m)', snooze: 300);
     }
 }
 
@@ -682,6 +695,37 @@ $user->notify(new DailyReminderNotification());
 ```
 
 The Facade and DTO approaches continue to work as before — the Notification channel is an additional option for teams that prefer Laravel's built-in notification system.
+
+### Native Snooze
+
+Action buttons can include a `snooze` parameter (in seconds) that reschedules the notification natively — **the app does not need to be open**. When the user presses a snooze action, the notification is dismissed, rescheduled via AlarmManager (Android) or UNTimeIntervalNotificationTrigger (iOS), and reappears after the specified delay.
+
+```php
+// Facade
+LocalNotifications::schedule([
+    'id' => 'alarm',
+    'title' => 'Wake Up!',
+    'body' => 'Time to start your day',
+    'delay' => 10,
+    'actions' => [
+        ['id' => 'dismiss', 'title' => 'Dismiss'],
+        ['id' => 'snooze5', 'title' => 'Snooze 5m', 'snooze' => 300],
+        ['id' => 'snooze10', 'title' => 'Snooze 10m', 'snooze' => 600],
+    ],
+]);
+
+// Fluent builder (Notification channel)
+LocalNotificationMessage::create()
+    ->id('alarm')
+    ->title('Wake Up!')
+    ->body('Time to start your day')
+    ->delay(10)
+    ->action('dismiss', 'Dismiss')
+    ->action('snooze5', 'Snooze 5m', snooze: 300)
+    ->action('snooze10', 'Snooze 10m', snooze: 600);
+```
+
+The `NotificationActionPressed` event payload includes `snoozed: true` and `snoozeSeconds: 300` when a snooze action is pressed, so your app can track snooze usage. The event is stored as a pending event and flushed when the user next opens the app.
 
 ### How Repeating Notifications Work
 

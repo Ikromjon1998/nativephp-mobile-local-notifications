@@ -165,10 +165,10 @@ class LocalNotificationMessage
         return $this;
     }
 
-    public function action(string $id, string $title, bool $destructive = false, bool $input = false): self
+    public function action(string $id, string $title, bool $destructive = false, bool $input = false, ?int $snooze = null): self
     {
         $this->actions ??= [];
-        $this->actions[] = new NotificationAction($id, $title, $destructive, $input);
+        $this->actions[] = new NotificationAction($id, $title, $destructive, $input, $snooze);
 
         return $this;
     }

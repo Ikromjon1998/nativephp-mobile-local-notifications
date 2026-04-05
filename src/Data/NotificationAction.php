@@ -11,10 +11,11 @@ final readonly class NotificationAction
         public string $title,
         public bool $destructive = false,
         public bool $input = false,
+        public ?int $snooze = null,
     ) {}
 
     /**
-     * @return array{id: string, title: string, destructive?: bool, input?: bool}
+     * @return array{id: string, title: string, destructive?: bool, input?: bool, snooze?: int}
      */
     public function toArray(): array
     {
@@ -29,6 +30,10 @@ final readonly class NotificationAction
 
         if ($this->input) {
             $data['input'] = true;
+        }
+
+        if ($this->snooze !== null) {
+            $data['snooze'] = $this->snooze;
         }
 
         return $data;

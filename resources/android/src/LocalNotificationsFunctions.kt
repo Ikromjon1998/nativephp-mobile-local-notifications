@@ -258,7 +258,10 @@ object LocalNotificationsFunctions {
         Log.d(TAG, "Dispatching ${queue.length()} pending event(s) from queue")
         for (i in 0 until queue.length()) {
             val entry = queue.getJSONObject(i)
-            dispatchEvent(activity, entry.getString("event"), entry.getJSONObject("payload").toString())
+            val eventClass = entry.getString("event")
+            val payloadStr = entry.getJSONObject("payload").toString()
+            dispatchEvent(activity, eventClass, payloadStr)
+            injectNavigationReplay(activity, eventClass, payloadStr)
         }
     }
 
