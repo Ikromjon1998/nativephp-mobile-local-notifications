@@ -7,6 +7,7 @@ namespace Ikromjon\LocalNotifications\Notifications;
 use Ikromjon\LocalNotifications\Data\NotificationAction;
 use Ikromjon\LocalNotifications\Data\NotificationOptions;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
+use Illuminate\Support\Str;
 
 class LocalNotificationMessage
 {
@@ -49,7 +50,7 @@ class LocalNotificationMessage
 
     public function __construct()
     {
-        $this->id = 'ln_'.bin2hex(random_bytes(16));
+        $this->id = (string) Str::uuid();
     }
 
     public static function create(): self

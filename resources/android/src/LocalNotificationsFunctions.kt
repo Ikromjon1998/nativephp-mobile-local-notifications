@@ -254,14 +254,17 @@ object LocalNotificationsFunctions {
 
         // Flush queued events
         val prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val eventsJson = prefs.getString(PrefsKeys.PENDING_EVENTS, null) ?: return
-        prefs.edit().remove(PrefsKeys.PENDING_EVENTS).apply()
-
-        val queue = try {
-            JSONArray(eventsJson)
-        } catch (e: org.json.JSONException) {
-            Log.e(TAG, "Corrupted pending events JSON, clearing: ${e.message}")
-            return
+        val queue = synchronized(PrefsKeys.lock) {
+            val eventsJson = prefs.getString(PrefsKeys.PENDING_EVENTS, null) ?: return
+            try {
+                val parsedQueue = JSONArray(eventsJson)
+                prefs.edit().remove(PrefsKeys.PENDING_EVENTS).apply()
+                parsedQueue
+            } catch (e: org.json.JSONException) {
+                prefs.edit().remove(PrefsKeys.PENDING_EVENTS).apply()
+                Log.e(TAG, "Corrupted pending events JSON, clearing: ${e.message}")
+                return
+            }
         }
         Log.d(TAG, "Dispatching ${queue.length()} pending event(s) from queue")
         for (i in 0 until queue.length()) {

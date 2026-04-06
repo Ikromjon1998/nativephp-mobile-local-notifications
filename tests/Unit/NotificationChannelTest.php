@@ -35,7 +35,7 @@ it('generates an id when none is set', function (): void {
         ->toArray();
 
     expect($array['id'])->toBeString()->not->toBeEmpty()
-        ->toStartWith('ln_');
+        ->toMatch('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/');
 });
 
 it('generates unique ids across instances', function (): void {
