@@ -9,7 +9,7 @@ use Ikromjon\LocalNotifications\Validation\NotificationValidator;
 
 final readonly class NotificationOptions
 {
-    public readonly RepeatInterval|string|null $repeat;
+    public RepeatInterval|string|null $repeat;
 
     /**
      * @param  array<string, mixed>|null  $data
