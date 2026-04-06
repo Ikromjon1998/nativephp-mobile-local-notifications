@@ -1,5 +1,8 @@
 import Foundation
 import UserNotifications
+import os.log
+
+private let logger = Logger(subsystem: "com.nativephp.localnotifications", category: "NotificationHelper")
 
 /// Shared notification utilities used by Schedule and Update to eliminate
 /// duplicated content building, action registration, image attachment,
@@ -129,7 +132,7 @@ enum NotificationHelper {
               let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https" else {
             if imageUrl != nil {
-                print("⚠️ Rejected image URL with unsupported scheme, only http/https allowed")
+                logger.warning("Rejected image URL with unsupported scheme, only http/https allowed")
             }
             return
         }
@@ -137,7 +140,7 @@ enum NotificationHelper {
         if let attachment = downloadAndAttachImage(from: url) {
             content.attachments = [attachment]
         } else {
-            print("⚠️ Failed to download image, sending notification without image")
+            logger.warning("Failed to download image, sending notification without image")
         }
     }
 
@@ -149,7 +152,7 @@ enum NotificationHelper {
         let task = URLSession.shared.downloadTask(with: url) { localUrl, response, error in
             defer { semaphore.signal() }
             guard let localUrl = localUrl, error == nil else {
-                print("❌ Image download failed: \(error?.localizedDescription ?? "unknown error")")
+                logger.error("Image download failed: \(error?.localizedDescription ?? "unknown error", privacy: .public)")
                 return
             }
             let ext = url.pathExtension.isEmpty ? "jpg" : url.pathExtension
@@ -161,7 +164,8 @@ enum NotificationHelper {
                     identifier: UUID().uuidString, url: tmpFile, options: nil
                 )
             } catch {
-                print("❌ Failed to create attachment: \(error.localizedDescription)")
+                try? FileManager.default.removeItem(at: tmpFile)
+                logger.error("Failed to create attachment: \(error.localizedDescription, privacy: .public)")
             }
         }
         task.resume()

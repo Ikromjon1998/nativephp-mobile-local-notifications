@@ -263,7 +263,12 @@ object NotificationScheduler {
         )
 
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTimeMs, pendingIntent)
+        try {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTimeMs, pendingIntent)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "setExactAndAllowWhileIdle() denied, falling back: ${e.message}")
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTimeMs, pendingIntent)
+        }
     }
 
     /**

@@ -335,11 +335,12 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         )
 
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            nextTriggerMs,
-            pendingIntent
-        )
+        try {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextTriggerMs, pendingIntent)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "setExactAndAllowWhileIdle() denied for reschedule, falling back: ${e.message}")
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextTriggerMs, pendingIntent)
+        }
 
         // Update the stored trigger time and remaining count for boot restoration and getPending()
         synchronized(PrefsKeys.lock) {
@@ -422,9 +423,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             connection.readTimeout = 10_000
             connection.doInput = true
             connection.connect()
-            val inputStream = connection.inputStream
-            val bitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream.close()
+            val bitmap = connection.inputStream.use { BitmapFactory.decodeStream(it) }
             connection.disconnect()
             bitmap
         } catch (e: Exception) {

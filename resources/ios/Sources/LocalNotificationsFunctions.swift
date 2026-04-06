@@ -1,6 +1,9 @@
 import Foundation
 import UserNotifications
 import UIKit
+import os.log
+
+private let logger = Logger(subsystem: "com.nativephp.localnotifications", category: "LocalNotifications")
 
 // MARK: - Notification Delegate
 
@@ -25,7 +28,7 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         } else {
             pendingQueue.sync {
                 pendingEvents.append((eventClass: eventClass, payload: payload))
-                print("⏳ Queued pending event: \(eventClass), queue size: \(pendingEvents.count)")
+                logger.debug("Queued pending event: \(eventClass, privacy: .public), queue size: \(self.pendingEvents.count)")
             }
         }
     }
@@ -37,7 +40,7 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             pendingEvents.removeAll()
         }
         guard !events.isEmpty, let send = LaravelBridge.shared.send else { return }
-        print("📤 Dispatching \(events.count) pending event(s)")
+        logger.debug("Dispatching \(events.count) pending event(s)")
         for event in events {
             send(event.eventClass, event.payload)
         }
@@ -101,7 +104,7 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
                 )
                 payload["snoozed"] = true
                 payload["snoozeSeconds"] = snoozeSecs
-                print("⏰ Snooze scheduled: \(id) in \(snoozeSecs)s")
+                logger.info("Snooze scheduled: \(id, privacy: .public) in \(snoozeSecs)s")
             }
 
             sendOrQueue(eventClass: Events.notificationActionPressed, payload: payload)
@@ -118,7 +121,7 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         userInfo: [AnyHashable: Any]
     ) {
         guard let newContent = content.mutableCopy() as? UNMutableNotificationContent else {
-            print("Failed to create mutable copy of notification content")
+            logger.error("Failed to create mutable copy of notification content")
             return
         }
         // Ensure sound plays on the snoozed notification
@@ -135,9 +138,9 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Snooze reschedule failed: \(error.localizedDescription)")
+                logger.error("Snooze reschedule failed: \(error.localizedDescription, privacy: .public)")
             } else {
-                print("✅ Snooze rescheduled: \(id) in \(snoozeSecs)s")
+                logger.info("Snooze rescheduled: \(id, privacy: .public) in \(snoozeSecs)s")
             }
         }
     }
@@ -226,10 +229,10 @@ enum LocalNotificationsFunctions {
 
             center.add(request) { error in
                 if let error = error {
-                    print("❌ Failed to schedule notification: \(error.localizedDescription)")
+                    logger.error("Failed to schedule notification: \(error.localizedDescription, privacy: .public)")
                     result = ["success": false, "error": error.localizedDescription]
                 } else {
-                    print("✅ Notification scheduled: \(id)")
+                    logger.info("Notification scheduled: \(id, privacy: .public)")
                     result = ["success": true, "id": id]
 
                     if let count = repeatCount, count >= 1 {
@@ -271,7 +274,7 @@ enum LocalNotificationsFunctions {
                 UserDefaults.standard.removeObject(forKey: NotificationKeys.remainingCount(subId))
             }
 
-            print("✅ Notification cancelled: \(id)")
+            logger.info("Notification cancelled: \(id, privacy: .public)")
             return ["success": true, "id": id]
         }
     }
@@ -286,7 +289,7 @@ enum LocalNotificationsFunctions {
             center.removeAllPendingNotificationRequests()
             center.removeAllDeliveredNotifications()
 
-            print("✅ All notifications cancelled")
+            logger.info("All notifications cancelled")
             return ["success": true]
         }
     }
@@ -575,15 +578,15 @@ enum LocalNotificationsFunctions {
 
             center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
                 if let error = error {
-                    print("Permission request error: \(error.localizedDescription)")
+                    logger.error("Permission request error: \(error.localizedDescription, privacy: .public)")
                     result = ["granted": false, "error": error.localizedDescription]
                     LaravelBridge.shared.send?(Events.permissionDenied, [:])
                 } else if granted {
-                    print("Notification permission granted")
+                    logger.info("Notification permission granted")
                     result = ["granted": true]
                     LaravelBridge.shared.send?(Events.permissionGranted, [:])
                 } else {
-                    print("Notification permission denied")
+                    logger.info("Notification permission denied")
                     result = ["granted": false]
                     LaravelBridge.shared.send?(Events.permissionDenied, [:])
                 }

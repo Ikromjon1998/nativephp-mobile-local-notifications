@@ -35,7 +35,6 @@ object LocalNotificationsFunctions {
 
     private const val TAG = "LocalNotifications"
     const val PREFS_NAME = "nativephp_local_notifications_prefs"
-    private var resumeCallbackRegistered = false
 
     // Defaults — overridden at runtime from PHP config via _config parameter
     private var channelId = Defaults.CHANNEL_ID
@@ -179,11 +178,12 @@ object LocalNotificationsFunctions {
         }
     }
 
-    private fun registerResumeDetection(activity: FragmentActivity) {
-        if (resumeCallbackRegistered) return
-        resumeCallbackRegistered = true
+    private var lifecycleCallback: Application.ActivityLifecycleCallbacks? = null
 
-        activity.application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+    private fun registerResumeDetection(activity: FragmentActivity) {
+        if (lifecycleCallback != null) return
+
+        val callback = object : Application.ActivityLifecycleCallbacks {
             override fun onActivityResumed(a: Activity) {
                 if (a is FragmentActivity) {
                     ActivityHolder.set(a)
@@ -198,7 +198,9 @@ object LocalNotificationsFunctions {
             override fun onActivityStopped(a: Activity) {}
             override fun onActivitySaveInstanceState(a: Activity, b: Bundle) {}
             override fun onActivityDestroyed(a: Activity) {}
-        })
+        }
+        lifecycleCallback = callback
+        activity.application.registerActivityLifecycleCallbacks(callback)
         Log.d(TAG, "Registered onResume callback for tap detection")
     }
 
