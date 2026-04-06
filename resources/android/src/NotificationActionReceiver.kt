@@ -39,7 +39,11 @@ class NotificationActionReceiver : BroadcastReceiver() {
             put("notificationId", notificationId)
             put("actionId", actionId)
             if (dataJson != null) {
-                put("data", JSONObject(dataJson))
+                try {
+                    put("data", JSONObject(dataJson))
+                } catch (e: org.json.JSONException) {
+                    Log.e(TAG, "Invalid notification data JSON for $notificationId: ${e.message}")
+                }
             }
             if (inputText != null) {
                 put("inputText", inputText)

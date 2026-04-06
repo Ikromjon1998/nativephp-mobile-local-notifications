@@ -139,7 +139,13 @@ object LocalNotificationsFunctions {
                 put("id", id)
                 put("title", title)
                 put("body", body)
-                if (dataJson != null) put("data", JSONObject(dataJson))
+                if (dataJson != null) {
+                    try {
+                        put("data", JSONObject(dataJson))
+                    } catch (e: org.json.JSONException) {
+                        Log.e(TAG, "Failed to parse tap payload data for $id: ${e.message}")
+                    }
+                }
             }
             prefs.edit().putString(PrefsKeys.tapPayload(id), payload.toString()).apply()
             Log.d(TAG, "Stored tap payload for: $id")
@@ -237,7 +243,13 @@ object LocalNotificationsFunctions {
                     put("id", id)
                     put("title", title)
                     put("body", body)
-                    if (dataJson != null) put("data", JSONObject(dataJson))
+                    if (dataJson != null) {
+                        try {
+                            put("data", JSONObject(dataJson))
+                        } catch (e: org.json.JSONException) {
+                            Log.e(TAG, "Invalid notification data JSON in activity intent for $id: ${e.message}")
+                        }
+                    }
                 }
                 val payloadStr = payload.toString()
                 val eventClass = Events.NOTIFICATION_TAPPED

@@ -30,7 +30,11 @@ class NotificationTapReceiver : BroadcastReceiver() {
             put("title", title)
             put("body", body)
             if (dataJson != null) {
-                put("data", JSONObject(dataJson))
+                try {
+                    put("data", JSONObject(dataJson))
+                } catch (e: org.json.JSONException) {
+                    Log.e(TAG, "Invalid notification data JSON for $id: ${e.message}")
+                }
             }
         }
 
