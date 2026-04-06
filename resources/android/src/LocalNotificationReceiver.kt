@@ -47,228 +47,228 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         // and rescheduling can complete without the system killing us.
         val pendingResult = goAsync()
         try {
-        val sound = intent.getBooleanExtra(IntentExtras.SOUND, true)
-        val soundName = intent.getStringExtra(IntentExtras.SOUND_NAME)
-        val baseChannelId = intent.getStringExtra(IntentExtras.CHANNEL_ID) ?: Defaults.CHANNEL_ID
-        val dataJson = intent.getStringExtra(IntentExtras.DATA)
-        val subtitle = intent.getStringExtra(IntentExtras.SUBTITLE)
-        val imageUrl = intent.getStringExtra(IntentExtras.IMAGE)
-        val bigText = intent.getStringExtra(IntentExtras.BIG_TEXT)
-        val actionsJson = intent.getStringExtra(IntentExtras.ACTIONS)
+            val sound = intent.getBooleanExtra(IntentExtras.SOUND, true)
+            val soundName = intent.getStringExtra(IntentExtras.SOUND_NAME)
+            val baseChannelId = intent.getStringExtra(IntentExtras.CHANNEL_ID) ?: Defaults.CHANNEL_ID
+            val dataJson = intent.getStringExtra(IntentExtras.DATA)
+            val subtitle = intent.getStringExtra(IntentExtras.SUBTITLE)
+            val imageUrl = intent.getStringExtra(IntentExtras.IMAGE)
+            val bigText = intent.getStringExtra(IntentExtras.BIG_TEXT)
+            val actionsJson = intent.getStringExtra(IntentExtras.ACTIONS)
 
-        Log.d(TAG, "Notification received: $id - $title, actionsJson=${actionsJson != null} (${actionsJson?.length ?: 0} chars)")
+            Log.d(TAG, "Notification received: $id - $title, actionsJson=${actionsJson != null} (${actionsJson?.length ?: 0} chars)")
 
-        // Build the notification
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            // Build the notification
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // Resolve the effective channel: use a per-sound channel for custom sounds
-        val channelId = if (soundName != null) {
-            ensureSoundChannel(context, notificationManager, baseChannelId, soundName)
-        } else {
-            baseChannelId
-        }
+            // Resolve the effective channel: use a per-sound channel for custom sounds
+            val channelId = if (soundName != null) {
+                ensureSoundChannel(context, notificationManager, baseChannelId, soundName)
+            } else {
+                baseChannelId
+            }
 
-        // Launch the app directly when the user taps the notification.
-        // Using PendingIntent.getActivity() instead of getBroadcast() because
-        // startActivity() from a BroadcastReceiver is restricted on Android 12+ (API 31).
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-            action = IntentActions.TAP
-            putExtra(IntentExtras.NOTIFICATION_ID, id)
-            putExtra(IntentExtras.NOTIFICATION_TITLE, title)
-            putExtra(IntentExtras.NOTIFICATION_BODY, body)
-            if (dataJson != null) putExtra(IntentExtras.NOTIFICATION_DATA, dataJson)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-
-        val pendingIntent = if (launchIntent != null) {
-            PendingIntent.getActivity(
-                context,
-                id.hashCode(),
-                launchIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-        } else {
-            Log.e(TAG, "Could not resolve launch intent for package: ${context.packageName}")
-            // Fallback: use a broadcast so the notification still works
-            val fallbackIntent = Intent(context, NotificationTapReceiver::class.java).apply {
-                this.action = IntentActions.TAP
+            // Launch the app directly when the user taps the notification.
+            // Using PendingIntent.getActivity() instead of getBroadcast() because
+            // startActivity() from a BroadcastReceiver is restricted on Android 12+ (API 31).
+            val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+                action = IntentActions.TAP
                 putExtra(IntentExtras.NOTIFICATION_ID, id)
                 putExtra(IntentExtras.NOTIFICATION_TITLE, title)
                 putExtra(IntentExtras.NOTIFICATION_BODY, body)
                 if (dataJson != null) putExtra(IntentExtras.NOTIFICATION_DATA, dataJson)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
-            PendingIntent.getBroadcast(
-                context,
-                id.hashCode(),
-                fallbackIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-        }
 
-        // Use app's small icon, fall back to Android's default icon
-        val appIcon = try {
-            val iconResId = context.applicationInfo.icon
-            if (iconResId != 0) iconResId else android.R.drawable.ic_dialog_info
-        } catch (e: Exception) {
-            android.R.drawable.ic_dialog_info
-        }
+            val pendingIntent = if (launchIntent != null) {
+                PendingIntent.getActivity(
+                    context,
+                    id.hashCode(),
+                    launchIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            } else {
+                Log.e(TAG, "Could not resolve launch intent for package: ${context.packageName}")
+                // Fallback: use a broadcast so the notification still works
+                val fallbackIntent = Intent(context, NotificationTapReceiver::class.java).apply {
+                    this.action = IntentActions.TAP
+                    putExtra(IntentExtras.NOTIFICATION_ID, id)
+                    putExtra(IntentExtras.NOTIFICATION_TITLE, title)
+                    putExtra(IntentExtras.NOTIFICATION_BODY, body)
+                    if (dataJson != null) putExtra(IntentExtras.NOTIFICATION_DATA, dataJson)
+                }
+                PendingIntent.getBroadcast(
+                    context,
+                    id.hashCode(),
+                    fallbackIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            }
 
-        val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(appIcon)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setContentIntent(pendingIntent)
+            // Use app's small icon, fall back to Android's default icon
+            val appIcon = try {
+                val iconResId = context.applicationInfo.icon
+                if (iconResId != 0) iconResId else android.R.drawable.ic_dialog_info
+            } catch (e: Exception) {
+                android.R.drawable.ic_dialog_info
+            }
 
-        if (subtitle != null) {
-            builder.setSubText(subtitle)
-        }
+            val builder = NotificationCompat.Builder(context, channelId)
+                .setSmallIcon(appIcon)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setContentIntent(pendingIntent)
 
-        if (!sound && soundName == null) {
-            builder.setSilent(true)
-        }
+            if (subtitle != null) {
+                builder.setSubText(subtitle)
+            }
 
-        // Apply rich content styles
-        val imageBitmap = if (imageUrl != null) downloadImage(imageUrl) else null
+            if (!sound && soundName == null) {
+                builder.setSilent(true)
+            }
 
-        if (imageBitmap != null) {
-            // BigPictureStyle for image notifications
-            val style = NotificationCompat.BigPictureStyle()
-                .bigPicture(imageBitmap)
-                .setSummaryText(bigText ?: body)
-            builder.setStyle(style)
-                .setLargeIcon(imageBitmap)
-        } else if (bigText != null) {
-            // BigTextStyle for expanded text
-            val style = NotificationCompat.BigTextStyle()
-                .bigText(bigText)
-            builder.setStyle(style)
-        } else if (actionsJson != null) {
-            // BigTextStyle required for action buttons to appear on Samsung One UI.
-            // Without an explicit expanded style, Samsung hides action buttons.
-            builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
-        }
+            // Apply rich content styles
+            val imageBitmap = if (imageUrl != null) downloadImage(imageUrl) else null
 
-        // Add action buttons if provided
-        if (actionsJson != null) {
-            Log.d(TAG, "Actions JSON for $id: $actionsJson")
-            try {
-                val actions = JSONArray(actionsJson)
-                Log.d(TAG, "Parsed ${actions.length()} actions for notification $id")
-                for (i in 0 until minOf(actions.length(), LocalNotificationsFunctions.maxActions)) {
-                    val action = actions.getJSONObject(i)
-                    val actionId = action.getString("id")
-                    val actionTitle = action.getString("title")
-                    val isInput = action.optBoolean("input", false)
+            if (imageBitmap != null) {
+                // BigPictureStyle for image notifications
+                val style = NotificationCompat.BigPictureStyle()
+                    .bigPicture(imageBitmap)
+                    .setSummaryText(bigText ?: body)
+                builder.setStyle(style)
+                    .setLargeIcon(imageBitmap)
+            } else if (bigText != null) {
+                // BigTextStyle for expanded text
+                val style = NotificationCompat.BigTextStyle()
+                    .bigText(bigText)
+                builder.setStyle(style)
+            } else if (actionsJson != null) {
+                // BigTextStyle required for action buttons to appear on Samsung One UI.
+                // Without an explicit expanded style, Samsung hides action buttons.
+                builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            }
 
-                    val snoozeSecs = action.optInt("snooze", 0)
+            // Add action buttons if provided
+            if (actionsJson != null) {
+                Log.d(TAG, "Actions JSON for $id: $actionsJson")
+                try {
+                    val actions = JSONArray(actionsJson)
+                    Log.d(TAG, "Parsed ${actions.length()} actions for notification $id")
+                    for (i in 0 until minOf(actions.length(), LocalNotificationsFunctions.maxActions)) {
+                        val action = actions.getJSONObject(i)
+                        val actionId = action.getString("id")
+                        val actionTitle = action.getString("title")
+                        val isInput = action.optBoolean("input", false)
 
-                    val actionIntent = Intent(context, NotificationActionReceiver::class.java).apply {
-                        this.action = IntentActions.ACTION
-                        putExtra(IntentExtras.NOTIFICATION_ID, id)
-                        putExtra(IntentExtras.ACTION_ID, actionId)
-                        if (dataJson != null) putExtra(IntentExtras.NOTIFICATION_DATA, dataJson)
-                        if (snoozeSecs > 0) {
-                            putExtra(IntentExtras.SNOOZE_SECONDS, snoozeSecs)
-                            putExtra(IntentExtras.TITLE, title)
-                            putExtra(IntentExtras.BODY, body)
-                            putExtra(IntentExtras.SOUND, sound)
-                            if (soundName != null) putExtra(IntentExtras.SOUND_NAME, soundName)
-                            putExtra(IntentExtras.CHANNEL_ID, baseChannelId)
-                            if (subtitle != null) putExtra(IntentExtras.SUBTITLE, subtitle)
-                            if (imageUrl != null) putExtra(IntentExtras.IMAGE, imageUrl)
-                            if (bigText != null) putExtra(IntentExtras.BIG_TEXT, bigText)
-                            if (actionsJson != null) putExtra(IntentExtras.ACTIONS, actionsJson)
+                        val snoozeSecs = action.optInt("snooze", 0)
+
+                        val actionIntent = Intent(context, NotificationActionReceiver::class.java).apply {
+                            this.action = IntentActions.ACTION
+                            putExtra(IntentExtras.NOTIFICATION_ID, id)
+                            putExtra(IntentExtras.ACTION_ID, actionId)
+                            if (dataJson != null) putExtra(IntentExtras.NOTIFICATION_DATA, dataJson)
+                            if (snoozeSecs > 0) {
+                                putExtra(IntentExtras.SNOOZE_SECONDS, snoozeSecs)
+                                putExtra(IntentExtras.TITLE, title)
+                                putExtra(IntentExtras.BODY, body)
+                                putExtra(IntentExtras.SOUND, sound)
+                                if (soundName != null) putExtra(IntentExtras.SOUND_NAME, soundName)
+                                putExtra(IntentExtras.CHANNEL_ID, baseChannelId)
+                                if (subtitle != null) putExtra(IntentExtras.SUBTITLE, subtitle)
+                                if (imageUrl != null) putExtra(IntentExtras.IMAGE, imageUrl)
+                                if (bigText != null) putExtra(IntentExtras.BIG_TEXT, bigText)
+                                if (actionsJson != null) putExtra(IntentExtras.ACTIONS, actionsJson)
+                            }
+                        }
+
+                        val actionPendingIntent = PendingIntent.getBroadcast(
+                            context,
+                            (id + actionId).hashCode(),
+                            actionIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                        )
+
+                        if (isInput) {
+                            val remoteInput = RemoteInput.Builder(NotificationActionReceiver.REMOTE_INPUT_KEY)
+                                .setLabel(actionTitle)
+                                .build()
+                            val notifAction = NotificationCompat.Action.Builder(0, actionTitle, actionPendingIntent)
+                                .addRemoteInput(remoteInput)
+                                .build()
+                            builder.addAction(notifAction)
+                        } else {
+                            builder.addAction(0, actionTitle, actionPendingIntent)
                         }
                     }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing actions: ${e.message}")
+                }
+            }
 
-                    val actionPendingIntent = PendingIntent.getBroadcast(
-                        context,
-                        (id + actionId).hashCode(),
-                        actionIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-                    )
+            // Set deleteIntent: fires when user swipes away the notification.
+            // Clears the stored tap payload so we don't dispatch a false NotificationTapped.
+            // Does NOT fire on auto-cancel (tap), so the payload persists for tap detection.
+            val dismissIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
+                action = IntentActions.DISMISS
+                putExtra(IntentExtras.NOTIFICATION_ID, id)
+            }
+            val dismissPendingIntent = PendingIntent.getBroadcast(
+                context,
+                ("dismiss_$id").hashCode(),
+                dismissIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.setDeleteIntent(dismissPendingIntent)
 
-                    if (isInput) {
-                        val remoteInput = RemoteInput.Builder(NotificationActionReceiver.REMOTE_INPUT_KEY)
-                            .setLabel(actionTitle)
-                            .build()
-                        val notifAction = NotificationCompat.Action.Builder(0, actionTitle, actionPendingIntent)
-                            .addRemoteInput(remoteInput)
-                            .build()
-                        builder.addAction(notifAction)
-                    } else {
-                        builder.addAction(0, actionTitle, actionPendingIntent)
+            // Store tap payload for warm-start detection.
+            // On tap (auto-cancel), this persists. On dismiss (swipe), deleteIntent clears it.
+            LocalNotificationsFunctions.storeTapPayload(context, id, title, body, dataJson)
+
+            notificationManager.notify(id.hashCode(), builder.build())
+
+            // Dispatch NotificationReceived event if the app is active
+            val activity = LocalNotificationsFunctions.ActivityHolder.get()
+            if (activity != null) {
+                val payload = JSONObject().apply {
+                    put("id", id)
+                    put("title", title)
+                    put("body", body)
+                    if (dataJson != null) {
+                        put("data", JSONObject(dataJson))
                     }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error parsing actions: ${e.message}")
+                LocalNotificationsFunctions.dispatchEvent(
+                    activity,
+                    Events.NOTIFICATION_RECEIVED,
+                    payload.toString()
+                )
+            } else {
+                Log.d(TAG, "No active activity, skipping NotificationReceived event dispatch")
             }
-        }
 
-        // Set deleteIntent: fires when user swipes away the notification.
-        // Clears the stored tap payload so we don't dispatch a false NotificationTapped.
-        // Does NOT fire on auto-cancel (tap), so the payload persists for tap detection.
-        val dismissIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
-            action = IntentActions.DISMISS
-            putExtra(IntentExtras.NOTIFICATION_ID, id)
-        }
-        val dismissPendingIntent = PendingIntent.getBroadcast(
-            context,
-            ("dismiss_$id").hashCode(),
-            dismissIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        builder.setDeleteIntent(dismissPendingIntent)
-
-        // Store tap payload for warm-start detection.
-        // On tap (auto-cancel), this persists. On dismiss (swipe), deleteIntent clears it.
-        LocalNotificationsFunctions.storeTapPayload(context, id, title, body, dataJson)
-
-        notificationManager.notify(id.hashCode(), builder.build())
-
-        // Dispatch NotificationReceived event if the app is active
-        val activity = LocalNotificationsFunctions.ActivityHolder.get()
-        if (activity != null) {
-            val payload = JSONObject().apply {
-                put("id", id)
-                put("title", title)
-                put("body", body)
-                if (dataJson != null) {
-                    put("data", JSONObject(dataJson))
+            val repeatMs = intent.getLongExtra(IntentExtras.REPEAT_MS, 0L)
+            val repeatType = intent.getStringExtra(IntentExtras.REPEAT_TYPE)
+            val remainingCount = if (intent.hasExtra(IntentExtras.REMAINING_COUNT)) intent.getIntExtra(IntentExtras.REMAINING_COUNT, 0) else -1
+            if (repeatMs == 0L || remainingCount == 1) {
+                // Clean up: non-repeating or last repetition reached
+                if (remainingCount == 1) Log.d(TAG, "Repeat count exhausted for: $id")
+                synchronized(PrefsKeys.lock) {
+                    val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
+                    val ids = prefs.getStringSet(PrefsKeys.NOTIFICATION_IDS, mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+                    ids.remove(id)
+                    prefs.edit()
+                        .putStringSet(PrefsKeys.NOTIFICATION_IDS, ids)
+                        .remove(PrefsKeys.notificationInfo(id))
+                        .apply()
                 }
+            } else {
+                // Self-reschedule the next occurrence for repeating notifications.
+                // This replaces setRepeating() which is unreliable on modern Android.
+                val nextCount = if (remainingCount > 1) remainingCount - 1 else -1
+                rescheduleNext(context, id, title, body, sound, soundName, baseChannelId, repeatMs, repeatType, dataJson, subtitle, imageUrl, bigText, actionsJson, nextCount)
             }
-            LocalNotificationsFunctions.dispatchEvent(
-                activity,
-                Events.NOTIFICATION_RECEIVED,
-                payload.toString()
-            )
-        } else {
-            Log.d(TAG, "No active activity, skipping NotificationReceived event dispatch")
-        }
-
-        val repeatMs = intent.getLongExtra(IntentExtras.REPEAT_MS, 0L)
-        val repeatType = intent.getStringExtra(IntentExtras.REPEAT_TYPE)
-        val remainingCount = if (intent.hasExtra(IntentExtras.REMAINING_COUNT)) intent.getIntExtra(IntentExtras.REMAINING_COUNT, 0) else -1
-        if (repeatMs == 0L || remainingCount == 1) {
-            // Clean up: non-repeating or last repetition reached
-            if (remainingCount == 1) Log.d(TAG, "Repeat count exhausted for: $id")
-            synchronized(PrefsKeys.lock) {
-                val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
-                val ids = prefs.getStringSet(PrefsKeys.NOTIFICATION_IDS, mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-                ids.remove(id)
-                prefs.edit()
-                    .putStringSet(PrefsKeys.NOTIFICATION_IDS, ids)
-                    .remove(PrefsKeys.notificationInfo(id))
-                    .apply()
-            }
-        } else {
-            // Self-reschedule the next occurrence for repeating notifications.
-            // This replaces setRepeating() which is unreliable on modern Android.
-            val nextCount = if (remainingCount > 1) remainingCount - 1 else -1
-            rescheduleNext(context, id, title, body, sound, soundName, baseChannelId, repeatMs, repeatType, dataJson, subtitle, imageUrl, bigText, actionsJson, nextCount)
-        }
         } finally {
             pendingResult.finish()
         }
