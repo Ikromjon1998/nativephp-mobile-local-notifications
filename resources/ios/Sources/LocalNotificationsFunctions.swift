@@ -51,22 +51,11 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         let content = notification.request.content
         let userInfo = content.userInfo
         let requestId = notification.request.identifier
-        let id = userInfo["notification_id"] as? String ?? requestId
+        let id = userInfo[UserInfoKeys.notificationId] as? String ?? requestId
 
-        // Decrement repeat count
-        let remainingKey = "notif_remaining_\(requestId)"
-        let defaults = UserDefaults.standard
-        let remaining = defaults.integer(forKey: remainingKey)
-        if remaining > 0 {
-            if remaining <= 1 {
-                center.removePendingNotificationRequests(withIdentifiers: [requestId])
-                defaults.removeObject(forKey: remainingKey)
-            } else {
-                defaults.set(remaining - 1, forKey: remainingKey)
-            }
-        }
+        NotificationHelper.decrementRepeatCount(requestId: requestId, center: center)
 
-        let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationReceived"
+        let eventClass = Events.notificationReceived
         var payload: [String: Any] = ["id": id, "title": content.title, "body": content.body]
         let customData = NotificationHelper.extractCustomData(from: userInfo)
         if !customData.isEmpty { payload["data"] = customData }
@@ -83,33 +72,20 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         let content = response.notification.request.content
         let userInfo = content.userInfo
         let requestId = response.notification.request.identifier
-        let id = userInfo["notification_id"] as? String ?? requestId
+        let id = userInfo[UserInfoKeys.notificationId] as? String ?? requestId
         let customData = NotificationHelper.extractCustomData(from: userInfo)
 
-        // Decrement repeat count
-        let remainingKey = "notif_remaining_\(requestId)"
-        let defaults = UserDefaults.standard
-        let remaining = defaults.integer(forKey: remainingKey)
-        if remaining > 0 {
-            if remaining <= 1 {
-                center.removePendingNotificationRequests(withIdentifiers: [requestId])
-                defaults.removeObject(forKey: remainingKey)
-            } else {
-                defaults.set(remaining - 1, forKey: remainingKey)
-            }
-        }
+        NotificationHelper.decrementRepeatCount(requestId: requestId, center: center)
 
         if response.actionIdentifier == UNNotificationDefaultActionIdentifier
             || response.actionIdentifier == UNNotificationDismissActionIdentifier {
             if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
-                let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationTapped"
                 var payload: [String: Any] = ["id": id, "title": content.title, "body": content.body]
                 if !customData.isEmpty { payload["data"] = customData }
-                sendOrQueue(eventClass: eventClass, payload: payload)
+                sendOrQueue(eventClass: Events.notificationTapped, payload: payload)
             }
         } else {
             let actionId = response.actionIdentifier
-            let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationActionPressed"
             var payload: [String: Any] = ["notificationId": id, "actionId": actionId]
             if !customData.isEmpty { payload["data"] = customData }
             if let textResponse = response as? UNTextInputNotificationResponse {
@@ -117,7 +93,7 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             }
 
             // Handle native snooze rescheduling
-            if let snoozeDurations = userInfo["action_snooze"] as? [String: Int],
+            if let snoozeDurations = userInfo[UserInfoKeys.actionSnooze] as? [String: Int],
                let snoozeSecs = snoozeDurations[actionId], snoozeSecs > 0 {
                 rescheduleSnooze(
                     id: id, content: content,
@@ -128,7 +104,7 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
                 print("⏰ Snooze scheduled: \(id) in \(snoozeSecs)s")
             }
 
-            sendOrQueue(eventClass: eventClass, payload: payload)
+            sendOrQueue(eventClass: Events.notificationActionPressed, payload: payload)
         }
 
         completionHandler()
@@ -141,7 +117,10 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         snoozeSecs: Int,
         userInfo: [AnyHashable: Any]
     ) {
-        let newContent = content.mutableCopy() as! UNMutableNotificationContent
+        guard let newContent = content.mutableCopy() as? UNMutableNotificationContent else {
+            print("Failed to create mutable copy of notification content")
+            return
+        }
         // Ensure sound plays on the snoozed notification
         if newContent.sound == nil {
             newContent.sound = .default
@@ -227,8 +206,7 @@ enum LocalNotificationsFunctions {
                     return ["success": false, "error": error.localizedDescription]
                 }
 
-                let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled"
-                LaravelBridge.shared.send?(eventClass, ["id": id, "title": title, "body": body])
+                LaravelBridge.shared.send?(Events.notificationScheduled, ["id": id, "title": title, "body": body])
                 return ["success": true, "id": id]
             }
 
@@ -255,11 +233,10 @@ enum LocalNotificationsFunctions {
                     result = ["success": true, "id": id]
 
                     if let count = repeatCount, count >= 1 {
-                        UserDefaults.standard.set(count, forKey: "notif_remaining_\(id)")
+                        UserDefaults.standard.set(count, forKey: NotificationKeys.remainingCount(id))
                     }
 
-                    let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled"
-                    LaravelBridge.shared.send?(eventClass, ["id": id, "title": title, "body": body])
+                    LaravelBridge.shared.send?(Events.notificationScheduled, ["id": id, "title": title, "body": body])
                 }
                 semaphore.signal()
             }
@@ -284,14 +261,14 @@ enum LocalNotificationsFunctions {
             // Cancel direct ID
             center.removePendingNotificationRequests(withIdentifiers: [id])
             center.removeDeliveredNotifications(withIdentifiers: [id])
-            UserDefaults.standard.removeObject(forKey: "notif_remaining_\(id)")
+            UserDefaults.standard.removeObject(forKey: NotificationKeys.remainingCount(id))
 
             // Cancel any day-of-week sub-IDs
-            let subIds = (1...7).map { "\(id)_day_\($0)" }
+            let subIds = (1...7).map { NotificationKeys.daySubId(id, isoDay: $0) }
             center.removePendingNotificationRequests(withIdentifiers: subIds)
             center.removeDeliveredNotifications(withIdentifiers: subIds)
             for subId in subIds {
-                UserDefaults.standard.removeObject(forKey: "notif_remaining_\(subId)")
+                UserDefaults.standard.removeObject(forKey: NotificationKeys.remainingCount(subId))
             }
 
             print("✅ Notification cancelled: \(id)")
@@ -331,7 +308,7 @@ enum LocalNotificationsFunctions {
 
                 for request in requests {
                     let id = request.identifier
-                    if let range = id.range(of: "_day_"), let day = Int(id[range.upperBound...]) {
+                    if let range = id.range(of: NotificationKeys.daySeparator), let day = Int(id[range.upperBound...]) {
                         let parentId = String(id[..<range.lowerBound])
                         if var group = dayGroups[parentId] {
                             group.days.append(day)
@@ -357,7 +334,7 @@ enum LocalNotificationsFunctions {
                             }
                         }
 
-                        let remaining = defaults.integer(forKey: "notif_remaining_\(id)")
+                        let remaining = defaults.integer(forKey: NotificationKeys.remainingCount(id))
                         if remaining > 0 { notification["remainingCount"] = remaining }
                         regularNotifications.append(notification)
                     }
@@ -373,8 +350,8 @@ enum LocalNotificationsFunctions {
                        let nextDate = trigger.nextTriggerDate() {
                         notification["nextTriggerAt"] = Int(nextDate.timeIntervalSince1970)
                     }
-                    let firstSubId = "\(parentId)_day_\(group.days.sorted().first ?? 1)"
-                    let remaining = defaults.integer(forKey: "notif_remaining_\(firstSubId)")
+                    let firstSubId = NotificationKeys.daySubId(parentId, isoDay: group.days.sorted().first ?? 1)
+                    let remaining = defaults.integer(forKey: NotificationKeys.remainingCount(firstSubId))
                     if remaining > 0 { notification["remainingCount"] = remaining }
                     regularNotifications.append(notification)
                 }
@@ -419,7 +396,7 @@ enum LocalNotificationsFunctions {
             }
             semaphoreFind.wait()
 
-            let daySubRequests = allRequests.filter { $0.identifier.hasPrefix("\(id)_day_") }
+            let daySubRequests = allRequests.filter { $0.identifier.hasPrefix("\(id)\(NotificationKeys.daySeparator)") }
             let directRequest = allRequests.first { $0.identifier == id }
             let isDayOfWeek = !daySubRequests.isEmpty
 
@@ -435,7 +412,7 @@ enum LocalNotificationsFunctions {
             let body = parameters["body"] as? String ?? existingContent.body
             let existingSound = existingContent.sound != nil
             let sound = parameters["sound"] as? Bool ?? existingSound
-            let existingSoundName = existingContent.userInfo["soundName"] as? String
+            let existingSoundName = existingContent.userInfo[UserInfoKeys.soundName] as? String
             let soundName = parameters["soundName"] as? String ?? existingSoundName
             let badge = parameters["badge"] as? Int ?? existingContent.badge?.intValue
             let subtitle = parameters["subtitle"] as? String
@@ -495,7 +472,7 @@ enum LocalNotificationsFunctions {
                 center.removePendingNotificationRequests(withIdentifiers: subIds)
                 center.removeDeliveredNotifications(withIdentifiers: subIds)
                 for subId in subIds {
-                    UserDefaults.standard.removeObject(forKey: "notif_remaining_\(subId)")
+                    UserDefaults.standard.removeObject(forKey: NotificationKeys.remainingCount(subId))
                 }
 
                 if dayTimingChanged {
@@ -542,7 +519,7 @@ enum LocalNotificationsFunctions {
 
                     if let count = newRepeatCount, count >= 1 {
                         for oldRequest in daySubRequests {
-                            UserDefaults.standard.set(count, forKey: "notif_remaining_\(oldRequest.identifier)")
+                            UserDefaults.standard.set(count, forKey: NotificationKeys.remainingCount(oldRequest.identifier))
                         }
                     }
                 }
@@ -574,15 +551,14 @@ enum LocalNotificationsFunctions {
                 }
 
                 if let count = newRepeatCount, count >= 1 {
-                    UserDefaults.standard.set(count, forKey: "notif_remaining_\(id)")
+                    UserDefaults.standard.set(count, forKey: NotificationKeys.remainingCount(id))
                 }
                 if requestId != id {
-                    UserDefaults.standard.removeObject(forKey: "notif_remaining_\(requestId)")
+                    UserDefaults.standard.removeObject(forKey: NotificationKeys.remainingCount(requestId))
                 }
             }
 
-            let eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationUpdated"
-            LaravelBridge.shared.send?(eventClass, ["id": id, "title": title, "body": body])
+            LaravelBridge.shared.send?(Events.notificationUpdated, ["id": id, "title": title, "body": body])
             return ["success": true, "id": id]
         }
     }
@@ -599,17 +575,17 @@ enum LocalNotificationsFunctions {
 
             center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
                 if let error = error {
-                    print("❌ Permission request error: \(error.localizedDescription)")
+                    print("Permission request error: \(error.localizedDescription)")
                     result = ["granted": false, "error": error.localizedDescription]
-                    LaravelBridge.shared.send?("Ikromjon\\LocalNotifications\\Events\\PermissionDenied", [:])
+                    LaravelBridge.shared.send?(Events.permissionDenied, [:])
                 } else if granted {
-                    print("✅ Notification permission granted")
+                    print("Notification permission granted")
                     result = ["granted": true]
-                    LaravelBridge.shared.send?("Ikromjon\\LocalNotifications\\Events\\PermissionGranted", [:])
+                    LaravelBridge.shared.send?(Events.permissionGranted, [:])
                 } else {
-                    print("❌ Notification permission denied")
+                    print("Notification permission denied")
                     result = ["granted": false]
-                    LaravelBridge.shared.send?("Ikromjon\\LocalNotifications\\Events\\PermissionDenied", [:])
+                    LaravelBridge.shared.send?(Events.permissionDenied, [:])
                 }
                 semaphore.signal()
             }
