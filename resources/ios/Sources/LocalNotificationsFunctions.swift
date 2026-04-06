@@ -100,7 +100,7 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
                let snoozeSecs = snoozeDurations[actionId], snoozeSecs > 0 {
                 rescheduleSnooze(
                     id: id, content: content,
-                    snoozeSecs: snoozeSecs, userInfo: userInfo
+                    snoozeSecs: snoozeSecs
                 )
                 payload["snoozed"] = true
                 payload["snoozeSeconds"] = snoozeSecs
@@ -117,8 +117,7 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     private func rescheduleSnooze(
         id: String,
         content: UNNotificationContent,
-        snoozeSecs: Int,
-        userInfo: [AnyHashable: Any]
+        snoozeSecs: Int
     ) {
         guard let newContent = content.mutableCopy() as? UNMutableNotificationContent else {
             logger.error("Failed to create mutable copy of notification content")
