@@ -17,7 +17,6 @@ class BootReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "BootReceiver"
-        private const val PREFS_NAME = "nativephp_local_notifications_prefs"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -25,15 +24,15 @@ class BootReceiver : BroadcastReceiver() {
 
         Log.d(TAG, "Device rebooted, restoring scheduled notifications")
 
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val allIds = prefs.getStringSet("notification_ids", emptySet()) ?: emptySet()
+        val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
+        val allIds = prefs.getStringSet(PrefsKeys.NOTIFICATION_IDS, emptySet()) ?: emptySet()
 
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val now = System.currentTimeMillis()
 
         for (id in allIds) {
             try {
-                val infoJson = prefs.getString("notification_$id", null) ?: continue
+                val infoJson = prefs.getString(PrefsKeys.notificationInfo(id), null) ?: continue
                 val info = JSONObject(infoJson)
 
                 val triggerTimeMs = info.getLong("triggerTimeMs")
@@ -55,7 +54,7 @@ class BootReceiver : BroadcastReceiver() {
                 val soundName = if (info.has("soundName")) info.getString("soundName") else null
 
                 val notifyIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
-                    action = "com.nativephp.localnotifications.NOTIFY"
+                    action = IntentActions.NOTIFY
                     putExtra("notification_id", id)
                     putExtra("title", title)
                     putExtra("body", body)
@@ -69,7 +68,7 @@ class BootReceiver : BroadcastReceiver() {
                     if (info.has("subtitle")) putExtra("subtitle", info.getString("subtitle"))
                     if (info.has("image")) putExtra("image", info.getString("image"))
                     if (info.has("bigText")) putExtra("big_text", info.getString("bigText"))
-                    if (info.has("actions")) putExtra("actions", info.getJSONArray("actions").toString())
+                    info.optJSONArray("actions")?.let { putExtra("actions", it.toString()) }
                 }
 
                 val pendingIntent = PendingIntent.getBroadcast(

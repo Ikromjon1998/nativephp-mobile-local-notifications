@@ -37,6 +37,11 @@ object NotificationScheduler {
 
     private const val TAG = "LocalNotifications"
 
+    /** Sentinel value for calendar-based monthly repeat (not a real interval). */
+    const val REPEAT_MONTHLY_SENTINEL = -1L
+    /** Sentinel value for calendar-based yearly repeat (not a real interval). */
+    const val REPEAT_YEARLY_SENTINEL = -2L
+
     // -----------------------------------------------------------------------
     // Parameter Parsing
     // -----------------------------------------------------------------------
@@ -92,7 +97,7 @@ object NotificationScheduler {
             bigText = parameters["bigText"] as? String
                 ?: existing.optString("bigText", null),
             actions = coerceToList(parameters["actions"])
-                ?: if (existing.has("actions")) jsonArrayToActionList(existing.getJSONArray("actions")) else null,
+                ?: if (existing.has("actions")) existing.optJSONArray("actions")?.let { jsonArrayToActionList(it) } else null,
         )
     }
 
@@ -115,8 +120,8 @@ object NotificationScheduler {
      * Calculate the repeat interval in milliseconds from either a named interval
      * or a custom seconds value.
      *
-     * Special return values: -1L = monthly, -2L = yearly (calendar-based),
-     * 0L = no repeat.
+     * Special return values: [REPEAT_MONTHLY_SENTINEL] = monthly,
+     * [REPEAT_YEARLY_SENTINEL] = yearly (calendar-based), 0L = no repeat.
      */
     fun calculateRepeatMs(repeatInterval: String?, repeatIntervalSeconds: Long?): Long {
         if (repeatIntervalSeconds != null && repeatIntervalSeconds >= 60 && repeatInterval == null) {
@@ -127,8 +132,8 @@ object NotificationScheduler {
             "hourly" -> 3_600_000L
             "daily" -> AlarmManager.INTERVAL_DAY
             "weekly" -> AlarmManager.INTERVAL_DAY * 7
-            "monthly" -> -1L
-            "yearly" -> -2L
+            "monthly" -> REPEAT_MONTHLY_SENTINEL
+            "yearly" -> REPEAT_YEARLY_SENTINEL
             else -> 0L
         }
     }
@@ -223,7 +228,7 @@ object NotificationScheduler {
         channelId: String
     ) {
         val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
-            action = "com.nativephp.localnotifications.NOTIFY"
+            action = IntentActions.NOTIFY
             putExtra("notification_id", id)
             putExtra("title", params.title)
             putExtra("body", params.body)
@@ -267,7 +272,7 @@ object NotificationScheduler {
      */
     fun cancelAlarm(context: Context, id: String) {
         val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
-            action = "com.nativephp.localnotifications.NOTIFY"
+            action = IntentActions.NOTIFY
         }
         val requestCode = id.hashCode()
         val pendingIntent = PendingIntent.getBroadcast(
@@ -287,9 +292,6 @@ object NotificationScheduler {
     // SharedPreferences Persistence
     // -----------------------------------------------------------------------
 
-    /** Lock for thread-safe SharedPreferences access. */
-    private val prefsLock = Any()
-
     /**
      * Save notification info to SharedPreferences for boot recovery and getPending.
      */
@@ -303,9 +305,9 @@ object NotificationScheduler {
         remainingCount: Int?,
         channelId: String
     ) {
-        synchronized(prefsLock) {
+        synchronized(PrefsKeys.lock) {
             val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
-            val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+            val ids = prefs.getStringSet(PrefsKeys.NOTIFICATION_IDS, mutableSetOf())?.toMutableSet() ?: mutableSetOf()
             ids.add(id)
 
             val info = JSONObject().apply {
@@ -328,8 +330,8 @@ object NotificationScheduler {
             }
 
             prefs.edit()
-                .putStringSet("notification_ids", ids)
-                .putString("notification_$id", info.toString())
+                .putStringSet(PrefsKeys.NOTIFICATION_IDS, ids)
+                .putString(PrefsKeys.notificationInfo(id), info.toString())
                 .apply()
         }
     }
@@ -338,14 +340,14 @@ object NotificationScheduler {
      * Remove notification info from SharedPreferences.
      */
     fun removeNotificationInfo(context: Context, id: String) {
-        synchronized(prefsLock) {
+        synchronized(PrefsKeys.lock) {
             val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
-            val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+            val ids = prefs.getStringSet(PrefsKeys.NOTIFICATION_IDS, mutableSetOf())?.toMutableSet() ?: mutableSetOf()
             ids.remove(id)
 
             prefs.edit()
-                .putStringSet("notification_ids", ids)
-                .remove("notification_$id")
+                .putStringSet(PrefsKeys.NOTIFICATION_IDS, ids)
+                .remove(PrefsKeys.notificationInfo(id))
                 .apply()
         }
     }
@@ -354,14 +356,16 @@ object NotificationScheduler {
      * Save a parent entry that maps a logical notification ID to its day-of-week sub-IDs.
      */
     fun saveRepeatDaysParent(context: Context, parentId: String, subIds: List<String>) {
-        val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
-        val parentIds = prefs.getStringSet("repeat_days_parent_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-        parentIds.add(parentId)
+        synchronized(PrefsKeys.lock) {
+            val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
+            val parentIds = prefs.getStringSet(PrefsKeys.REPEAT_DAYS_PARENT_IDS, mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+            parentIds.add(parentId)
 
-        prefs.edit()
-            .putStringSet("repeat_days_parent_ids", parentIds)
-            .putString("repeat_days_$parentId", JSONArray(subIds).toString())
-            .apply()
+            prefs.edit()
+                .putStringSet(PrefsKeys.REPEAT_DAYS_PARENT_IDS, parentIds)
+                .putString(PrefsKeys.repeatDays(parentId), JSONArray(subIds).toString())
+                .apply()
+        }
     }
 
     /**
@@ -369,8 +373,13 @@ object NotificationScheduler {
      */
     fun getRepeatDaysSubIds(context: Context, parentId: String): List<String>? {
         val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
-        val json = prefs.getString("repeat_days_$parentId", null) ?: return null
-        val arr = JSONArray(json)
+        val json = prefs.getString(PrefsKeys.repeatDays(parentId), null) ?: return null
+        val arr = try {
+            JSONArray(json)
+        } catch (e: org.json.JSONException) {
+            Log.e(TAG, "Corrupted repeat_days JSON for $parentId: ${e.message}")
+            return null
+        }
         return (0 until arr.length()).map { arr.getString(it) }
     }
 
@@ -378,14 +387,16 @@ object NotificationScheduler {
      * Remove a repeatDays parent entry and its sub-ID mapping.
      */
     fun removeRepeatDaysParent(context: Context, parentId: String) {
-        val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
-        val parentIds = prefs.getStringSet("repeat_days_parent_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-        parentIds.remove(parentId)
+        synchronized(PrefsKeys.lock) {
+            val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
+            val parentIds = prefs.getStringSet(PrefsKeys.REPEAT_DAYS_PARENT_IDS, mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+            parentIds.remove(parentId)
 
-        prefs.edit()
-            .putStringSet("repeat_days_parent_ids", parentIds)
-            .remove("repeat_days_$parentId")
-            .apply()
+            prefs.edit()
+                .putStringSet(PrefsKeys.REPEAT_DAYS_PARENT_IDS, parentIds)
+                .remove(PrefsKeys.repeatDays(parentId))
+                .apply()
+        }
     }
 
     // -----------------------------------------------------------------------

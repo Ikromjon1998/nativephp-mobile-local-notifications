@@ -33,7 +33,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         // Handle notification dismiss (user swiped away): clear stored tap payload
-        if (intent.action == "com.nativephp.localnotifications.DISMISS") {
+        if (intent.action == IntentActions.DISMISS) {
             val dismissId = intent.getStringExtra("notification_id") ?: return
             LocalNotificationsFunctions.clearTapPayload(context, dismissId)
             return
@@ -72,7 +72,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         // Using PendingIntent.getActivity() instead of getBroadcast() because
         // startActivity() from a BroadcastReceiver is restricted on Android 12+ (API 31).
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-            action = "com.nativephp.localnotifications.TAP"
+            action = IntentActions.TAP
             putExtra("notification_id", id)
             putExtra("notification_title", title)
             putExtra("notification_body", body)
@@ -91,7 +91,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             Log.e(TAG, "Could not resolve launch intent for package: ${context.packageName}")
             // Fallback: use a broadcast so the notification still works
             val fallbackIntent = Intent(context, NotificationTapReceiver::class.java).apply {
-                this.action = "com.nativephp.localnotifications.TAP"
+                this.action = IntentActions.TAP
                 putExtra("notification_id", id)
                 putExtra("notification_title", title)
                 putExtra("notification_body", body)
@@ -165,7 +165,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                     val snoozeSecs = action.optInt("snooze", 0)
 
                     val actionIntent = Intent(context, NotificationActionReceiver::class.java).apply {
-                        this.action = "com.nativephp.localnotifications.ACTION"
+                        this.action = IntentActions.ACTION
                         putExtra("notification_id", id)
                         putExtra("action_id", actionId)
                         if (dataJson != null) putExtra("notification_data", dataJson)
@@ -211,7 +211,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         // Clears the stored tap payload so we don't dispatch a false NotificationTapped.
         // Does NOT fire on auto-cancel (tap), so the payload persists for tap detection.
         val dismissIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
-            action = "com.nativephp.localnotifications.DISMISS"
+            action = IntentActions.DISMISS
             putExtra("notification_id", id)
         }
         val dismissPendingIntent = PendingIntent.getBroadcast(
@@ -241,7 +241,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             }
             LocalNotificationsFunctions.dispatchEvent(
                 activity,
-                "Ikromjon\\LocalNotifications\\Events\\NotificationReceived",
+                Events.NOTIFICATION_RECEIVED,
                 payload.toString()
             )
         } else {
@@ -251,25 +251,18 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         val repeatMs = intent.getLongExtra("repeat_ms", 0L)
         val repeatType = intent.getStringExtra("repeat_type")
         val remainingCount = if (intent.hasExtra("remaining_count")) intent.getIntExtra("remaining_count", 0) else -1
-        if (repeatMs == 0L) {
-            // Clean up non-repeating notifications from storage
-            val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
-            val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-            ids.remove(id)
-            prefs.edit()
-                .putStringSet("notification_ids", ids)
-                .remove("notification_$id")
-                .apply()
-        } else if (remainingCount == 1) {
-            // Last repetition reached — do not reschedule, clean up
-            Log.d(TAG, "Repeat count exhausted for: $id")
-            val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
-            val ids = prefs.getStringSet("notification_ids", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
-            ids.remove(id)
-            prefs.edit()
-                .putStringSet("notification_ids", ids)
-                .remove("notification_$id")
-                .apply()
+        if (repeatMs == 0L || remainingCount == 1) {
+            // Clean up: non-repeating or last repetition reached
+            if (remainingCount == 1) Log.d(TAG, "Repeat count exhausted for: $id")
+            synchronized(PrefsKeys.lock) {
+                val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
+                val ids = prefs.getStringSet(PrefsKeys.NOTIFICATION_IDS, mutableSetOf())?.toMutableSet() ?: mutableSetOf()
+                ids.remove(id)
+                prefs.edit()
+                    .putStringSet(PrefsKeys.NOTIFICATION_IDS, ids)
+                    .remove(PrefsKeys.notificationInfo(id))
+                    .apply()
+            }
         } else {
             // Self-reschedule the next occurrence for repeating notifications.
             // This replaces setRepeating() which is unreliable on modern Android.
@@ -313,7 +306,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         }
 
         val rescheduleIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
-            action = "com.nativephp.localnotifications.NOTIFY"
+            action = IntentActions.NOTIFY
             putExtra("notification_id", id)
             putExtra("title", title)
             putExtra("body", body)
@@ -345,17 +338,19 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         )
 
         // Update the stored trigger time and remaining count for boot restoration and getPending()
-        val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
-        val infoJson = prefs.getString("notification_$id", null)
-        if (infoJson != null) {
-            val info = JSONObject(infoJson)
-            info.put("triggerTimeMs", nextTriggerMs)
-            if (remainingCount > 0) {
-                info.put("remainingCount", remainingCount)
-            } else {
-                info.remove("remainingCount")
+        synchronized(PrefsKeys.lock) {
+            val prefs = context.getSharedPreferences(LocalNotificationsFunctions.PREFS_NAME, Context.MODE_PRIVATE)
+            val infoJson = prefs.getString(PrefsKeys.notificationInfo(id), null)
+            if (infoJson != null) {
+                val info = JSONObject(infoJson)
+                info.put("triggerTimeMs", nextTriggerMs)
+                if (remainingCount > 0) {
+                    info.put("remainingCount", remainingCount)
+                } else {
+                    info.remove("remainingCount")
+                }
+                prefs.edit().putString(PrefsKeys.notificationInfo(id), info.toString()).apply()
             }
-            prefs.edit().putString("notification_$id", info.toString()).apply()
         }
 
         Log.d(TAG, "Rescheduled repeating notification: $id, next in ${repeatMs / 1000}s")

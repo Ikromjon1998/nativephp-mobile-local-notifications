@@ -66,7 +66,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         if (activity != null) {
             LocalNotificationsFunctions.dispatchEvent(
                 activity,
-                "Ikromjon\\LocalNotifications\\Events\\NotificationActionPressed",
+                Events.NOTIFICATION_ACTION_PRESSED,
                 payload.toString()
             )
         } else {
@@ -76,7 +76,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             // to open on every action button press.
             LocalNotificationsFunctions.storePendingEvent(
                 context,
-                "Ikromjon\\LocalNotifications\\Events\\NotificationActionPressed",
+                Events.NOTIFICATION_ACTION_PRESSED,
                 payload
             )
             Log.d(TAG, "App not active, stored pending ActionPressed event for: $notificationId")
@@ -103,7 +103,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val triggerMs = System.currentTimeMillis() + (snoozeSecs * 1000L)
 
         val rescheduleIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
-            action = "com.nativephp.localnotifications.NOTIFY"
+            action = IntentActions.NOTIFY
             putExtra("notification_id", id)
             putExtra("title", title)
             putExtra("body", body)

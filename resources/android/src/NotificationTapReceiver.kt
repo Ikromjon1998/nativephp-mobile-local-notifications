@@ -39,14 +39,14 @@ class NotificationTapReceiver : BroadcastReceiver() {
         if (activity != null) {
             LocalNotificationsFunctions.dispatchEvent(
                 activity,
-                "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
+                Events.NOTIFICATION_TAPPED,
                 payload.toString()
             )
         } else {
             // App is not active — store the event for dispatch when the bridge becomes available
             LocalNotificationsFunctions.storePendingEvent(
                 context,
-                "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
+                Events.NOTIFICATION_TAPPED,
                 payload
             )
         }
