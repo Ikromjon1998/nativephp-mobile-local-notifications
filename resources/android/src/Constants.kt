@@ -16,6 +16,7 @@ object Events {
     const val NOTIFICATION_UPDATED = "Ikromjon\\LocalNotifications\\Events\\NotificationUpdated"
     const val NOTIFICATION_ACTION_PRESSED = "Ikromjon\\LocalNotifications\\Events\\NotificationActionPressed"
     const val PERMISSION_GRANTED = "Ikromjon\\LocalNotifications\\Events\\PermissionGranted"
+    const val PERMISSION_DENIED = "Ikromjon\\LocalNotifications\\Events\\PermissionDenied"
 }
 
 /** Intent extra key strings shared across all receivers and schedulers. */
