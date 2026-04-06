@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Ikromjon\LocalNotifications\Notifications;
 
 use Ikromjon\LocalNotifications\Data\NotificationAction;
+use Ikromjon\LocalNotifications\Data\NotificationOptions;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
+use Illuminate\Support\Str;
 
 class LocalNotificationMessage
 {
@@ -48,7 +50,7 @@ class LocalNotificationMessage
 
     public function __construct()
     {
-        $this->id = (string) mt_rand(100000, 999999);
+        $this->id = (string) Str::uuid();
     }
 
     public static function create(): self
@@ -190,77 +192,36 @@ class LocalNotificationMessage
     }
 
     /**
+     * Convert this message to a NotificationOptions DTO.
+     */
+    public function toNotificationOptions(): NotificationOptions
+    {
+        return new NotificationOptions(
+            id: $this->id,
+            title: $this->title,
+            body: $this->body,
+            delay: $this->delay,
+            at: $this->at,
+            repeat: $this->repeat,
+            repeatIntervalSeconds: $this->repeatIntervalSeconds,
+            repeatDays: $this->repeatDays,
+            repeatCount: $this->repeatCount,
+            sound: $this->sound,
+            badge: $this->badge,
+            data: $this->data,
+            subtitle: $this->subtitle,
+            image: $this->image,
+            bigText: $this->bigText,
+            actions: $this->actions,
+            soundName: $this->soundName,
+        );
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array
     {
-        $result = [
-            'id' => $this->id,
-            'title' => $this->title,
-            'body' => $this->body,
-        ];
-
-        if ($this->delay !== null) {
-            $result['delay'] = $this->delay;
-        }
-
-        if ($this->at !== null) {
-            $result['at'] = $this->at;
-        }
-
-        if ($this->repeat !== null) {
-            $result['repeat'] = $this->repeat instanceof RepeatInterval
-                ? $this->repeat->value
-                : $this->repeat;
-        }
-
-        if ($this->repeatIntervalSeconds !== null) {
-            $result['repeatIntervalSeconds'] = $this->repeatIntervalSeconds;
-        }
-
-        if ($this->repeatDays !== null) {
-            $result['repeatDays'] = $this->repeatDays;
-        }
-
-        if ($this->repeatCount !== null) {
-            $result['repeatCount'] = $this->repeatCount;
-        }
-
-        if ($this->sound !== null) {
-            $result['sound'] = $this->sound;
-        }
-
-        if ($this->soundName !== null) {
-            $result['soundName'] = $this->soundName;
-        }
-
-        if ($this->badge !== null) {
-            $result['badge'] = $this->badge;
-        }
-
-        if ($this->data !== null) {
-            $result['data'] = $this->data;
-        }
-
-        if ($this->subtitle !== null) {
-            $result['subtitle'] = $this->subtitle;
-        }
-
-        if ($this->image !== null) {
-            $result['image'] = $this->image;
-        }
-
-        if ($this->bigText !== null) {
-            $result['bigText'] = $this->bigText;
-        }
-
-        if ($this->actions !== null) {
-            $result['actions'] = array_map(
-                fn (NotificationAction $action): array => $action->toArray(),
-                $this->actions,
-            );
-        }
-
-        return $result;
+        return $this->toNotificationOptions()->toArray();
     }
 }

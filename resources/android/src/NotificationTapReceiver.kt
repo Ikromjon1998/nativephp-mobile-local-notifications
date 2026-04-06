@@ -17,10 +17,10 @@ class NotificationTapReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        val id = intent.getStringExtra("notification_id") ?: return
-        val title = intent.getStringExtra("notification_title") ?: return
-        val body = intent.getStringExtra("notification_body") ?: return
-        val dataJson = intent.getStringExtra("notification_data")
+        val id = intent.getStringExtra(IntentExtras.NOTIFICATION_ID) ?: return
+        val title = intent.getStringExtra(IntentExtras.NOTIFICATION_TITLE) ?: return
+        val body = intent.getStringExtra(IntentExtras.NOTIFICATION_BODY) ?: return
+        val dataJson = intent.getStringExtra(IntentExtras.NOTIFICATION_DATA)
 
         Log.d(TAG, "Notification tapped: $id")
 
@@ -30,7 +30,11 @@ class NotificationTapReceiver : BroadcastReceiver() {
             put("title", title)
             put("body", body)
             if (dataJson != null) {
-                put("data", JSONObject(dataJson))
+                try {
+                    put("data", JSONObject(dataJson))
+                } catch (e: org.json.JSONException) {
+                    Log.e(TAG, "Invalid notification data JSON for $id: ${e.message}")
+                }
             }
         }
 
@@ -39,21 +43,21 @@ class NotificationTapReceiver : BroadcastReceiver() {
         if (activity != null) {
             LocalNotificationsFunctions.dispatchEvent(
                 activity,
-                "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
+                Events.NOTIFICATION_TAPPED,
                 payload.toString()
             )
         } else {
             // App is not active — store the event for dispatch when the bridge becomes available
             LocalNotificationsFunctions.storePendingEvent(
                 context,
-                "Ikromjon\\LocalNotifications\\Events\\NotificationTapped",
+                Events.NOTIFICATION_TAPPED,
                 payload
             )
         }
 
         // Launch the app
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
 
         if (launchIntent != null) {

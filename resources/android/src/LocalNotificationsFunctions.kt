@@ -35,12 +35,9 @@ object LocalNotificationsFunctions {
 
     private const val TAG = "LocalNotifications"
     const val PREFS_NAME = "nativephp_local_notifications_prefs"
-    private const val PENDING_EVENTS_KEY = "pending_events"
-    private val prefsLock = Any()
-    private var resumeCallbackRegistered = false
 
     // Defaults — overridden at runtime from PHP config via _config parameter
-    private var channelId = "nativephp_local_notifications"
+    private var channelId = Defaults.CHANNEL_ID
     private var channelName = "Local Notifications"
     private var channelDescription = "Notifications scheduled by the app"
     var maxActions = 3
@@ -135,46 +132,58 @@ object LocalNotificationsFunctions {
     // -----------------------------------------------------------------------
 
     fun storeTapPayload(context: Context, id: String, title: String, body: String, dataJson: String?) {
-        synchronized(prefsLock) {
+        synchronized(PrefsKeys.lock) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val payload = JSONObject().apply {
                 put("id", id)
                 put("title", title)
                 put("body", body)
-                if (dataJson != null) put("data", JSONObject(dataJson))
+                if (dataJson != null) {
+                    try {
+                        put("data", JSONObject(dataJson))
+                    } catch (e: org.json.JSONException) {
+                        Log.e(TAG, "Failed to parse tap payload data for $id: ${e.message}")
+                    }
+                }
             }
-            prefs.edit().putString("tap_payload_$id", payload.toString()).apply()
+            prefs.edit().putString(PrefsKeys.tapPayload(id), payload.toString()).apply()
             Log.d(TAG, "Stored tap payload for: $id")
         }
     }
 
     fun clearTapPayload(context: Context, id: String) {
-        synchronized(prefsLock) {
+        synchronized(PrefsKeys.lock) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit().remove("tap_payload_$id").apply()
+            prefs.edit().remove(PrefsKeys.tapPayload(id)).apply()
             Log.d(TAG, "Cleared tap payload for dismissed notification: $id")
         }
     }
 
     fun storePendingEvent(context: Context, eventClass: String, payload: JSONObject) {
-        synchronized(prefsLock) {
+        synchronized(PrefsKeys.lock) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val existing = prefs.getString(PENDING_EVENTS_KEY, null)
-            val queue = if (existing != null) JSONArray(existing) else JSONArray()
+            val existing = prefs.getString(PrefsKeys.PENDING_EVENTS, null)
+            val queue = if (existing != null) {
+                try { JSONArray(existing) } catch (e: org.json.JSONException) {
+                    Log.e(TAG, "Corrupted pending events, resetting: ${e.message}")
+                    JSONArray()
+                }
+            } else JSONArray()
             queue.put(JSONObject().apply {
                 put("event", eventClass)
                 put("payload", payload)
             })
-            prefs.edit().putString(PENDING_EVENTS_KEY, queue.toString()).apply()
+            prefs.edit().putString(PrefsKeys.PENDING_EVENTS, queue.toString()).apply()
             Log.d(TAG, "Stored pending event ($eventClass), queue size: ${queue.length()}")
         }
     }
 
-    private fun registerResumeDetection(activity: FragmentActivity) {
-        if (resumeCallbackRegistered) return
-        resumeCallbackRegistered = true
+    private var lifecycleCallback: Application.ActivityLifecycleCallbacks? = null
 
-        activity.application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+    private fun registerResumeDetection(activity: FragmentActivity) {
+        if (lifecycleCallback != null) return
+
+        val callback = object : Application.ActivityLifecycleCallbacks {
             override fun onActivityResumed(a: Activity) {
                 if (a is FragmentActivity) {
                     ActivityHolder.set(a)
@@ -189,7 +198,9 @@ object LocalNotificationsFunctions {
             override fun onActivityStopped(a: Activity) {}
             override fun onActivitySaveInstanceState(a: Activity, b: Bundle) {}
             override fun onActivityDestroyed(a: Activity) {}
-        })
+        }
+        lifecycleCallback = callback
+        activity.application.registerActivityLifecycleCallbacks(callback)
         Log.d(TAG, "Registered onResume callback for tap detection")
     }
 
@@ -223,21 +234,27 @@ object LocalNotificationsFunctions {
 
         // Cold-start tap from PendingIntent
         val intent = activity.intent
-        if (intent?.action == "com.nativephp.localnotifications.TAP") {
-            val id = intent.getStringExtra("notification_id")
-            val title = intent.getStringExtra("notification_title")
-            val body = intent.getStringExtra("notification_body")
-            val dataJson = intent.getStringExtra("notification_data")
+        if (intent?.action == IntentActions.TAP) {
+            val id = intent.getStringExtra(IntentExtras.NOTIFICATION_ID)
+            val title = intent.getStringExtra(IntentExtras.NOTIFICATION_TITLE)
+            val body = intent.getStringExtra(IntentExtras.NOTIFICATION_BODY)
+            val dataJson = intent.getStringExtra(IntentExtras.NOTIFICATION_DATA)
 
             if (id != null && title != null && body != null) {
                 val payload = JSONObject().apply {
                     put("id", id)
                     put("title", title)
                     put("body", body)
-                    if (dataJson != null) put("data", JSONObject(dataJson))
+                    if (dataJson != null) {
+                        try {
+                            put("data", JSONObject(dataJson))
+                        } catch (e: org.json.JSONException) {
+                            Log.e(TAG, "Invalid notification data JSON in activity intent for $id: ${e.message}")
+                        }
+                    }
                 }
                 val payloadStr = payload.toString()
-                val eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationTapped"
+                val eventClass = Events.NOTIFICATION_TAPPED
                 Log.d(TAG, "Dispatching NotificationTapped from activity intent: $id")
                 dispatchEvent(activity, eventClass, payloadStr)
                 injectNavigationReplay(activity, eventClass, payloadStr)
@@ -251,10 +268,18 @@ object LocalNotificationsFunctions {
 
         // Flush queued events
         val prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val eventsJson = prefs.getString(PENDING_EVENTS_KEY, null) ?: return
-        prefs.edit().remove(PENDING_EVENTS_KEY).apply()
-
-        val queue = JSONArray(eventsJson)
+        val queue = synchronized(PrefsKeys.lock) {
+            val eventsJson = prefs.getString(PrefsKeys.PENDING_EVENTS, null) ?: return
+            try {
+                val parsedQueue = JSONArray(eventsJson)
+                prefs.edit().remove(PrefsKeys.PENDING_EVENTS).apply()
+                parsedQueue
+            } catch (e: org.json.JSONException) {
+                prefs.edit().remove(PrefsKeys.PENDING_EVENTS).apply()
+                Log.e(TAG, "Corrupted pending events JSON, clearing: ${e.message}")
+                return
+            }
+        }
         Log.d(TAG, "Dispatching ${queue.length()} pending event(s) from queue")
         for (i in 0 until queue.length()) {
             val entry = queue.getJSONObject(i)
@@ -267,17 +292,17 @@ object LocalNotificationsFunctions {
 
     private fun detectTappedNotifications(activity: FragmentActivity) {
         val prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val allKeys = prefs.all.keys.filter { it.startsWith("tap_payload_") }
+        val allKeys = prefs.all.keys.filter { it.startsWith(PrefsKeys.TAP_PAYLOAD_PREFIX) }
         if (allKeys.isEmpty()) return
 
         val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val activeIds = notificationManager.activeNotifications.map { it.id }.toSet()
 
         for (key in allKeys) {
-            val notifId = key.removePrefix("tap_payload_")
+            val notifId = key.removePrefix(PrefsKeys.TAP_PAYLOAD_PREFIX)
             if (notifId.hashCode() !in activeIds) {
                 val payloadJson = prefs.getString(key, null) ?: continue
-                val eventClass = "Ikromjon\\LocalNotifications\\Events\\NotificationTapped"
+                val eventClass = Events.NOTIFICATION_TAPPED
                 Log.d(TAG, "Detected tapped notification (warm-start): $notifId")
                 dispatchEvent(activity, eventClass, payloadJson)
                 injectNavigationReplay(activity, eventClass, payloadJson)
@@ -323,7 +348,7 @@ object LocalNotificationsFunctions {
 
                     Log.d(TAG, "✅ Day-of-week notification scheduled: $id (${subIds.size} sub-alarms)")
                     NotificationScheduler.dispatchNotificationEvent(
-                        activity, "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled",
+                        activity, Events.NOTIFICATION_SCHEDULED,
                         id, params.title, params.body
                     )
                     mapOf("success" to true, "id" to id)
@@ -337,7 +362,7 @@ object LocalNotificationsFunctions {
 
                     Log.d(TAG, "✅ Notification scheduled: $id at $triggerTimeMs")
                     NotificationScheduler.dispatchNotificationEvent(
-                        activity, "Ikromjon\\LocalNotifications\\Events\\NotificationScheduled",
+                        activity, Events.NOTIFICATION_SCHEDULED,
                         id, params.title, params.body
                     )
                     mapOf("success" to true, "id" to id)
@@ -390,13 +415,15 @@ object LocalNotificationsFunctions {
             val context = activity as Context
             return try {
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                val allIds = prefs.getStringSet("notification_ids", emptySet()) ?: emptySet()
+                val allIds = prefs.getStringSet(PrefsKeys.NOTIFICATION_IDS, emptySet()) ?: emptySet()
 
                 for (id in allIds) {
                     NotificationScheduler.cancelAlarm(context, id)
                 }
 
-                prefs.edit().clear().apply()
+                synchronized(PrefsKeys.lock) {
+                    prefs.edit().clear().apply()
+                }
 
                 val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.cancelAll()
@@ -418,9 +445,9 @@ object LocalNotificationsFunctions {
             val context = activity as Context
             return try {
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                val allIds = prefs.getStringSet("notification_ids", emptySet()) ?: emptySet()
+                val allIds = prefs.getStringSet(PrefsKeys.NOTIFICATION_IDS, emptySet()) ?: emptySet()
 
-                val parentIds = prefs.getStringSet("repeat_days_parent_ids", emptySet()) ?: emptySet()
+                val parentIds = prefs.getStringSet(PrefsKeys.REPEAT_DAYS_PARENT_IDS, emptySet()) ?: emptySet()
                 val subIdSet = mutableSetOf<String>()
                 for (parentId in parentIds) {
                     NotificationScheduler.getRepeatDaysSubIds(context, parentId)?.let { subIdSet.addAll(it) }
@@ -430,14 +457,14 @@ object LocalNotificationsFunctions {
 
                 for (id in allIds) {
                     if (id in subIdSet) continue
-                    val infoJson = prefs.getString("notification_$id", null) ?: continue
+                    val infoJson = prefs.getString(PrefsKeys.notificationInfo(id), null) ?: continue
                     notifications.put(JSONObject(infoJson))
                 }
 
                 for (parentId in parentIds) {
                     val subIds = NotificationScheduler.getRepeatDaysSubIds(context, parentId) ?: continue
                     val firstSubId = subIds.firstOrNull() ?: continue
-                    val firstInfoJson = prefs.getString("notification_$firstSubId", null) ?: continue
+                    val firstInfoJson = prefs.getString(PrefsKeys.notificationInfo(firstSubId), null) ?: continue
                     val parentInfo = JSONObject(firstInfoJson)
                     parentInfo.put("id", parentId)
 
@@ -471,7 +498,7 @@ object LocalNotificationsFunctions {
 
                     if (hasPermission) {
                         Log.d(TAG, "✅ Notification permission already granted")
-                        dispatchEvent(activity, "Ikromjon\\LocalNotifications\\Events\\PermissionGranted", "{}")
+                        dispatchEvent(activity, Events.PERMISSION_GRANTED, "{}")
                         return mapOf("granted" to true)
                     }
 
@@ -479,7 +506,7 @@ object LocalNotificationsFunctions {
                     mapOf("granted" to false, "status" to "pending")
                 } else {
                     Log.d(TAG, "✅ Notification permission granted (pre-Android 13)")
-                    dispatchEvent(activity, "Ikromjon\\LocalNotifications\\Events\\PermissionGranted", "{}")
+                    dispatchEvent(activity, Events.PERMISSION_GRANTED, "{}")
                     mapOf("granted" to true)
                 }
             } catch (e: Exception) {
@@ -530,7 +557,7 @@ object LocalNotificationsFunctions {
 
             val subIds = NotificationScheduler.getRepeatDaysSubIds(context, id)
             val lookupId = if (subIds != null) subIds.firstOrNull() ?: id else id
-            val existingJson = prefs.getString("notification_$lookupId", null)
+            val existingJson = prefs.getString(PrefsKeys.notificationInfo(lookupId), null)
                 ?: return mapOf("success" to false, "error" to "Notification not found: $id")
 
             return try {
@@ -563,7 +590,7 @@ object LocalNotificationsFunctions {
                 if (subIds != null && !dayTimingChanged) {
                     // Content-only update for day-of-week sub-alarms
                     for (subId in subIds) {
-                        val subJson = prefs.getString("notification_$subId", null) ?: continue
+                        val subJson = prefs.getString(PrefsKeys.notificationInfo(subId), null) ?: continue
                         val sub = JSONObject(subJson)
                         val remainingCount = if (sub.has("remainingCount")) sub.optInt("remainingCount") else null
 
@@ -616,7 +643,7 @@ object LocalNotificationsFunctions {
 
                 Log.d(TAG, "✅ Notification updated: $id")
                 NotificationScheduler.dispatchNotificationEvent(
-                    activity, "Ikromjon\\LocalNotifications\\Events\\NotificationUpdated",
+                    activity, Events.NOTIFICATION_UPDATED,
                     id, params.title, params.body
                 )
                 mapOf("success" to true, "id" to id)

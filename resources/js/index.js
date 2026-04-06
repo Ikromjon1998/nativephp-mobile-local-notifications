@@ -10,14 +10,23 @@ const baseUrl = '/_native/api/call';
  * @returns {Promise<Object>} The response data from the native bridge
  */
 async function bridgeCall(method, params = {}) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (!csrfToken) {
+        console.warn('[LocalNotifications] CSRF token not found — requests may be rejected');
+    }
+
     const response = await fetch(baseUrl, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+            'X-CSRF-TOKEN': csrfToken || '',
         },
         body: JSON.stringify({ method, params }),
     });
+
+    if (!response.ok) {
+        throw new Error(`Bridge call failed: HTTP ${response.status} ${response.statusText}`);
+    }
 
     const result = await response.json();
 

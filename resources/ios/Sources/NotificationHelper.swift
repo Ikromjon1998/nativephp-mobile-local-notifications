@@ -1,5 +1,8 @@
 import Foundation
 import UserNotifications
+import os.log
+
+private let logger = Logger(subsystem: "com.nativephp.localnotifications", category: "NotificationHelper")
 
 /// Shared notification utilities used by Schedule and Update to eliminate
 /// duplicated content building, action registration, image attachment,
@@ -38,16 +41,16 @@ enum NotificationHelper {
         }
 
         // Merge data first, then write internal keys last to prevent
-        // caller data from overwriting reserved keys (notification_id, soundName).
+        // caller data from overwriting reserved keys.
         var userInfo: [String: Any] = [:]
         if let data = data {
             for (key, value) in data {
                 userInfo[key] = value
             }
         }
-        userInfo["notification_id"] = id
+        userInfo[UserInfoKeys.notificationId] = id
         if let soundName = soundName {
-            userInfo["soundName"] = soundName
+            userInfo[UserInfoKeys.soundName] = soundName
         }
         content.userInfo = userInfo
 
@@ -97,7 +100,7 @@ enum NotificationHelper {
         // Store snooze durations in userInfo so didReceive can access them
         if !snoozeDurations.isEmpty {
             var userInfo = content.userInfo
-            userInfo["action_snooze"] = snoozeDurations
+            userInfo[UserInfoKeys.actionSnooze] = snoozeDurations
             content.userInfo = userInfo
         }
 
@@ -129,7 +132,7 @@ enum NotificationHelper {
               let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https" else {
             if imageUrl != nil {
-                print("⚠️ Rejected image URL with unsupported scheme, only http/https allowed")
+                logger.warning("Rejected image URL with unsupported scheme, only http/https allowed")
             }
             return
         }
@@ -137,7 +140,7 @@ enum NotificationHelper {
         if let attachment = downloadAndAttachImage(from: url) {
             content.attachments = [attachment]
         } else {
-            print("⚠️ Failed to download image, sending notification without image")
+            logger.warning("Failed to download image, sending notification without image")
         }
     }
 
@@ -149,7 +152,7 @@ enum NotificationHelper {
         let task = URLSession.shared.downloadTask(with: url) { localUrl, response, error in
             defer { semaphore.signal() }
             guard let localUrl = localUrl, error == nil else {
-                print("❌ Image download failed: \(error?.localizedDescription ?? "unknown error")")
+                logger.error("Image download failed: \(error?.localizedDescription ?? "unknown error", privacy: .public)")
                 return
             }
             let ext = url.pathExtension.isEmpty ? "jpg" : url.pathExtension
@@ -161,7 +164,8 @@ enum NotificationHelper {
                     identifier: UUID().uuidString, url: tmpFile, options: nil
                 )
             } catch {
-                print("❌ Failed to create attachment: \(error.localizedDescription)")
+                try? FileManager.default.removeItem(at: tmpFile)
+                logger.error("Failed to create attachment: \(error.localizedDescription, privacy: .public)")
             }
         }
         task.resume()
@@ -208,17 +212,17 @@ enum NotificationHelper {
             if let interval = repeatInterval {
                 repeats = true
                 switch interval {
-                case "minute":
+                case RepeatType.minute:
                     dateComponents = Calendar.current.dateComponents([.second], from: date)
-                case "hourly":
+                case RepeatType.hourly:
                     dateComponents = Calendar.current.dateComponents([.minute, .second], from: date)
-                case "daily":
+                case RepeatType.daily:
                     dateComponents = Calendar.current.dateComponents([.hour, .minute, .second], from: date)
-                case "weekly":
+                case RepeatType.weekly:
                     dateComponents = Calendar.current.dateComponents([.weekday, .hour, .minute, .second], from: date)
-                case "monthly":
+                case RepeatType.monthly:
                     dateComponents = Calendar.current.dateComponents([.day, .hour, .minute, .second], from: date)
-                case "yearly":
+                case RepeatType.yearly:
                     dateComponents = Calendar.current.dateComponents([.month, .day, .hour, .minute, .second], from: date)
                 default:
                     repeats = false
@@ -251,8 +255,8 @@ enum NotificationHelper {
         var lastError: Error?
 
         for isoDay in days {
-            let appleWeekday = isoDay == 7 ? 1 : isoDay + 1
-            let subId = "\(id)_day_\(isoDay)"
+            let appleWeekday = appleWeekday(from: isoDay)
+            let subId = NotificationKeys.daySubId(id, isoDay: isoDay)
 
             var dateComponents = Calendar.current.dateComponents(
                 [.hour, .minute, .second], from: date
@@ -277,7 +281,7 @@ enum NotificationHelper {
         if let count = repeatCount, count >= 1 {
             let defaults = UserDefaults.standard
             for isoDay in days {
-                defaults.set(count, forKey: "notif_remaining_\(id)_day_\(isoDay)")
+                defaults.set(count, forKey: NotificationKeys.remainingCount(NotificationKeys.daySubId(id, isoDay: isoDay)))
             }
         }
 
@@ -288,7 +292,9 @@ enum NotificationHelper {
 
     /// Extract custom data from userInfo, excluding internal keys.
     /// Internal userInfo keys that should not be included in the custom data payload.
-    private static let internalKeys: Set<String> = ["notification_id", "action_snooze", "soundName"]
+    private static let internalKeys: Set<String> = [
+        UserInfoKeys.notificationId, UserInfoKeys.actionSnooze, UserInfoKeys.soundName
+    ]
 
     static func extractCustomData(from userInfo: [AnyHashable: Any]) -> [String: Any] {
         var customData: [String: Any] = [:]
@@ -298,5 +304,31 @@ enum NotificationHelper {
             }
         }
         return customData
+    }
+
+    // MARK: - Repeat Count Management
+
+    /// Decrement the remaining repeat count for a notification request.
+    /// Removes the pending request when the last repetition fires.
+    static func decrementRepeatCount(requestId: String, center: UNUserNotificationCenter) {
+        let key = NotificationKeys.remainingCount(requestId)
+        let defaults = UserDefaults.standard
+        let remaining = defaults.integer(forKey: key)
+        if remaining > 0 {
+            if remaining <= 1 {
+                center.removePendingNotificationRequests(withIdentifiers: [requestId])
+                defaults.removeObject(forKey: key)
+            } else {
+                defaults.set(remaining - 1, forKey: key)
+            }
+        }
+    }
+
+    // MARK: - Weekday Conversion
+
+    /// Convert ISO 8601 day of week (1=Monday, 7=Sunday)
+    /// to Apple's Calendar weekday (1=Sunday, 7=Saturday).
+    static func appleWeekday(from isoDay: Int) -> Int {
+        isoDay == 7 ? 1 : isoDay + 1
     }
 }

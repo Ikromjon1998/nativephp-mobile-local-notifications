@@ -9,6 +9,8 @@ use Ikromjon\LocalNotifications\Validation\NotificationValidator;
 
 final readonly class NotificationOptions
 {
+    public RepeatInterval|string|null $repeat;
+
     /**
      * @param  array<string, mixed>|null  $data
      * @param  array<int, int>|null  $repeatDays  Days of week (1=Monday through 7=Sunday)
@@ -20,7 +22,7 @@ final readonly class NotificationOptions
         public string $body,
         public ?int $delay = null,
         public ?int $at = null,
-        public RepeatInterval|string|null $repeat = null,
+        RepeatInterval|string|null $repeat = null,
         public ?int $repeatIntervalSeconds = null,
         public ?array $repeatDays = null,
         public ?int $repeatCount = null,
@@ -32,7 +34,11 @@ final readonly class NotificationOptions
         public ?string $bigText = null,
         public ?array $actions = null,
         public ?string $soundName = null,
-    ) {}
+    ) {
+        $this->repeat = is_string($repeat)
+            ? (RepeatInterval::tryFrom($repeat) ?? $repeat)
+            : $repeat;
+    }
 
     /**
      * @return array<string, mixed>
