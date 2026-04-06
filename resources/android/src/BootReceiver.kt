@@ -7,8 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import org.json.JSONObject
-import java.util.Calendar
-
 /**
  * BroadcastReceiver that restores scheduled notifications after device reboot.
  * Alarms are cleared when the device restarts, so we re-schedule them from persisted storage.
@@ -49,26 +47,26 @@ class BootReceiver : BroadcastReceiver() {
                     continue
                 }
 
-                val channelId = if (info.has("channelId")) info.getString("channelId") else "nativephp_local_notifications"
+                val channelId = if (info.has("channelId")) info.getString("channelId") else Defaults.CHANNEL_ID
 
                 val soundName = if (info.has("soundName")) info.getString("soundName") else null
 
                 val notifyIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
                     action = IntentActions.NOTIFY
-                    putExtra("notification_id", id)
-                    putExtra("title", title)
-                    putExtra("body", body)
-                    putExtra("sound", sound)
-                    if (soundName != null) putExtra("sound_name", soundName)
-                    putExtra("channel_id", channelId)
-                    if (repeatMs != 0L) putExtra("repeat_ms", repeatMs)
-                    if (repeatType != null) putExtra("repeat_type", repeatType)
-                    if (remainingCount > 0) putExtra("remaining_count", remainingCount)
-                    if (info.has("data")) putExtra("data", info.getString("data"))
-                    if (info.has("subtitle")) putExtra("subtitle", info.getString("subtitle"))
-                    if (info.has("image")) putExtra("image", info.getString("image"))
-                    if (info.has("bigText")) putExtra("big_text", info.getString("bigText"))
-                    info.optJSONArray("actions")?.let { putExtra("actions", it.toString()) }
+                    putExtra(IntentExtras.NOTIFICATION_ID, id)
+                    putExtra(IntentExtras.TITLE, title)
+                    putExtra(IntentExtras.BODY, body)
+                    putExtra(IntentExtras.SOUND, sound)
+                    if (soundName != null) putExtra(IntentExtras.SOUND_NAME, soundName)
+                    putExtra(IntentExtras.CHANNEL_ID, channelId)
+                    if (repeatMs != 0L) putExtra(IntentExtras.REPEAT_MS, repeatMs)
+                    if (repeatType != null) putExtra(IntentExtras.REPEAT_TYPE, repeatType)
+                    if (remainingCount > 0) putExtra(IntentExtras.REMAINING_COUNT, remainingCount)
+                    if (info.has("data")) putExtra(IntentExtras.DATA, info.getString("data"))
+                    if (info.has("subtitle")) putExtra(IntentExtras.SUBTITLE, info.getString("subtitle"))
+                    if (info.has("image")) putExtra(IntentExtras.IMAGE, info.getString("image"))
+                    if (info.has("bigText")) putExtra(IntentExtras.BIG_TEXT, info.getString("bigText"))
+                    info.optJSONArray("actions")?.let { putExtra(IntentExtras.ACTIONS, it.toString()) }
                 }
 
                 val pendingIntent = PendingIntent.getBroadcast(
@@ -80,7 +78,7 @@ class BootReceiver : BroadcastReceiver() {
 
                 // For repeating notifications, use the next future trigger time
                 val adjustedTrigger = if (repeatMs != 0L && triggerTimeMs < now) {
-                    if (repeatType == "monthly" || repeatType == "yearly") {
+                    if (repeatType == RepeatType.MONTHLY || repeatType == RepeatType.YEARLY) {
                         // Advance using Calendar until we're in the future
                         var next = triggerTimeMs
                         while (next < now) {

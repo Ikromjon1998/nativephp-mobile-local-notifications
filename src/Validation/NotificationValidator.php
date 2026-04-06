@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Ikromjon\LocalNotifications\Validation;
 
+use Ikromjon\LocalNotifications\Support\Config;
+
 final class NotificationValidator
 {
     /**
@@ -26,7 +28,7 @@ final class NotificationValidator
             );
         }
 
-        $minInterval = max(1, (int) self::configValue('min_repeat_interval_seconds', 60));
+        $minInterval = max(1, (int) Config::get('min_repeat_interval_seconds', 60));
 
         if ($hasRepeatIntervalSeconds && $options['repeatIntervalSeconds'] < $minInterval) {
             throw new \InvalidArgumentException(
@@ -80,7 +82,7 @@ final class NotificationValidator
         }
 
         if (isset($options['actions'])) {
-            $maxActions = max(1, (int) self::configValue('max_actions', 3));
+            $maxActions = max(1, (int) Config::get('max_actions', 3));
             if (is_array($options['actions']) && count($options['actions']) > $maxActions) {
                 $label = $maxActions === 1 ? 'action button' : 'action buttons';
                 throw new \InvalidArgumentException(
@@ -88,18 +90,5 @@ final class NotificationValidator
                 );
             }
         }
-    }
-
-    /**
-     * Read a value from the local-notifications config, with a fallback
-     * for environments where the Laravel config helper is not available.
-     */
-    private static function configValue(string $key, mixed $default = null): mixed
-    {
-        if (function_exists('config')) {
-            return config("local-notifications.{$key}", $default);
-        }
-
-        return $default;
     }
 }

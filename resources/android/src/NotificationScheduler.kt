@@ -128,12 +128,12 @@ object NotificationScheduler {
             return repeatIntervalSeconds * 1000L
         }
         return when (repeatInterval) {
-            "minute" -> 60_000L
-            "hourly" -> 3_600_000L
-            "daily" -> AlarmManager.INTERVAL_DAY
-            "weekly" -> AlarmManager.INTERVAL_DAY * 7
-            "monthly" -> REPEAT_MONTHLY_SENTINEL
-            "yearly" -> REPEAT_YEARLY_SENTINEL
+            RepeatType.MINUTE -> 60_000L
+            RepeatType.HOURLY -> 3_600_000L
+            RepeatType.DAILY -> AlarmManager.INTERVAL_DAY
+            RepeatType.WEEKLY -> AlarmManager.INTERVAL_DAY * 7
+            RepeatType.MONTHLY -> REPEAT_MONTHLY_SENTINEL
+            RepeatType.YEARLY -> REPEAT_YEARLY_SENTINEL
             else -> 0L
         }
     }
@@ -144,8 +144,8 @@ object NotificationScheduler {
     fun calculateNextTrigger(repeatType: String, currentTriggerMs: Long): Long {
         val cal = Calendar.getInstance().apply { timeInMillis = currentTriggerMs }
         when (repeatType) {
-            "monthly" -> cal.add(Calendar.MONTH, 1)
-            "yearly" -> cal.add(Calendar.YEAR, 1)
+            RepeatType.MONTHLY -> cal.add(Calendar.MONTH, 1)
+            RepeatType.YEARLY -> cal.add(Calendar.YEAR, 1)
         }
         return cal.timeInMillis
     }
@@ -203,8 +203,8 @@ object NotificationScheduler {
             }
 
             val triggerTimeMs = triggerCal.timeInMillis
-            scheduleAlarm(context, subId, params, triggerTimeMs, weekMs, "weekly", repeatCount, channelId)
-            saveNotificationInfo(context, subId, params, triggerTimeMs, weekMs, "weekly", repeatCount, channelId)
+            scheduleAlarm(context, subId, params, triggerTimeMs, weekMs, RepeatType.WEEKLY, repeatCount, channelId)
+            saveNotificationInfo(context, subId, params, triggerTimeMs, weekMs, RepeatType.WEEKLY, repeatCount, channelId)
         }
 
         return subIds
@@ -229,27 +229,27 @@ object NotificationScheduler {
     ) {
         val intent = Intent(context, LocalNotificationReceiver::class.java).apply {
             action = IntentActions.NOTIFY
-            putExtra("notification_id", id)
-            putExtra("title", params.title)
-            putExtra("body", params.body)
-            putExtra("sound", params.sound)
-            if (params.soundName != null) putExtra("sound_name", params.soundName)
-            putExtra("channel_id", channelId)
-            if (params.badge != null) putExtra("badge", params.badge)
-            if (repeatMs != 0L) putExtra("repeat_ms", repeatMs)
-            if (repeatType != null) putExtra("repeat_type", repeatType)
-            if (repeatCount != null) putExtra("remaining_count", repeatCount)
+            putExtra(IntentExtras.NOTIFICATION_ID, id)
+            putExtra(IntentExtras.TITLE, params.title)
+            putExtra(IntentExtras.BODY, params.body)
+            putExtra(IntentExtras.SOUND, params.sound)
+            if (params.soundName != null) putExtra(IntentExtras.SOUND_NAME, params.soundName)
+            putExtra(IntentExtras.CHANNEL_ID, channelId)
+            if (params.badge != null) putExtra(IntentExtras.BADGE, params.badge)
+            if (repeatMs != 0L) putExtra(IntentExtras.REPEAT_MS, repeatMs)
+            if (repeatType != null) putExtra(IntentExtras.REPEAT_TYPE, repeatType)
+            if (repeatCount != null) putExtra(IntentExtras.REMAINING_COUNT, repeatCount)
             if (params.data != null) {
                 val dataJson = JSONObject(params.data.mapKeys { it.key.toString() }).toString()
-                putExtra("data", dataJson)
+                putExtra(IntentExtras.DATA, dataJson)
             }
-            if (params.subtitle != null) putExtra("subtitle", params.subtitle)
-            if (params.imageUrl != null) putExtra("image", params.imageUrl)
-            if (params.bigText != null) putExtra("big_text", params.bigText)
+            if (params.subtitle != null) putExtra(IntentExtras.SUBTITLE, params.subtitle)
+            if (params.imageUrl != null) putExtra(IntentExtras.IMAGE, params.imageUrl)
+            if (params.bigText != null) putExtra(IntentExtras.BIG_TEXT, params.bigText)
             if (params.actions != null) {
                 val serialized = serializeActions(params.actions).toString()
                 Log.d(TAG, "scheduleAlarm: putting actions for $id: $serialized")
-                putExtra("actions", serialized)
+                putExtra(IntentExtras.ACTIONS, serialized)
             } else {
                 Log.d(TAG, "scheduleAlarm: no actions for $id")
             }

@@ -38,7 +38,7 @@ object LocalNotificationsFunctions {
     private var resumeCallbackRegistered = false
 
     // Defaults — overridden at runtime from PHP config via _config parameter
-    private var channelId = "nativephp_local_notifications"
+    private var channelId = Defaults.CHANNEL_ID
     private var channelName = "Local Notifications"
     private var channelDescription = "Notifications scheduled by the app"
     var maxActions = 3
@@ -227,10 +227,10 @@ object LocalNotificationsFunctions {
         // Cold-start tap from PendingIntent
         val intent = activity.intent
         if (intent?.action == IntentActions.TAP) {
-            val id = intent.getStringExtra("notification_id")
-            val title = intent.getStringExtra("notification_title")
-            val body = intent.getStringExtra("notification_body")
-            val dataJson = intent.getStringExtra("notification_data")
+            val id = intent.getStringExtra(IntentExtras.NOTIFICATION_ID)
+            val title = intent.getStringExtra(IntentExtras.NOTIFICATION_TITLE)
+            val body = intent.getStringExtra(IntentExtras.NOTIFICATION_BODY)
+            val dataJson = intent.getStringExtra(IntentExtras.NOTIFICATION_DATA)
 
             if (id != null && title != null && body != null) {
                 val payload = JSONObject().apply {

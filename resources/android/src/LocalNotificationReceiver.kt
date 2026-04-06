@@ -34,27 +34,27 @@ class LocalNotificationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         // Handle notification dismiss (user swiped away): clear stored tap payload
         if (intent.action == IntentActions.DISMISS) {
-            val dismissId = intent.getStringExtra("notification_id") ?: return
+            val dismissId = intent.getStringExtra(IntentExtras.NOTIFICATION_ID) ?: return
             LocalNotificationsFunctions.clearTapPayload(context, dismissId)
             return
         }
 
-        val id = intent.getStringExtra("notification_id") ?: return
-        val title = intent.getStringExtra("title") ?: return
-        val body = intent.getStringExtra("body") ?: return
+        val id = intent.getStringExtra(IntentExtras.NOTIFICATION_ID) ?: return
+        val title = intent.getStringExtra(IntentExtras.TITLE) ?: return
+        val body = intent.getStringExtra(IntentExtras.BODY) ?: return
 
         // Extend the BroadcastReceiver lifetime so image downloads
         // and rescheduling can complete without the system killing us.
         val pendingResult = goAsync()
         try {
-        val sound = intent.getBooleanExtra("sound", true)
-        val soundName = intent.getStringExtra("sound_name")
-        val baseChannelId = intent.getStringExtra("channel_id") ?: "nativephp_local_notifications"
-        val dataJson = intent.getStringExtra("data")
-        val subtitle = intent.getStringExtra("subtitle")
-        val imageUrl = intent.getStringExtra("image")
-        val bigText = intent.getStringExtra("big_text")
-        val actionsJson = intent.getStringExtra("actions")
+        val sound = intent.getBooleanExtra(IntentExtras.SOUND, true)
+        val soundName = intent.getStringExtra(IntentExtras.SOUND_NAME)
+        val baseChannelId = intent.getStringExtra(IntentExtras.CHANNEL_ID) ?: Defaults.CHANNEL_ID
+        val dataJson = intent.getStringExtra(IntentExtras.DATA)
+        val subtitle = intent.getStringExtra(IntentExtras.SUBTITLE)
+        val imageUrl = intent.getStringExtra(IntentExtras.IMAGE)
+        val bigText = intent.getStringExtra(IntentExtras.BIG_TEXT)
+        val actionsJson = intent.getStringExtra(IntentExtras.ACTIONS)
 
         Log.d(TAG, "Notification received: $id - $title, actionsJson=${actionsJson != null} (${actionsJson?.length ?: 0} chars)")
 
@@ -73,10 +73,10 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         // startActivity() from a BroadcastReceiver is restricted on Android 12+ (API 31).
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
             action = IntentActions.TAP
-            putExtra("notification_id", id)
-            putExtra("notification_title", title)
-            putExtra("notification_body", body)
-            if (dataJson != null) putExtra("notification_data", dataJson)
+            putExtra(IntentExtras.NOTIFICATION_ID, id)
+            putExtra(IntentExtras.NOTIFICATION_TITLE, title)
+            putExtra(IntentExtras.NOTIFICATION_BODY, body)
+            if (dataJson != null) putExtra(IntentExtras.NOTIFICATION_DATA, dataJson)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
 
@@ -92,10 +92,10 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             // Fallback: use a broadcast so the notification still works
             val fallbackIntent = Intent(context, NotificationTapReceiver::class.java).apply {
                 this.action = IntentActions.TAP
-                putExtra("notification_id", id)
-                putExtra("notification_title", title)
-                putExtra("notification_body", body)
-                if (dataJson != null) putExtra("notification_data", dataJson)
+                putExtra(IntentExtras.NOTIFICATION_ID, id)
+                putExtra(IntentExtras.NOTIFICATION_TITLE, title)
+                putExtra(IntentExtras.NOTIFICATION_BODY, body)
+                if (dataJson != null) putExtra(IntentExtras.NOTIFICATION_DATA, dataJson)
             }
             PendingIntent.getBroadcast(
                 context,
@@ -166,20 +166,20 @@ class LocalNotificationReceiver : BroadcastReceiver() {
 
                     val actionIntent = Intent(context, NotificationActionReceiver::class.java).apply {
                         this.action = IntentActions.ACTION
-                        putExtra("notification_id", id)
-                        putExtra("action_id", actionId)
-                        if (dataJson != null) putExtra("notification_data", dataJson)
+                        putExtra(IntentExtras.NOTIFICATION_ID, id)
+                        putExtra(IntentExtras.ACTION_ID, actionId)
+                        if (dataJson != null) putExtra(IntentExtras.NOTIFICATION_DATA, dataJson)
                         if (snoozeSecs > 0) {
-                            putExtra("snooze_seconds", snoozeSecs)
-                            putExtra("title", title)
-                            putExtra("body", body)
-                            putExtra("sound", sound)
-                            if (soundName != null) putExtra("sound_name", soundName)
-                            putExtra("channel_id", baseChannelId)
-                            if (subtitle != null) putExtra("subtitle", subtitle)
-                            if (imageUrl != null) putExtra("image", imageUrl)
-                            if (bigText != null) putExtra("big_text", bigText)
-                            if (actionsJson != null) putExtra("actions", actionsJson)
+                            putExtra(IntentExtras.SNOOZE_SECONDS, snoozeSecs)
+                            putExtra(IntentExtras.TITLE, title)
+                            putExtra(IntentExtras.BODY, body)
+                            putExtra(IntentExtras.SOUND, sound)
+                            if (soundName != null) putExtra(IntentExtras.SOUND_NAME, soundName)
+                            putExtra(IntentExtras.CHANNEL_ID, baseChannelId)
+                            if (subtitle != null) putExtra(IntentExtras.SUBTITLE, subtitle)
+                            if (imageUrl != null) putExtra(IntentExtras.IMAGE, imageUrl)
+                            if (bigText != null) putExtra(IntentExtras.BIG_TEXT, bigText)
+                            if (actionsJson != null) putExtra(IntentExtras.ACTIONS, actionsJson)
                         }
                     }
 
@@ -212,7 +212,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         // Does NOT fire on auto-cancel (tap), so the payload persists for tap detection.
         val dismissIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
             action = IntentActions.DISMISS
-            putExtra("notification_id", id)
+            putExtra(IntentExtras.NOTIFICATION_ID, id)
         }
         val dismissPendingIntent = PendingIntent.getBroadcast(
             context,
@@ -248,9 +248,9 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             Log.d(TAG, "No active activity, skipping NotificationReceived event dispatch")
         }
 
-        val repeatMs = intent.getLongExtra("repeat_ms", 0L)
-        val repeatType = intent.getStringExtra("repeat_type")
-        val remainingCount = if (intent.hasExtra("remaining_count")) intent.getIntExtra("remaining_count", 0) else -1
+        val repeatMs = intent.getLongExtra(IntentExtras.REPEAT_MS, 0L)
+        val repeatType = intent.getStringExtra(IntentExtras.REPEAT_TYPE)
+        val remainingCount = if (intent.hasExtra(IntentExtras.REMAINING_COUNT)) intent.getIntExtra(IntentExtras.REMAINING_COUNT, 0) else -1
         if (repeatMs == 0L || remainingCount == 1) {
             // Clean up: non-repeating or last repetition reached
             if (remainingCount == 1) Log.d(TAG, "Repeat count exhausted for: $id")
@@ -299,7 +299,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         // For calendar-based repeats (monthly/yearly), use Calendar to compute
         // the next trigger. For fixed intervals, simply add repeatMs.
         val now = System.currentTimeMillis()
-        val nextTriggerMs = if (repeatType == "monthly" || repeatType == "yearly") {
+        val nextTriggerMs = if (repeatType == RepeatType.MONTHLY || repeatType == RepeatType.YEARLY) {
             NotificationScheduler.calculateNextTrigger(repeatType, now)
         } else {
             now + repeatMs
@@ -307,20 +307,20 @@ class LocalNotificationReceiver : BroadcastReceiver() {
 
         val rescheduleIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
             action = IntentActions.NOTIFY
-            putExtra("notification_id", id)
-            putExtra("title", title)
-            putExtra("body", body)
-            putExtra("sound", sound)
-            if (soundName != null) putExtra("sound_name", soundName)
-            putExtra("channel_id", channelId)
-            putExtra("repeat_ms", repeatMs)
-            if (repeatType != null) putExtra("repeat_type", repeatType)
-            if (remainingCount > 0) putExtra("remaining_count", remainingCount)
-            if (dataJson != null) putExtra("data", dataJson)
-            if (subtitle != null) putExtra("subtitle", subtitle)
-            if (imageUrl != null) putExtra("image", imageUrl)
-            if (bigText != null) putExtra("big_text", bigText)
-            if (actionsJson != null) putExtra("actions", actionsJson)
+            putExtra(IntentExtras.NOTIFICATION_ID, id)
+            putExtra(IntentExtras.TITLE, title)
+            putExtra(IntentExtras.BODY, body)
+            putExtra(IntentExtras.SOUND, sound)
+            if (soundName != null) putExtra(IntentExtras.SOUND_NAME, soundName)
+            putExtra(IntentExtras.CHANNEL_ID, channelId)
+            putExtra(IntentExtras.REPEAT_MS, repeatMs)
+            if (repeatType != null) putExtra(IntentExtras.REPEAT_TYPE, repeatType)
+            if (remainingCount > 0) putExtra(IntentExtras.REMAINING_COUNT, remainingCount)
+            if (dataJson != null) putExtra(IntentExtras.DATA, dataJson)
+            if (subtitle != null) putExtra(IntentExtras.SUBTITLE, subtitle)
+            if (imageUrl != null) putExtra(IntentExtras.IMAGE, imageUrl)
+            if (bigText != null) putExtra(IntentExtras.BIG_TEXT, bigText)
+            if (actionsJson != null) putExtra(IntentExtras.ACTIONS, actionsJson)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(

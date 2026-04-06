@@ -8,6 +8,7 @@ use Ikromjon\LocalNotifications\Contracts\LocalNotificationsInterface;
 use Ikromjon\LocalNotifications\Data\NotificationOptions;
 use Ikromjon\LocalNotifications\Enums\BridgeFunction;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
+use Ikromjon\LocalNotifications\Support\Config;
 use Ikromjon\LocalNotifications\Validation\NotificationValidator;
 
 class LocalNotifications implements LocalNotificationsInterface
@@ -121,26 +122,14 @@ class LocalNotifications implements LocalNotificationsInterface
     protected function nativeConfig(): array
     {
         return [
-            'channel_id' => $this->configValue('channel_id', 'nativephp_local_notifications'),
-            'channel_name' => $this->configValue('channel_name', 'Local Notifications'),
-            'channel_description' => $this->configValue('channel_description', 'Notifications scheduled by the app'),
-            'max_actions' => $this->configValue('max_actions', 3),
-            'default_sound' => $this->configValue('default_sound', true),
-            'tap_detection_delay_ms' => $this->configValue('tap_detection_delay_ms', 500),
-            'navigation_replay_duration_ms' => $this->configValue('navigation_replay_duration_ms', 15000),
+            'channel_id' => Config::get('channel_id', 'nativephp_local_notifications'),
+            'channel_name' => Config::get('channel_name', 'Local Notifications'),
+            'channel_description' => Config::get('channel_description', 'Notifications scheduled by the app'),
+            'max_actions' => Config::get('max_actions', 3),
+            'default_sound' => Config::get('default_sound', true),
+            'tap_detection_delay_ms' => Config::get('tap_detection_delay_ms', 500),
+            'navigation_replay_duration_ms' => Config::get('navigation_replay_duration_ms', 15000),
         ];
-    }
-
-    /**
-     * Read a config value with a fallback for environments where config() is unavailable.
-     */
-    protected function configValue(string $key, mixed $default = null): mixed
-    {
-        if (function_exists('config')) {
-            return config("local-notifications.{$key}", $default);
-        }
-
-        return $default;
     }
 
     /**

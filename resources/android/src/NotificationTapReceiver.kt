@@ -17,10 +17,10 @@ class NotificationTapReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        val id = intent.getStringExtra("notification_id") ?: return
-        val title = intent.getStringExtra("notification_title") ?: return
-        val body = intent.getStringExtra("notification_body") ?: return
-        val dataJson = intent.getStringExtra("notification_data")
+        val id = intent.getStringExtra(IntentExtras.NOTIFICATION_ID) ?: return
+        val title = intent.getStringExtra(IntentExtras.NOTIFICATION_TITLE) ?: return
+        val body = intent.getStringExtra(IntentExtras.NOTIFICATION_BODY) ?: return
+        val dataJson = intent.getStringExtra(IntentExtras.NOTIFICATION_DATA)
 
         Log.d(TAG, "Notification tapped: $id")
 

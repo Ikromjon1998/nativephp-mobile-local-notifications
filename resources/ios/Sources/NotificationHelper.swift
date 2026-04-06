@@ -208,17 +208,17 @@ enum NotificationHelper {
             if let interval = repeatInterval {
                 repeats = true
                 switch interval {
-                case "minute":
+                case RepeatType.minute:
                     dateComponents = Calendar.current.dateComponents([.second], from: date)
-                case "hourly":
+                case RepeatType.hourly:
                     dateComponents = Calendar.current.dateComponents([.minute, .second], from: date)
-                case "daily":
+                case RepeatType.daily:
                     dateComponents = Calendar.current.dateComponents([.hour, .minute, .second], from: date)
-                case "weekly":
+                case RepeatType.weekly:
                     dateComponents = Calendar.current.dateComponents([.weekday, .hour, .minute, .second], from: date)
-                case "monthly":
+                case RepeatType.monthly:
                     dateComponents = Calendar.current.dateComponents([.day, .hour, .minute, .second], from: date)
-                case "yearly":
+                case RepeatType.yearly:
                     dateComponents = Calendar.current.dateComponents([.month, .day, .hour, .minute, .second], from: date)
                 default:
                     repeats = false

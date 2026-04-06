@@ -19,6 +19,16 @@ enum UserInfoKeys {
     static let actionSnooze = "action_snooze"
 }
 
+/// Repeat interval type strings matching the PHP RepeatInterval enum.
+enum RepeatType {
+    static let minute = "minute"
+    static let hourly = "hourly"
+    static let daily = "daily"
+    static let weekly = "weekly"
+    static let monthly = "monthly"
+    static let yearly = "yearly"
+}
+
 /// UserDefaults key helpers and notification sub-ID formatters.
 enum NotificationKeys {
     /// UserDefaults key for the remaining repeat count of a notification request.

@@ -24,9 +24,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        val notificationId = intent.getStringExtra("notification_id") ?: return
-        val actionId = intent.getStringExtra("action_id") ?: return
-        val dataJson = intent.getStringExtra("notification_data")
+        val notificationId = intent.getStringExtra(IntentExtras.NOTIFICATION_ID) ?: return
+        val actionId = intent.getStringExtra(IntentExtras.ACTION_ID) ?: return
+        val dataJson = intent.getStringExtra(IntentExtras.NOTIFICATION_DATA)
 
         Log.d(TAG, "Action pressed: $actionId on notification: $notificationId")
 
@@ -47,7 +47,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         }
 
         // Handle native snooze rescheduling before dismissing
-        val snoozeSecs = intent.getIntExtra("snooze_seconds", 0)
+        val snoozeSecs = intent.getIntExtra(IntentExtras.SNOOZE_SECONDS, 0)
         if (snoozeSecs > 0) {
             rescheduleSnooze(context, intent, snoozeSecs)
             payload.put("snoozed", true)
@@ -88,35 +88,35 @@ class NotificationActionReceiver : BroadcastReceiver() {
      * Re-uses the same notification ID so the snoozed notification replaces the original.
      */
     private fun rescheduleSnooze(context: Context, intent: Intent, snoozeSecs: Int) {
-        val id = intent.getStringExtra("notification_id") ?: return
-        val title = intent.getStringExtra("title") ?: return
-        val body = intent.getStringExtra("body") ?: return
-        val sound = intent.getBooleanExtra("sound", true)
-        val soundName = intent.getStringExtra("sound_name")
-        val channelId = intent.getStringExtra("channel_id") ?: "nativephp_local_notifications"
-        val dataJson = intent.getStringExtra("notification_data")
-        val subtitle = intent.getStringExtra("subtitle")
-        val imageUrl = intent.getStringExtra("image")
-        val bigText = intent.getStringExtra("big_text")
-        val actionsJson = intent.getStringExtra("actions")
+        val id = intent.getStringExtra(IntentExtras.NOTIFICATION_ID) ?: return
+        val title = intent.getStringExtra(IntentExtras.TITLE) ?: return
+        val body = intent.getStringExtra(IntentExtras.BODY) ?: return
+        val sound = intent.getBooleanExtra(IntentExtras.SOUND, true)
+        val soundName = intent.getStringExtra(IntentExtras.SOUND_NAME)
+        val channelId = intent.getStringExtra(IntentExtras.CHANNEL_ID) ?: Defaults.CHANNEL_ID
+        val dataJson = intent.getStringExtra(IntentExtras.NOTIFICATION_DATA)
+        val subtitle = intent.getStringExtra(IntentExtras.SUBTITLE)
+        val imageUrl = intent.getStringExtra(IntentExtras.IMAGE)
+        val bigText = intent.getStringExtra(IntentExtras.BIG_TEXT)
+        val actionsJson = intent.getStringExtra(IntentExtras.ACTIONS)
 
         val triggerMs = System.currentTimeMillis() + (snoozeSecs * 1000L)
 
         val rescheduleIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
             action = IntentActions.NOTIFY
-            putExtra("notification_id", id)
-            putExtra("title", title)
-            putExtra("body", body)
-            putExtra("sound", sound)
-            if (soundName != null) putExtra("sound_name", soundName)
-            putExtra("channel_id", channelId)
+            putExtra(IntentExtras.NOTIFICATION_ID, id)
+            putExtra(IntentExtras.TITLE, title)
+            putExtra(IntentExtras.BODY, body)
+            putExtra(IntentExtras.SOUND, sound)
+            if (soundName != null) putExtra(IntentExtras.SOUND_NAME, soundName)
+            putExtra(IntentExtras.CHANNEL_ID, channelId)
             // No repeat — snooze is a one-shot reschedule
-            putExtra("repeat_ms", 0L)
-            if (dataJson != null) putExtra("data", dataJson)
-            if (subtitle != null) putExtra("subtitle", subtitle)
-            if (imageUrl != null) putExtra("image", imageUrl)
-            if (bigText != null) putExtra("big_text", bigText)
-            if (actionsJson != null) putExtra("actions", actionsJson)
+            putExtra(IntentExtras.REPEAT_MS, 0L)
+            if (dataJson != null) putExtra(IntentExtras.DATA, dataJson)
+            if (subtitle != null) putExtra(IntentExtras.SUBTITLE, subtitle)
+            if (imageUrl != null) putExtra(IntentExtras.IMAGE, imageUrl)
+            if (bigText != null) putExtra(IntentExtras.BIG_TEXT, bigText)
+            if (actionsJson != null) putExtra(IntentExtras.ACTIONS, actionsJson)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
