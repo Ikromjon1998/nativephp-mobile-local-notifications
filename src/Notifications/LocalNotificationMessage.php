@@ -49,7 +49,7 @@ class LocalNotificationMessage
 
     public function __construct()
     {
-        $this->id = 'ln_' . bin2hex(random_bytes(16));
+        $this->id = 'ln_'.bin2hex(random_bytes(16));
     }
 
     public static function create(): self
