@@ -17,6 +17,8 @@ enum UserInfoKeys {
     static let notificationId = "notification_id"
     static let soundName = "soundName"
     static let actionSnooze = "action_snooze"
+    static let priority = "priority"
+    static let silent = "silent"
 }
 
 /// Repeat interval type strings matching the PHP RepeatInterval enum.
@@ -27,6 +29,14 @@ enum RepeatType {
     static let weekly = "weekly"
     static let monthly = "monthly"
     static let yearly = "yearly"
+}
+
+/// Priority level strings matching the PHP NotificationPriority enum.
+enum PriorityLevel {
+    static let low = "low"
+    static let `default` = "default"
+    static let high = "high"
+    static let urgent = "urgent"
 }
 
 /// UserDefaults key helpers and notification sub-ID formatters.

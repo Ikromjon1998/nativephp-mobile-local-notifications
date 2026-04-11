@@ -1,7 +1,7 @@
 # Epic 9: Notification Priority & Importance Control
 
 **Priority:** Medium
-**Status:** Not Started
+**Status:** Done
 
 ## Prerequisites
 
@@ -21,8 +21,8 @@ Allow developers to control the urgency and display behavior of individual notif
 
 ## Acceptance Criteria
 
-- [ ] Each priority level produces visually distinct notification behavior on both platforms
-- [ ] `urgent` notifications appear as heads-up/banner notifications
-- [ ] `low` notifications appear silently in the notification shade
-- [ ] `silent` parameter works independently of priority
-- [ ] Graceful fallback when iOS critical notification entitlement is unavailable
+- [x] Each priority level produces visually distinct notification behavior on both platforms
+- [x] `urgent` notifications appear as heads-up/banner notifications
+- [x] `low` notifications appear silently in the notification shade
+- [x] `silent` parameter works independently of priority
+- [x] Graceful fallback when iOS critical notification entitlement is unavailable

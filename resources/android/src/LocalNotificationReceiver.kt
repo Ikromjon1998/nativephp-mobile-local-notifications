@@ -55,17 +55,23 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             val imageUrl = intent.getStringExtra(IntentExtras.IMAGE)
             val bigText = intent.getStringExtra(IntentExtras.BIG_TEXT)
             val actionsJson = intent.getStringExtra(IntentExtras.ACTIONS)
+            val priority = intent.getStringExtra(IntentExtras.PRIORITY)
+            val silent = intent.getBooleanExtra(IntentExtras.SILENT, false)
 
             Log.d(TAG, "Notification received: $id - $title, actionsJson=${actionsJson != null} (${actionsJson?.length ?: 0} chars)")
 
             // Build the notification
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-            // Resolve the effective channel: use a per-sound channel for custom sounds
-            val channelId = if (soundName != null) {
-                ensureSoundChannel(context, notificationManager, baseChannelId, soundName)
-            } else {
-                baseChannelId
+            // Resolve the effective channel: priority and sound each require separate channels
+            val channelId = when {
+                priority != null && soundName != null ->
+                    ensurePrioritySoundChannel(context, notificationManager, baseChannelId, priority, soundName)
+                priority != null ->
+                    ensurePriorityChannel(context, notificationManager, baseChannelId, priority)
+                soundName != null ->
+                    ensureSoundChannel(context, notificationManager, baseChannelId, soundName)
+                else -> baseChannelId
             }
 
             // Launch the app directly when the user taps the notification.
@@ -113,19 +119,27 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                 android.R.drawable.ic_dialog_info
             }
 
+            val compatPriority = when (priority) {
+                PriorityLevel.LOW -> NotificationCompat.PRIORITY_LOW
+                PriorityLevel.DEFAULT -> NotificationCompat.PRIORITY_DEFAULT
+                PriorityLevel.HIGH -> NotificationCompat.PRIORITY_HIGH
+                PriorityLevel.URGENT -> NotificationCompat.PRIORITY_HIGH
+                else -> NotificationCompat.PRIORITY_HIGH
+            }
+
             val builder = NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(appIcon)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setAutoCancel(true)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setPriority(compatPriority)
                 .setContentIntent(pendingIntent)
 
             if (subtitle != null) {
                 builder.setSubText(subtitle)
             }
 
-            if (!sound && soundName == null) {
+            if (silent || (!sound && soundName == null)) {
                 builder.setSilent(true)
             }
 
@@ -180,6 +194,8 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                                 if (imageUrl != null) putExtra(IntentExtras.IMAGE, imageUrl)
                                 if (bigText != null) putExtra(IntentExtras.BIG_TEXT, bigText)
                                 if (actionsJson != null) putExtra(IntentExtras.ACTIONS, actionsJson)
+                                if (priority != null) putExtra(IntentExtras.PRIORITY, priority)
+                                if (silent) putExtra(IntentExtras.SILENT, true)
                             }
                         }
 
@@ -271,7 +287,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                 // Self-reschedule the next occurrence for repeating notifications.
                 // This replaces setRepeating() which is unreliable on modern Android.
                 val nextCount = if (remainingCount > 1) remainingCount - 1 else -1
-                rescheduleNext(context, id, title, body, sound, soundName, baseChannelId, repeatMs, repeatType, dataJson, subtitle, imageUrl, bigText, actionsJson, nextCount)
+                rescheduleNext(context, id, title, body, sound, soundName, baseChannelId, repeatMs, repeatType, dataJson, subtitle, imageUrl, bigText, actionsJson, nextCount, priority, silent)
             }
         } finally {
             pendingResult.finish()
@@ -298,7 +314,9 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         imageUrl: String?,
         bigText: String?,
         actionsJson: String?,
-        remainingCount: Int = -1
+        remainingCount: Int = -1,
+        priority: String? = null,
+        silent: Boolean = false
     ) {
         // For calendar-based repeats (monthly/yearly), use Calendar to compute
         // the next trigger. For fixed intervals, simply add repeatMs.
@@ -325,6 +343,8 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             if (imageUrl != null) putExtra(IntentExtras.IMAGE, imageUrl)
             if (bigText != null) putExtra(IntentExtras.BIG_TEXT, bigText)
             if (actionsJson != null) putExtra(IntentExtras.ACTIONS, actionsJson)
+            if (priority != null) putExtra(IntentExtras.PRIORITY, priority)
+            if (silent) putExtra(IntentExtras.SILENT, true)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
@@ -404,6 +424,85 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         manager.createNotificationChannel(channel)
 
         return soundChannelId
+    }
+
+    /**
+     * Create (or re-use) a notification channel with a specific priority/importance level.
+     * Channel ID format: {baseChannelId}_priority_{level}.
+     */
+    private fun ensurePriorityChannel(
+        context: Context,
+        manager: NotificationManager,
+        baseChannelId: String,
+        priority: String
+    ): String {
+        val priorityChannelId = "${baseChannelId}_priority_$priority"
+        if (manager.getNotificationChannel(priorityChannelId) != null) {
+            return priorityChannelId
+        }
+
+        val importance = priorityToImportance(priority)
+
+        val channel = NotificationChannel(priorityChannelId, "Notifications ($priority)", importance).apply {
+            description = "Notifications with $priority priority"
+            if (priority == PriorityLevel.LOW) {
+                setSound(null, null)
+                enableVibration(false)
+            } else {
+                enableVibration(true)
+            }
+        }
+        manager.createNotificationChannel(channel)
+        return priorityChannelId
+    }
+
+    /**
+     * Create (or re-use) a notification channel with both a specific priority and custom sound.
+     * Channel ID format: {baseChannelId}_priority_{level}_sound_{name}.
+     */
+    private fun ensurePrioritySoundChannel(
+        context: Context,
+        manager: NotificationManager,
+        baseChannelId: String,
+        priority: String,
+        soundName: String
+    ): String {
+        val name = soundName.substringBeforeLast(".")
+        val channelId = "${baseChannelId}_priority_${priority}_sound_$name"
+        if (manager.getNotificationChannel(channelId) != null) {
+            return channelId
+        }
+
+        val resId = context.resources.getIdentifier(name, "raw", context.packageName)
+        if (resId == 0) {
+            Log.w(TAG, "Custom sound resource not found: $name. Falling back to priority-only channel.")
+            return ensurePriorityChannel(context, manager, baseChannelId, priority)
+        }
+
+        val importance = priorityToImportance(priority)
+        val soundUri = Uri.parse("android.resource://${context.packageName}/raw/$name")
+        val audioAttributes = AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .build()
+
+        val channel = NotificationChannel(channelId, "Notifications ($priority, $name)", importance).apply {
+            description = "Notifications with $priority priority and custom sound: $name"
+            setSound(soundUri, audioAttributes)
+            enableVibration(priority != PriorityLevel.LOW)
+        }
+        manager.createNotificationChannel(channel)
+        return channelId
+    }
+
+    private fun priorityToImportance(priority: String): Int {
+        return when (priority) {
+            PriorityLevel.LOW -> NotificationManager.IMPORTANCE_LOW
+            PriorityLevel.DEFAULT -> NotificationManager.IMPORTANCE_DEFAULT
+            PriorityLevel.HIGH -> NotificationManager.IMPORTANCE_HIGH
+            PriorityLevel.URGENT -> NotificationManager.IMPORTANCE_HIGH
+            else -> NotificationManager.IMPORTANCE_DEFAULT
+        }
     }
 
     /**

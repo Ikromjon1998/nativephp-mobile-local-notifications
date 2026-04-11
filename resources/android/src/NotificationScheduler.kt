@@ -26,6 +26,8 @@ data class NotificationParams(
     val imageUrl: String?,
     val bigText: String?,
     val actions: List<*>?,
+    val priority: String?,
+    val silent: Boolean,
 )
 
 /**
@@ -66,6 +68,8 @@ object NotificationScheduler {
             imageUrl = parameters["image"] as? String,
             bigText = parameters["bigText"] as? String,
             actions = coerceToList(rawActions),
+            priority = parameters["priority"] as? String,
+            silent = parameters["silent"] as? Boolean ?: false,
         )
     }
 
@@ -98,6 +102,10 @@ object NotificationScheduler {
                 ?: existing.optString("bigText", null),
             actions = coerceToList(parameters["actions"])
                 ?: if (existing.has("actions")) existing.optJSONArray("actions")?.let { jsonArrayToActionList(it) } else null,
+            priority = parameters["priority"] as? String
+                ?: existing.optString("priority", null),
+            silent = parameters["silent"] as? Boolean
+                ?: existing.optBoolean("silent", false),
         )
     }
 
@@ -253,6 +261,8 @@ object NotificationScheduler {
             } else {
                 Log.d(TAG, "scheduleAlarm: no actions for $id")
             }
+            if (params.priority != null) putExtra(IntentExtras.PRIORITY, params.priority)
+            if (params.silent) putExtra(IntentExtras.SILENT, true)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
@@ -332,6 +342,8 @@ object NotificationScheduler {
                 if (params.imageUrl != null) put("image", params.imageUrl)
                 if (params.bigText != null) put("bigText", params.bigText)
                 if (params.actions != null) put("actions", serializeActions(params.actions))
+                if (params.priority != null) put("priority", params.priority)
+                if (params.silent) put("silent", true)
             }
 
             prefs.edit()

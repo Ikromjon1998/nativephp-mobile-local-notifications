@@ -243,6 +243,30 @@ describe('soundName validation', function (): void {
     })->throws(InvalidArgumentException::class, 'filename with extension');
 });
 
+describe('priority validation', function (): void {
+    it('allows valid priority values', function (): void {
+        foreach (['low', 'default', 'high', 'urgent'] as $priority) {
+            expect(fn () => NotificationValidator::validate([
+                'priority' => $priority,
+            ]))->not->toThrow(InvalidArgumentException::class);
+        }
+    });
+
+    it('throws for invalid priority value', function (): void {
+        NotificationValidator::validate(['priority' => 'critical']);
+    })->throws(InvalidArgumentException::class, 'priority must be one of: low, default, high, urgent');
+
+    it('allows missing priority', function (): void {
+        expect(fn () => NotificationValidator::validate([]))->not->toThrow(InvalidArgumentException::class);
+    });
+
+    it('allows null priority', function (): void {
+        expect(fn () => NotificationValidator::validate([
+            'priority' => null,
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
+});
+
 describe('actions validation', function (): void {
     it('throws when actions exceed default max of 3', function (): void {
         NotificationValidator::validate([

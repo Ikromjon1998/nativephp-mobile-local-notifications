@@ -666,6 +666,8 @@ object LocalNotificationsFunctions {
             if (params.imageUrl != null) merged["image"] = params.imageUrl
             if (params.bigText != null) merged["bigText"] = params.bigText
             if (params.actions != null) merged["actions"] = params.actions
+            if (params.priority != null) merged["priority"] = params.priority
+            if (params.silent) merged["silent"] = params.silent
             if (delay != null) merged["delay"] = delay
             if (at != null) merged["at"] = at
             if (repeat != null) merged["repeat"] = repeat
@@ -680,7 +682,9 @@ object LocalNotificationsFunctions {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val activeNotification = notificationManager.activeNotifications.firstOrNull { it.id == id.hashCode() } ?: return
 
-            val rebuiltNotification = android.app.Notification.Builder(context, channelId)
+            // Use the existing notification's channel to preserve priority/sound settings
+            val effectiveChannelId = activeNotification.notification.channelId ?: channelId
+            val rebuiltNotification = android.app.Notification.Builder(context, effectiveChannelId)
                 .setSmallIcon(activeNotification.notification.smallIcon
                     ?: android.graphics.drawable.Icon.createWithResource(context, context.applicationInfo.icon))
                 .setContentTitle(params.title)

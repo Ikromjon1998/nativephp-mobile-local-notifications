@@ -7,6 +7,7 @@ namespace Ikromjon\LocalNotifications;
 use Ikromjon\LocalNotifications\Contracts\LocalNotificationsInterface;
 use Ikromjon\LocalNotifications\Data\NotificationOptions;
 use Ikromjon\LocalNotifications\Enums\BridgeFunction;
+use Ikromjon\LocalNotifications\Enums\NotificationPriority;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
 use Ikromjon\LocalNotifications\Support\Config;
 use Ikromjon\LocalNotifications\Validation\NotificationValidator;
@@ -107,6 +108,10 @@ class LocalNotifications implements LocalNotificationsInterface
     {
         if (isset($options['repeat']) && $options['repeat'] instanceof RepeatInterval) {
             $options['repeat'] = $options['repeat']->value;
+        }
+
+        if (isset($options['priority']) && $options['priority'] instanceof NotificationPriority) {
+            $options['priority'] = $options['priority']->value;
         }
 
         NotificationValidator::validate($options);

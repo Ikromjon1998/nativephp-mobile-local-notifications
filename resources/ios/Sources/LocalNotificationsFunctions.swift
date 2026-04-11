@@ -63,8 +63,19 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         let customData = NotificationHelper.extractCustomData(from: userInfo)
         if !customData.isEmpty { payload["data"] = customData }
 
+        // Adjust presentation based on priority and silent flag
+        let priority = userInfo[UserInfoKeys.priority] as? String
+        let silent = userInfo[UserInfoKeys.silent] as? Bool ?? false
+
+        var options: UNNotificationPresentationOptions = [.banner, .sound, .badge]
+        if priority == PriorityLevel.low {
+            options = [.list]
+        } else if silent {
+            options.remove(.sound)
+        }
+
         sendOrQueue(eventClass: eventClass, payload: payload)
-        completionHandler([.banner, .sound, .badge])
+        completionHandler(options)
     }
 
     func userNotificationCenter(
@@ -185,10 +196,13 @@ enum LocalNotificationsFunctions {
             let repeatIntervalSeconds = parameters["repeatIntervalSeconds"] as? Int
             let repeatDays = parameters["repeatDays"] as? [Int]
             let repeatCount = parameters["repeatCount"] as? Int
+            let priority = parameters["priority"] as? String
+            let silent = parameters["silent"] as? Bool ?? false
 
             let content = NotificationHelper.buildContent(
                 id: id, title: title, body: body,
-                subtitle: subtitle, sound: sound, soundName: soundName, badge: badge, data: data
+                subtitle: subtitle, sound: sound, soundName: soundName, badge: badge, data: data,
+                priority: priority, silent: silent
             )
 
             // Action buttons
@@ -227,20 +241,36 @@ enum LocalNotificationsFunctions {
             var result: [String: Any] = [:]
 
             center.add(request) { error in
-                if let error = error {
+                if let error = error, priority == PriorityLevel.urgent {
+                    // .critical requires entitlement; fall back to .timeSensitive
+                    logger.warning("Critical notification failed, retrying with timeSensitive: \(error.localizedDescription, privacy: .public)")
+                    content.interruptionLevel = .timeSensitive
+                    let fallbackRequest = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+                    center.add(fallbackRequest) { fallbackError in
+                        if let fallbackError = fallbackError {
+                            result = ["success": false, "error": fallbackError.localizedDescription]
+                        } else {
+                            result = ["success": true, "id": id]
+                            if let count = repeatCount, count >= 1 {
+                                UserDefaults.standard.set(count, forKey: NotificationKeys.remainingCount(id))
+                            }
+                            LaravelBridge.shared.send?(Events.notificationScheduled, ["id": id, "title": title, "body": body])
+                        }
+                        semaphore.signal()
+                    }
+                } else if let error = error {
                     logger.error("Failed to schedule notification: \(error.localizedDescription, privacy: .public)")
                     result = ["success": false, "error": error.localizedDescription]
+                    semaphore.signal()
                 } else {
                     logger.info("Notification scheduled: \(id, privacy: .public)")
                     result = ["success": true, "id": id]
-
                     if let count = repeatCount, count >= 1 {
                         UserDefaults.standard.set(count, forKey: NotificationKeys.remainingCount(id))
                     }
-
                     LaravelBridge.shared.send?(Events.notificationScheduled, ["id": id, "title": title, "body": body])
+                    semaphore.signal()
                 }
-                semaphore.signal()
             }
 
             semaphore.wait()
@@ -429,9 +459,16 @@ enum LocalNotificationsFunctions {
                 if !existing.isEmpty { mergedData = existing }
             }
 
+            // Priority and silent: use new values or fall back to existing
+            let existingPriority = existingContent.userInfo[UserInfoKeys.priority] as? String
+            let priority = parameters["priority"] as? String ?? existingPriority
+            let existingSilent = existingContent.userInfo[UserInfoKeys.silent] as? Bool ?? false
+            let silent = parameters["silent"] as? Bool ?? existingSilent
+
             let newContent = NotificationHelper.buildContent(
                 id: id, title: title, body: body,
-                subtitle: subtitle, sound: sound, soundName: soundName, badge: badge, data: mergedData
+                subtitle: subtitle, sound: sound, soundName: soundName, badge: badge, data: mergedData,
+                priority: priority, silent: silent
             )
 
             // Actions
@@ -494,6 +531,8 @@ enum LocalNotificationsFunctions {
                     if let rs = newRepeatIntervalSeconds { mergedParams["repeatIntervalSeconds"] = rs }
                     if let rd = newRepeatDays { mergedParams["repeatDays"] = rd }
                     if let rc = newRepeatCount { mergedParams["repeatCount"] = rc }
+                    if let p = priority { mergedParams["priority"] = p }
+                    if silent { mergedParams["silent"] = true }
                     if let c = config { mergedParams["_config"] = c }
 
                     let scheduleResult = try Schedule().execute(parameters: mergedParams)

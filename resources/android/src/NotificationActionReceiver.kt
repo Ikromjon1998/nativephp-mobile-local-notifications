@@ -103,6 +103,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val imageUrl = intent.getStringExtra(IntentExtras.IMAGE)
         val bigText = intent.getStringExtra(IntentExtras.BIG_TEXT)
         val actionsJson = intent.getStringExtra(IntentExtras.ACTIONS)
+        val priority = intent.getStringExtra(IntentExtras.PRIORITY)
+        val silent = intent.getBooleanExtra(IntentExtras.SILENT, false)
 
         val triggerMs = System.currentTimeMillis() + (snoozeSecs * 1000L)
 
@@ -121,6 +123,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
             if (imageUrl != null) putExtra(IntentExtras.IMAGE, imageUrl)
             if (bigText != null) putExtra(IntentExtras.BIG_TEXT, bigText)
             if (actionsJson != null) putExtra(IntentExtras.ACTIONS, actionsJson)
+            if (priority != null) putExtra(IntentExtras.PRIORITY, priority)
+            if (silent) putExtra(IntentExtras.SILENT, true)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
