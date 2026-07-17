@@ -52,7 +52,6 @@ object NotificationScheduler {
      */
     fun parseParams(parameters: Map<String, Any>, defaultSound: Boolean): NotificationParams {
         val rawActions = parameters["actions"]
-        Log.d(TAG, "parseParams actions type: ${rawActions?.javaClass?.name ?: "null"}, value: $rawActions")
         val soundName = parameters["soundName"] as? String
         return NotificationParams(
             id = parameters["id"] as? String ?: "",
