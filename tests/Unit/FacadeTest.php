@@ -12,7 +12,7 @@ it('resolves to the correct class', function (): void {
 });
 
 it('proxies schedule calls to the underlying class', function (): void {
-    stubNativephpCall(fn () => json_encode(['success' => true, 'id' => 'facade-test']));
+    stubNativephpCall(fn (): string|false => json_encode(['success' => true, 'id' => 'facade-test']));
 
     $result = LocalNotifications::schedule([
         'id' => 'facade-test',
@@ -24,7 +24,7 @@ it('proxies schedule calls to the underlying class', function (): void {
 });
 
 it('proxies cancel calls to the underlying class', function (): void {
-    stubNativephpCall(fn () => json_encode(['success' => true]));
+    stubNativephpCall(fn (): string|false => json_encode(['success' => true]));
 
     $result = LocalNotifications::cancel('some-id');
 
@@ -32,7 +32,7 @@ it('proxies cancel calls to the underlying class', function (): void {
 });
 
 it('proxies cancelAll calls to the underlying class', function (): void {
-    stubNativephpCall(fn () => json_encode(['success' => true]));
+    stubNativephpCall(fn (): string|false => json_encode(['success' => true]));
 
     $result = LocalNotifications::cancelAll();
 
@@ -40,7 +40,7 @@ it('proxies cancelAll calls to the underlying class', function (): void {
 });
 
 it('proxies getPending calls to the underlying class', function (): void {
-    stubNativephpCall(fn () => json_encode(['success' => true, 'count' => 0]));
+    stubNativephpCall(fn (): string|false => json_encode(['success' => true, 'count' => 0]));
 
     $result = LocalNotifications::getPending();
 
@@ -48,7 +48,7 @@ it('proxies getPending calls to the underlying class', function (): void {
 });
 
 it('proxies requestPermission calls to the underlying class', function (): void {
-    stubNativephpCall(fn () => json_encode(['granted' => true]));
+    stubNativephpCall(fn (): string|false => json_encode(['granted' => true]));
 
     $result = LocalNotifications::requestPermission();
 
@@ -56,7 +56,7 @@ it('proxies requestPermission calls to the underlying class', function (): void 
 });
 
 it('proxies checkPermission calls to the underlying class', function (): void {
-    stubNativephpCall(fn () => json_encode(['status' => 'granted']));
+    stubNativephpCall(fn (): string|false => json_encode(['status' => 'granted']));
 
     $result = LocalNotifications::checkPermission();
 
@@ -64,7 +64,7 @@ it('proxies checkPermission calls to the underlying class', function (): void {
 });
 
 it('proxies update calls to the underlying class', function (): void {
-    stubNativephpCall(fn () => json_encode(['success' => true, 'id' => 'update-test']));
+    stubNativephpCall(fn (): string|false => json_encode(['success' => true, 'id' => 'update-test']));
 
     $result = LocalNotifications::update('update-test', [
         'id' => 'update-test',
