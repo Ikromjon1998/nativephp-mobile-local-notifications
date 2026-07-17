@@ -148,7 +148,19 @@ class LocalNotifications implements LocalNotificationsInterface
         // settings (e.g. tap detection delay) before the first schedule().
         $data['_config'] = $this->nativeConfig();
 
-        $result = nativephp_call($function->value, json_encode($data));
+        $payload = json_encode($data);
+
+        if ($payload === false) {
+            if (function_exists('logger')) {
+                logger()->warning(
+                    'LocalNotifications: failed to encode bridge payload: '.json_last_error_msg(),
+                );
+            }
+
+            return [];
+        }
+
+        $result = nativephp_call($function->value, $payload);
 
         if (! $result) {
             return [];

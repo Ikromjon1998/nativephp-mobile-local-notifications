@@ -15,7 +15,7 @@ describe('schedule', function (): void {
         $capturedFunction = null;
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedFunction, &$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedFunction, &$capturedData): string|false {
             $capturedFunction = $function;
             $capturedData = json_decode($data, true);
 
@@ -43,7 +43,7 @@ describe('schedule', function (): void {
     it('passes all optional parameters to the bridge', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -84,7 +84,7 @@ describe('schedule', function (): void {
     it('passes rich content parameters independently', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -105,7 +105,7 @@ describe('schedule', function (): void {
     it('passes subtitle without other rich content', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -126,7 +126,7 @@ describe('schedule', function (): void {
     it('passes action buttons to the bridge', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -174,10 +174,29 @@ describe('schedule', function (): void {
         expect($result)->toBe([]);
     });
 
+    it('returns empty array without calling the bridge when payload cannot be encoded', function (): void {
+        $bridgeCalled = false;
+
+        stubNativephpCall(function () use (&$bridgeCalled): string {
+            $bridgeCalled = true;
+
+            return json_encode(['success' => true]);
+        });
+
+        $result = $this->notifications->schedule([
+            'id' => 'test-1',
+            'title' => "\xB1\x31", // invalid UTF-8 makes json_encode() return false
+            'body' => 'Body',
+        ]);
+
+        expect($result)->toBe([])
+            ->and($bridgeCalled)->toBeFalse();
+    });
+
     it('handles empty options array', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -192,7 +211,7 @@ describe('schedule', function (): void {
     it('preserves nested data arrays', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -217,7 +236,7 @@ describe('schedule', function (): void {
     it('converts RepeatInterval enum to string value', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -247,7 +266,7 @@ describe('schedule', function (): void {
         foreach ($cases as [$enum, $expected]) {
             $capturedData = null;
 
-            stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+            stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
                 $capturedData = json_decode($data, true);
 
                 return json_encode(['success' => true]);
@@ -267,7 +286,7 @@ describe('schedule', function (): void {
     it('converts Monthly enum to monthly string', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -287,7 +306,7 @@ describe('schedule', function (): void {
     it('converts Yearly enum to yearly string', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -442,7 +461,7 @@ describe('schedule', function (): void {
     it('passes string repeat values unchanged', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -473,7 +492,7 @@ describe('schedule', function (): void {
     it('passes zero delay to the bridge', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -492,7 +511,7 @@ describe('schedule', function (): void {
     it('passes sound false to the bridge', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -511,7 +530,7 @@ describe('schedule', function (): void {
     it('passes badge zero to the bridge', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -530,7 +549,7 @@ describe('schedule', function (): void {
     it('injects _config with default values into schedule bridge call', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -565,7 +584,7 @@ describe('cancel', function (): void {
         $capturedFunction = null;
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedFunction, &$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedFunction, &$capturedData): string|false {
             $capturedFunction = $function;
             $capturedData = json_decode($data, true);
 
@@ -591,7 +610,7 @@ describe('cancel', function (): void {
     it('handles special characters in id', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -608,7 +627,7 @@ describe('cancelAll', function (): void {
         $capturedFunction = null;
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedFunction, &$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedFunction, &$capturedData): string|false {
             $capturedFunction = $function;
             $capturedData = json_decode($data, true);
 
@@ -636,7 +655,7 @@ describe('getPending', function (): void {
     it('calls the bridge with correct function name', function (): void {
         $capturedFunction = null;
 
-        stubNativephpCall(function (string $function) use (&$capturedFunction) {
+        stubNativephpCall(function (string $function) use (&$capturedFunction): string|false {
             $capturedFunction = $function;
 
             return json_encode(['success' => true, 'notifications' => '[]', 'count' => 0]);
@@ -661,7 +680,7 @@ describe('requestPermission', function (): void {
     it('calls the bridge with correct function name', function (): void {
         $capturedFunction = null;
 
-        stubNativephpCall(function (string $function) use (&$capturedFunction) {
+        stubNativephpCall(function (string $function) use (&$capturedFunction): string|false {
             $capturedFunction = $function;
 
             return json_encode(['granted' => true]);
@@ -674,7 +693,7 @@ describe('requestPermission', function (): void {
     });
 
     it('handles denied permission response', function (): void {
-        stubNativephpCall(fn () => json_encode(['granted' => false, 'status' => 'pending']));
+        stubNativephpCall(fn (): string|false => json_encode(['granted' => false, 'status' => 'pending']));
 
         $result = $this->notifications->requestPermission();
 
@@ -694,7 +713,7 @@ describe('checkPermission', function (): void {
     it('calls the bridge with correct function name', function (): void {
         $capturedFunction = null;
 
-        stubNativephpCall(function (string $function) use (&$capturedFunction) {
+        stubNativephpCall(function (string $function) use (&$capturedFunction): string|false {
             $capturedFunction = $function;
 
             return json_encode(['status' => 'granted']);
@@ -707,7 +726,7 @@ describe('checkPermission', function (): void {
     });
 
     it('handles denied status', function (): void {
-        stubNativephpCall(fn () => json_encode(['status' => 'denied']));
+        stubNativephpCall(fn (): string|false => json_encode(['status' => 'denied']));
 
         $result = $this->notifications->checkPermission();
 
@@ -728,7 +747,7 @@ describe('update', function (): void {
         $capturedFunction = null;
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedFunction, &$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedFunction, &$capturedData): string|false {
             $capturedFunction = $function;
             $capturedData = json_decode($data, true);
 
@@ -752,7 +771,7 @@ describe('update', function (): void {
     it('overrides array id with the explicit id parameter', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -770,7 +789,7 @@ describe('update', function (): void {
     it('accepts NotificationOptions DTO', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -791,7 +810,7 @@ describe('update', function (): void {
     it('passes partial update options to the bridge', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -838,7 +857,7 @@ describe('update', function (): void {
     it('injects _config into update bridge call', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
