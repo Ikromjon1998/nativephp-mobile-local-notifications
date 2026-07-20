@@ -41,6 +41,8 @@ object IntentExtras {
     const val NOTIFICATION_DATA = "notification_data"
     const val ACTION_ID = "action_id"
     const val SNOOZE_SECONDS = "snooze_seconds"
+    const val PRIORITY = "priority"
+    const val SILENT = "silent"
 }
 
 /** Repeat interval type strings matching the PHP RepeatInterval enum. */
@@ -51,6 +53,14 @@ object RepeatType {
     const val WEEKLY = "weekly"
     const val MONTHLY = "monthly"
     const val YEARLY = "yearly"
+}
+
+/** Priority level strings matching the PHP NotificationPriority enum. */
+object PriorityLevel {
+    const val LOW = "low"
+    const val DEFAULT = "default"
+    const val HIGH = "high"
+    const val URGENT = "urgent"
 }
 
 /** Default values shared across the plugin. */

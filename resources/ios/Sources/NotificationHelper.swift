@@ -20,7 +20,9 @@ enum NotificationHelper {
         sound: Bool,
         soundName: String?,
         badge: Int?,
-        data: [String: Any]?
+        data: [String: Any]?,
+        priority: String? = nil,
+        silent: Bool = false
     ) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = title
@@ -30,7 +32,10 @@ enum NotificationHelper {
             content.subtitle = subtitle
         }
 
-        if let soundName = soundName {
+        if silent {
+            // Silent overrides all sound settings
+            content.sound = nil
+        } else if let soundName = soundName {
             content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: soundName))
         } else if sound {
             content.sound = .default
@@ -38,6 +43,28 @@ enum NotificationHelper {
 
         if let badge = badge {
             content.badge = NSNumber(value: badge)
+        }
+
+        // Set interruption level and relevance score based on priority
+        if let priority = priority {
+            switch priority {
+            case PriorityLevel.low:
+                content.interruptionLevel = .passive
+                content.relevanceScore = 0.25
+            case PriorityLevel.default:
+                content.interruptionLevel = .active
+                content.relevanceScore = 0.5
+            case PriorityLevel.high:
+                content.interruptionLevel = .timeSensitive
+                content.relevanceScore = 0.75
+            case PriorityLevel.urgent:
+                // .critical requires com.apple.developer.usernotifications.critical-alerts entitlement.
+                // If unavailable, the system may reject the request — caller handles fallback.
+                content.interruptionLevel = .critical
+                content.relevanceScore = 1.0
+            default:
+                break
+            }
         }
 
         // Merge data first, then write internal keys last to prevent
@@ -51,6 +78,12 @@ enum NotificationHelper {
         userInfo[UserInfoKeys.notificationId] = id
         if let soundName = soundName {
             userInfo[UserInfoKeys.soundName] = soundName
+        }
+        if let priority = priority {
+            userInfo[UserInfoKeys.priority] = priority
+        }
+        if silent {
+            userInfo[UserInfoKeys.silent] = true
         }
         content.userInfo = userInfo
 
@@ -293,7 +326,8 @@ enum NotificationHelper {
     /// Extract custom data from userInfo, excluding internal keys.
     /// Internal userInfo keys that should not be included in the custom data payload.
     private static let internalKeys: Set<String> = [
-        UserInfoKeys.notificationId, UserInfoKeys.actionSnooze, UserInfoKeys.soundName
+        UserInfoKeys.notificationId, UserInfoKeys.actionSnooze, UserInfoKeys.soundName,
+        UserInfoKeys.priority, UserInfoKeys.silent
     ]
 
     static func extractCustomData(from userInfo: [AnyHashable: Any]) -> [String: Any] {

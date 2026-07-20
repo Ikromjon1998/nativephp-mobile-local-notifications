@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Ikromjon\LocalNotifications\Data;
 
+use Ikromjon\LocalNotifications\Enums\NotificationPriority;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
 use Ikromjon\LocalNotifications\Validation\NotificationValidator;
 
 final readonly class NotificationOptions
 {
     public RepeatInterval|string|null $repeat;
+
+    public NotificationPriority|string|null $priority;
 
     /**
      * @param  array<string, mixed>|null  $data
@@ -34,10 +37,16 @@ final readonly class NotificationOptions
         public ?string $bigText = null,
         public ?array $actions = null,
         public ?string $soundName = null,
+        NotificationPriority|string|null $priority = null,
+        public ?bool $silent = null,
     ) {
         $this->repeat = is_string($repeat)
             ? (RepeatInterval::tryFrom($repeat) ?? $repeat)
             : $repeat;
+
+        $this->priority = is_string($priority)
+            ? (NotificationPriority::tryFrom($priority) ?? $priority)
+            : $priority;
     }
 
     /**
@@ -59,6 +68,9 @@ final readonly class NotificationOptions
             'at' => $this->at,
             'actions' => $actionsArray,
             'soundName' => $this->soundName,
+            'priority' => $this->priority instanceof NotificationPriority
+                ? $this->priority->value
+                : $this->priority,
         ]);
 
         $result = [
@@ -123,6 +135,16 @@ final readonly class NotificationOptions
 
         if ($actionsArray !== null) {
             $result['actions'] = $actionsArray;
+        }
+
+        if ($this->priority !== null) {
+            $result['priority'] = $this->priority instanceof NotificationPriority
+                ? $this->priority->value
+                : $this->priority;
+        }
+
+        if ($this->silent !== null) {
+            $result['silent'] = $this->silent;
         }
 
         return $result;

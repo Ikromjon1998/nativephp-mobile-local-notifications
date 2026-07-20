@@ -62,6 +62,8 @@ async function bridgeCall(method, params = {}) {
  * @param {string} [options.image] - Image URL (http/https only)
  * @param {string} [options.bigText] - Expanded body text
  * @param {Array<{id: string, title: string, destructive?: boolean, input?: boolean}>} [options.actions] - Action buttons (max 3)
+ * @param {string} [options.priority] - Notification priority: 'low', 'default', 'high', 'urgent'
+ * @param {boolean} [options.silent] - Deliver without sound or vibration
  * @returns {Promise<{success: boolean, id?: string, error?: string}>}
  */
 export async function schedule(options = {}) {
@@ -135,6 +137,8 @@ export async function checkPermission() {
  * @param {string} [options.image] - Image URL
  * @param {string} [options.bigText] - Expanded body text
  * @param {Array<{id: string, title: string, destructive?: boolean, input?: boolean}>} [options.actions] - Action buttons
+ * @param {string} [options.priority] - Notification priority: 'low', 'default', 'high', 'urgent'
+ * @param {boolean} [options.silent] - Deliver without sound or vibration
  * @returns {Promise<{success: boolean, id?: string, error?: string}>}
  */
 export async function update(id, options = {}) {

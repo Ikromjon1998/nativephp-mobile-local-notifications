@@ -91,8 +91,50 @@ LocalNotifications::schedule([
 | `image` | string | No | Image URL (http/https only) to display in the notification |
 | `bigText` | string | No | Expanded body text shown when notification is expanded |
 | `actions` | array | No | Action buttons (limit set by `config('local-notifications.max_actions')`, default 3), each with `id`, `title`, optional `destructive`, `input`, and `snooze` (seconds) |
+| `priority` | NotificationPriority\|string | No | `low`, `default`, `high`, `urgent`. Controls importance and interruption level |
+| `silent` | bool | No | Deliver without sound or vibration, regardless of other settings |
 
 Either `delay` or `at` should be provided. If neither is set, the notification fires after 1 second.
+
+## Priority & Silent Notifications
+
+Control how urgently a notification is presented:
+
+```php
+use Ikromjon\LocalNotifications\Enums\NotificationPriority;
+
+// Urgent: heads-up/banner on both platforms
+LocalNotifications::schedule([
+    'id' => 'critical-alert',
+    'title' => 'Server Down',
+    'body' => 'Production server is not responding',
+    'priority' => NotificationPriority::Urgent,
+]);
+
+// Low: appears in notification shade/center only, no banner or sound
+LocalNotifications::schedule([
+    'id' => 'daily-summary',
+    'title' => 'Daily Summary',
+    'body' => 'You completed 5 tasks today',
+    'priority' => 'low',
+]);
+
+// Silent: shows banner but no sound (useful with any priority)
+LocalNotifications::schedule([
+    'id' => 'background-sync',
+    'title' => 'Sync Complete',
+    'body' => 'Your data is up to date',
+    'priority' => 'high',
+    'silent' => true,
+]);
+```
+
+| Priority | Android | iOS |
+|----------|---------|-----|
+| `low` | `IMPORTANCE_LOW` — shade only, no sound | `.passive` — notification center only |
+| `default` | `IMPORTANCE_DEFAULT` — sound, no heads-up | `.active` — banner + sound |
+| `high` | `IMPORTANCE_HIGH` — heads-up + sound | `.timeSensitive` — banner + sound |
+| `urgent` | `IMPORTANCE_HIGH` — heads-up + sound | `.critical` (falls back to `.timeSensitive` without entitlement) |
 
 ## Cancel Notifications
 

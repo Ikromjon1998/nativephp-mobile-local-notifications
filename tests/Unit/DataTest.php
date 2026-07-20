@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Ikromjon\LocalNotifications\Data\NotificationAction;
 use Ikromjon\LocalNotifications\Data\NotificationOptions;
 use Ikromjon\LocalNotifications\Enums\BridgeFunction;
+use Ikromjon\LocalNotifications\Enums\NotificationPriority;
 use Ikromjon\LocalNotifications\Enums\PermissionStatus;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
 use Ikromjon\LocalNotifications\LocalNotifications;
@@ -77,6 +78,28 @@ describe('RepeatInterval', function (): void {
 
     it('returns null for invalid string with tryFrom', function (): void {
         expect(RepeatInterval::tryFrom('biweekly'))->toBeNull();
+    });
+});
+
+describe('NotificationPriority', function (): void {
+    it('has correct string values for all cases', function (): void {
+        expect(NotificationPriority::Low->value)->toBe('low')
+            ->and(NotificationPriority::Default->value)->toBe('default')
+            ->and(NotificationPriority::High->value)->toBe('high')
+            ->and(NotificationPriority::Urgent->value)->toBe('urgent');
+    });
+
+    it('has exactly 4 cases', function (): void {
+        expect(NotificationPriority::cases())->toHaveCount(4);
+    });
+
+    it('can be created from string value', function (): void {
+        expect(NotificationPriority::from('low'))->toBe(NotificationPriority::Low)
+            ->and(NotificationPriority::from('urgent'))->toBe(NotificationPriority::Urgent);
+    });
+
+    it('returns null for invalid string with tryFrom', function (): void {
+        expect(NotificationPriority::tryFrom('critical'))->toBeNull();
     });
 });
 
@@ -568,7 +591,9 @@ describe('NotificationOptions', function (): void {
             ->and($array)->not->toHaveKey('actions')
             ->and($array)->not->toHaveKey('repeatIntervalSeconds')
             ->and($array)->not->toHaveKey('repeatDays')
-            ->and($array)->not->toHaveKey('repeatCount');
+            ->and($array)->not->toHaveKey('repeatCount')
+            ->and($array)->not->toHaveKey('priority')
+            ->and($array)->not->toHaveKey('silent');
     });
 
     it('handles empty actions array', function (): void {
@@ -592,6 +617,107 @@ describe('NotificationOptions', function (): void {
         );
 
         expect($options->toArray()['repeatDays'])->toBe([7, 1, 3]);
+    });
+
+    it('includes priority enum as string in array', function (): void {
+        $options = new NotificationOptions(
+            id: 'priority-enum',
+            title: 'Test',
+            body: 'Body',
+            priority: NotificationPriority::High,
+        );
+
+        expect($options->toArray()['priority'])->toBe('high');
+    });
+
+    it('includes priority string in array', function (): void {
+        $options = new NotificationOptions(
+            id: 'priority-string',
+            title: 'Test',
+            body: 'Body',
+            priority: 'urgent',
+        );
+
+        expect($options->toArray()['priority'])->toBe('urgent');
+    });
+
+    it('normalizes known priority string to enum', function (): void {
+        $options = new NotificationOptions(
+            id: 'normalize-priority',
+            title: 'Test',
+            body: 'Body',
+            priority: 'low',
+        );
+
+        expect($options->priority)->toBe(NotificationPriority::Low);
+    });
+
+    it('preserves unknown priority string as-is', function (): void {
+        $options = new NotificationOptions(
+            id: 'unknown-priority',
+            title: 'Test',
+            body: 'Body',
+            priority: 'critical',
+        );
+
+        expect($options->priority)->toBe('critical');
+    });
+
+    it('excludes priority when null', function (): void {
+        $options = new NotificationOptions(
+            id: 'no-priority',
+            title: 'Test',
+            body: 'Body',
+        );
+
+        expect($options->toArray())->not->toHaveKey('priority');
+    });
+
+    it('includes silent true in array', function (): void {
+        $options = new NotificationOptions(
+            id: 'silent-true',
+            title: 'Test',
+            body: 'Body',
+            silent: true,
+        );
+
+        expect($options->toArray()['silent'])->toBeTrue();
+    });
+
+    it('includes silent false in array', function (): void {
+        $options = new NotificationOptions(
+            id: 'silent-false',
+            title: 'Test',
+            body: 'Body',
+            silent: false,
+        );
+
+        expect($options->toArray()['silent'])->toBeFalse();
+    });
+
+    it('excludes silent when null', function (): void {
+        $options = new NotificationOptions(
+            id: 'no-silent',
+            title: 'Test',
+            body: 'Body',
+        );
+
+        expect($options->toArray())->not->toHaveKey('silent');
+    });
+
+    it('includes both priority and silent together', function (): void {
+        $options = new NotificationOptions(
+            id: 'both',
+            title: 'Test',
+            body: 'Body',
+            priority: NotificationPriority::High,
+            silent: true,
+        );
+
+        $array = $options->toArray();
+
+        expect($array['priority'])->toBe('high')
+            ->and($array['silent'])->toBeTrue();
     });
 
     it('can be passed to schedule method', function (): void {

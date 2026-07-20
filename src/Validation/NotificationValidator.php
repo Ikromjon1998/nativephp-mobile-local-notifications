@@ -81,6 +81,15 @@ final class NotificationValidator
             }
         }
 
+        if (isset($options['priority'])) {
+            $validPriorities = ['low', 'default', 'high', 'urgent'];
+            if (! in_array($options['priority'], $validPriorities, true)) {
+                throw new \InvalidArgumentException(
+                    'priority must be one of: low, default, high, urgent.',
+                );
+            }
+        }
+
         if (isset($options['actions'])) {
             $maxActions = max(1, (int) Config::get('max_actions', 3));
             if (is_array($options['actions']) && count($options['actions']) > $maxActions) {

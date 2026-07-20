@@ -40,6 +40,8 @@ use Ikromjon\LocalNotifications\Facades\LocalNotifications;
 | `image` | string | No | http/https URL for rich notification image |
 | `bigText` | string | No | Expanded text on notification pull-down |
 | `actions` | array | No | Action buttons (limit from `config('local-notifications.max_actions')`, default 3): `[{id, title, destructive?, input?}]` |
+| `priority` | NotificationPriority\|string | No | `low`, `default`, `high`, `urgent`. Controls importance level and interruption behavior |
+| `silent` | bool | No | Deliver without sound or vibration, regardless of other settings |
 
 ### Type-Safe DTOs
 
