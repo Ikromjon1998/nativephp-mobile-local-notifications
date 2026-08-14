@@ -72,6 +72,24 @@ object PriorityLevel {
     fun normalize(value: String?): String? = value?.takeIf { it in ALL }
 }
 
+/**
+ * Sub-ID helpers for snooze side-alarms ({id}_snooze). A snooze must be a
+ * separate one-shot alarm: reusing the original ID would overwrite a repeating
+ * notification's PendingIntent and kill its repeat chain.
+ */
+object SnoozeId {
+    const val SUFFIX = "_snooze"
+
+    /** Sub-ID for the snoozed delivery of a notification; idempotent for re-snoozes. */
+    fun forId(id: String): String = strip(id) + SUFFIX
+
+    fun isSnooze(id: String): Boolean = id.endsWith(SUFFIX)
+
+    /** Original notification ID with any snooze suffix removed — event payloads
+     *  always report the ID the developer scheduled. */
+    fun strip(id: String): String = id.removeSuffix(SUFFIX)
+}
+
 /** Default values shared across the plugin. */
 object Defaults {
     const val CHANNEL_ID = "nativephp_local_notifications"

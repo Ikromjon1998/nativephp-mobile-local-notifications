@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Snoozing a repeating notification no longer kills its repeat chain** — on both platforms, snooze reused the original alarm/request identity: on Android the snooze PendingIntent overwrote the pending repeat alarm (and its post-fire cleanup erased the persisted repeat entry, breaking reboot recovery too); on iOS re-adding with the same identifier replaced the pending repeating request. Snoozes are now separate one-shot `{id}_snooze` side-alarms: repeat chains are untouched, events report the original id, `getPending()` lists the snooze with `snoozed: true`, `cancel()` covers it, and on Android it is persisted for reboot recovery. Thanks to Zeshan Ziya ([@zeshanziya](https://github.com/zeshanziya)) for finding the bug and the core of the Android fix.
+- **iOS: snoozing a silent notification stays silent** — the snoozed delivery no longer force-defaults the sound when the notification was scheduled with `silent: true`.
 - **Android: updating an active notification no longer re-alerts** — the rebuilt notification uses `setOnlyAlertOnce(true)` and reuses the original channel, so updating a silent notification stays silent.
 - **Unknown priority values are normalized away** — values that bypass PHP validation (e.g. sent directly from the JS bridge) fall back to the legacy no-priority behavior on both platforms instead of creating junk notification channels.
 

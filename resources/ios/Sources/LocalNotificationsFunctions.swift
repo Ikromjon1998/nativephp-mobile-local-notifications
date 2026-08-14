@@ -125,6 +125,11 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     }
 
     /// Reschedule a notification after a snooze delay using UNTimeIntervalNotificationTrigger.
+    /// Schedules under a dedicated "{id}_snooze" identifier so the snooze is a
+    /// one-shot side request: re-using the original identifier would replace a
+    /// pending repeating request and kill its repeat chain. The content's
+    /// userInfo keeps the original notificationId, so events for the snoozed
+    /// delivery still report the ID the developer scheduled.
     private func rescheduleSnooze(
         id: String,
         content: UNNotificationContent,
@@ -134,23 +139,28 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             logger.error("Failed to create mutable copy of notification content")
             return
         }
-        // Ensure sound plays on the snoozed notification
-        if newContent.sound == nil {
+        // Ensure sound plays on the snoozed notification — unless it was
+        // explicitly scheduled as silent.
+        let silent = newContent.userInfo[UserInfoKeys.silent] as? Bool ?? false
+        if newContent.sound == nil && !silent {
             newContent.sound = .default
         }
+
+        // Snoozing an already-snoozed notification re-uses the same sub-ID.
+        let snoozeId = SnoozeId.forId(id)
 
         let trigger = UNTimeIntervalNotificationTrigger(
             timeInterval: TimeInterval(snoozeSecs), repeats: false
         )
         let request = UNNotificationRequest(
-            identifier: id, content: newContent, trigger: trigger
+            identifier: snoozeId, content: newContent, trigger: trigger
         )
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
                 logger.error("Snooze reschedule failed: \(error.localizedDescription, privacy: .public)")
             } else {
-                logger.info("Snooze rescheduled: \(id, privacy: .public) in \(snoozeSecs)s")
+                logger.info("Snooze rescheduled: \(snoozeId, privacy: .public) in \(snoozeSecs)s")
             }
         }
     }
@@ -283,17 +293,16 @@ enum LocalNotificationsFunctions {
 
             let center = UNUserNotificationCenter.current()
 
-            // Cancel direct ID
-            center.removePendingNotificationRequests(withIdentifiers: [id])
-            center.removeDeliveredNotifications(withIdentifiers: [id])
-            UserDefaults.standard.removeObject(forKey: NotificationKeys.remainingCount(id))
-
-            // Cancel any day-of-week sub-IDs
+            // Cancel direct ID, any pending snooze side-request, and day-of-week sub-IDs
+            let snoozeIds = [SnoozeId.forId(id)]
+                + (1...7).map { SnoozeId.forId(NotificationKeys.daySubId(id, isoDay: $0)) }
             let subIds = (1...7).map { NotificationKeys.daySubId(id, isoDay: $0) }
-            center.removePendingNotificationRequests(withIdentifiers: subIds)
-            center.removeDeliveredNotifications(withIdentifiers: subIds)
-            for subId in subIds {
-                UserDefaults.standard.removeObject(forKey: NotificationKeys.remainingCount(subId))
+            let allIds = [id] + subIds + snoozeIds
+
+            center.removePendingNotificationRequests(withIdentifiers: allIds)
+            center.removeDeliveredNotifications(withIdentifiers: allIds)
+            for identifier in allIds {
+                UserDefaults.standard.removeObject(forKey: NotificationKeys.remainingCount(identifier))
             }
 
             logger.info("Notification cancelled: \(id, privacy: .public)")
@@ -343,8 +352,12 @@ enum LocalNotificationsFunctions {
                         }
                     } else {
                         var notification: [String: Any] = [
-                            "id": id, "title": request.content.title, "body": request.content.body
+                            "id": SnoozeId.strip(id), "title": request.content.title, "body": request.content.body
                         ]
+                        if SnoozeId.isSnooze(id) {
+                            // Report snoozed deliveries under the ID the developer scheduled.
+                            notification["snoozed"] = true
+                        }
 
                         if let trigger = request.trigger as? UNCalendarNotificationTrigger {
                             notification["repeats"] = trigger.repeats

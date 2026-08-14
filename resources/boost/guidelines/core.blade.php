@@ -42,7 +42,7 @@ use Ikromjon\LocalNotifications\Facades\LocalNotifications;
 | `subtitle` | string | No | iOS subtitle / Android subtext |
 | `image` | string | No | http/https URL for rich notification image |
 | `bigText` | string | No | Expanded text on notification pull-down |
-| `actions` | array | No | Action buttons (limit from `config('local-notifications.max_actions')`, default 3): `[{id, title, destructive?, input?, snooze?}]`. `snooze` (seconds) reschedules the notification natively — works even when the app is killed |
+| `actions` | array | No | Action buttons (limit from `config('local-notifications.max_actions')`, default 3): `[{id, title, destructive?, input?, snooze?}]`. `snooze` (seconds) reschedules the notification natively as a separate one-shot side-alarm — works even when the app is killed, never interrupts a repeat chain; `getPending()` reports it with `snoozed: true` |
 | `priority` | NotificationPriority\|string | No | `low`, `default`, `high`, `urgent`. Maps to Android channel importance and iOS interruption level. Omitted = legacy high-importance behavior. On iOS, `high`/`urgent` need the Time Sensitive Notifications capability; `urgent` uses critical alerts only with Apple's critical-alerts entitlement, otherwise falls back to time-sensitive |
 | `silent` | bool | No | Deliver without sound or vibration. On Android this also suppresses the heads-up banner |
 

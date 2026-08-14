@@ -134,8 +134,10 @@ object LocalNotificationsFunctions {
     fun storeTapPayload(context: Context, id: String, title: String, body: String, dataJson: String?) {
         synchronized(PrefsKeys.lock) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            // Keyed by the raw (possibly _snooze) ID for active-notification matching;
+            // the payload itself reports the original ID the developer scheduled.
             val payload = JSONObject().apply {
-                put("id", id)
+                put("id", SnoozeId.strip(id))
                 put("title", title)
                 put("body", body)
                 if (dataJson != null) {
@@ -242,7 +244,7 @@ object LocalNotificationsFunctions {
 
             if (id != null && title != null && body != null) {
                 val payload = JSONObject().apply {
-                    put("id", id)
+                    put("id", SnoozeId.strip(id))
                     put("title", title)
                     put("body", body)
                     if (dataJson != null) {
@@ -288,6 +290,15 @@ object LocalNotificationsFunctions {
             dispatchEvent(activity, eventClass, payloadStr)
             injectNavigationReplay(activity, eventClass, payloadStr)
         }
+    }
+
+    /** Cancel a notification's pending snooze side-alarm ({id}_snooze), if any. */
+    private fun cancelSnoozeSubAlarm(context: Context, id: String) {
+        if (SnoozeId.isSnooze(id)) return
+        val snoozeId = SnoozeId.forId(id)
+        NotificationScheduler.cancelAlarm(context, snoozeId)
+        NotificationScheduler.removeNotificationInfo(context, snoozeId)
+        clearTapPayload(context, snoozeId)
     }
 
     private fun detectTappedNotifications(activity: FragmentActivity) {
@@ -390,6 +401,7 @@ object LocalNotificationsFunctions {
                         NotificationScheduler.cancelAlarm(context, subId)
                         NotificationScheduler.removeNotificationInfo(context, subId)
                         clearTapPayload(context, subId)
+                        cancelSnoozeSubAlarm(context, subId)
                     }
                     NotificationScheduler.removeRepeatDaysParent(context, id)
                     Log.d(TAG, "✅ Day-of-week notification cancelled: $id (${subIds.size} sub-alarms)")
@@ -399,6 +411,9 @@ object LocalNotificationsFunctions {
                     clearTapPayload(context, id)
                     Log.d(TAG, "✅ Notification cancelled: $id")
                 }
+                // A pending snooze is a side alarm under {id}_snooze — cancelling
+                // the notification must cancel its snoozed delivery too.
+                cancelSnoozeSubAlarm(context, id)
                 mapOf("success" to true, "id" to id)
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error cancelling notification: ${e.message}", e)
@@ -458,7 +473,13 @@ object LocalNotificationsFunctions {
                 for (id in allIds) {
                     if (id in subIdSet) continue
                     val infoJson = prefs.getString(PrefsKeys.notificationInfo(id), null) ?: continue
-                    notifications.put(JSONObject(infoJson))
+                    val info = JSONObject(infoJson)
+                    if (SnoozeId.isSnooze(id)) {
+                        // Report snoozed deliveries under the ID the developer scheduled.
+                        info.put("id", SnoozeId.strip(id))
+                        info.put("snoozed", true)
+                    }
+                    notifications.put(info)
                 }
 
                 for (parentId in parentIds) {

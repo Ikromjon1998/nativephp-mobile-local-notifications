@@ -248,7 +248,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             val activity = LocalNotificationsFunctions.ActivityHolder.get()
             if (activity != null) {
                 val payload = JSONObject().apply {
-                    put("id", id)
+                    put("id", SnoozeId.strip(id))
                     put("title", title)
                     put("body", body)
                     if (dataJson != null) {

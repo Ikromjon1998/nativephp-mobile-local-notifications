@@ -49,6 +49,24 @@ enum PriorityLevel {
     }
 }
 
+/// Sub-ID helpers for snooze side-requests ({id}_snooze). A snooze must be a
+/// separate one-shot request: reusing the original identifier would replace a
+/// pending repeating request and kill its repeat chain.
+enum SnoozeId {
+    static let suffix = "_snooze"
+
+    /// Identifier for the snoozed delivery of a notification; idempotent for re-snoozes.
+    static func forId(_ id: String) -> String { strip(id) + suffix }
+
+    static func isSnooze(_ id: String) -> Bool { id.hasSuffix(suffix) }
+
+    /// Original notification ID with any snooze suffix removed — event payloads
+    /// always report the ID the developer scheduled.
+    static func strip(_ id: String) -> String {
+        id.hasSuffix(suffix) ? String(id.dropLast(suffix.count)) : id
+    }
+}
+
 /// UserDefaults key helpers and notification sub-ID formatters.
 enum NotificationKeys {
     /// UserDefaults key for the remaining repeat count of a notification request.
