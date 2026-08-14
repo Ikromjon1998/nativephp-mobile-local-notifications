@@ -10,6 +10,8 @@ The plugin dispatches events for the full notification lifecycle. You can listen
 | `NotificationReceived` | `id`, `title`, `body`, `data` |
 | `NotificationTapped` | `id`, `title`, `body`, `data` |
 | `NotificationUpdated` | `id`, `title`, `body` |
+
+Events for a **snoozed delivery** always report the original id you scheduled — the internal `{id}_snooze` sub-id is never exposed, so listeners can match on the original id.
 | `NotificationActionPressed` | `notificationId`, `actionId`, `data`, `inputText` |
 | `PermissionGranted` | _(none)_ |
 | `PermissionDenied` | _(none)_ |

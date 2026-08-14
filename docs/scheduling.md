@@ -163,6 +163,8 @@ $result = LocalNotifications::getPending();
 // Returns: ['success' => true, 'notifications' => '[...]', 'count' => 3]
 ```
 
+Day-of-week sub-alarms are aggregated into one entry per notification. A pending snooze (see [Action Buttons](action-buttons.md#native-snooze)) is listed as its own entry under the original notification id with `"snoozed": true` — so a repeating notification that has been snoozed appears twice: once for the repeat schedule and once for the snoozed delivery.
+
 ## Check Permission Status
 
 ```php
