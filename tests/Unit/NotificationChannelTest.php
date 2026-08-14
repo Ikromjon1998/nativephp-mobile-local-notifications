@@ -327,7 +327,7 @@ it('supports fluent chaining for all options', function (): void {
 // --- LocalNotificationChannel tests ---
 
 it('sends notification via the channel', function (): void {
-    stubNativephpCall(fn () => json_encode(['success' => true, 'id' => 'channel-test']));
+    stubNativephpCall(fn (): string|false => json_encode(['success' => true, 'id' => 'channel-test']));
 
     $channel = $this->app->make(LocalNotificationChannel::class);
 
@@ -350,7 +350,7 @@ it('sends notification via the channel', function (): void {
 it('sends notification with actions via the channel', function (): void {
     $capturedData = null;
 
-    stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+    stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
         $capturedData = json_decode($data, true);
 
         return json_encode(['success' => true]);
@@ -384,7 +384,7 @@ it('sends notification with actions via the channel', function (): void {
 it('sends notification with scheduling via the channel', function (): void {
     $capturedData = null;
 
-    stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+    stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
         $capturedData = json_decode($data, true);
 
         return json_encode(['success' => true]);
