@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Laravel 13 support** — Widened the `illuminate/support` constraint to `^11.0||^12.0||^13.0` so the package installs on Laravel 13 apps instead of silently resolving to v1.9.0 (#22). Laravel 13 requires `nativephp/mobile` v3.3.7+. Following NativePHP's versioning policy, this is a patch release: it only changes Laravel/PHP code, contains no native code changes, and requires no app rebuild.
 - **CI matrix across Laravel versions** — Tests now run against Laravel 11, 12, and 13 on PHP 8.3 and 8.4, so every supported combination is verified on each push. Because Laravel 11 is past its security-fix EOL, Composer 2.9+ would refuse to resolve it; this repo's own installs ignore `laravel/framework` advisories via `config.policy.advisories.ignore` (root-only config — it has no effect on apps that install this package).
 
+### Changed
+
+- **Refreshed AI assistant guidelines (Boost)** — `resources/boost/guidelines/core.blade.php` was stuck at the v1.4-era API. It now documents the Laravel notification channel (`LocalNotificationChannel` / `LocalNotificationMessage`), snooze actions, custom sounds (`soundName` and the `resources/sounds/` convention), the full JavaScript export list, and the supported PHP/Laravel/NativePHP versions.
+
 ### Fixed
 
 - **Bridge calls with unencodable payloads** — Payloads that cannot be JSON-encoded are now guarded against instead of failing silently at the bridge boundary.

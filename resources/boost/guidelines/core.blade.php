@@ -2,6 +2,8 @@
 
 # Local Notifications Plugin — AI Guidelines
 
+**Compatibility:** PHP 8.3+, Laravel 11/12/13, NativePHP Mobile v3 (Laravel 13 requires `nativephp/mobile` >= 3.3.7).
+
 ## Facade
 
 ```php
@@ -34,12 +36,13 @@ use Ikromjon\LocalNotifications\Facades\LocalNotifications;
 | `repeatDays` | array\<int\> | No | ISO weekdays (1=Mon..7=Sun). Requires `at`. Mutually exclusive with `repeat` |
 | `repeatCount` | int | No | Limit repetitions (min 1) |
 | `sound` | bool | No | Default from `config('local-notifications.default_sound')`, initially `true` |
+| `soundName` | string | No | Custom sound filename with extension (e.g. `alert.wav`) from the app's `resources/sounds/`. Alphanumeric/hyphen/underscore only, no paths. Falls back to the default sound if the resource is missing |
 | `badge` | int | No | App icon badge (iOS) |
 | `data` | array | No | Custom payload passed through to events |
 | `subtitle` | string | No | iOS subtitle / Android subtext |
 | `image` | string | No | http/https URL for rich notification image |
 | `bigText` | string | No | Expanded text on notification pull-down |
-| `actions` | array | No | Action buttons (limit from `config('local-notifications.max_actions')`, default 3): `[{id, title, destructive?, input?}]` |
+| `actions` | array | No | Action buttons (limit from `config('local-notifications.max_actions')`, default 3): `[{id, title, destructive?, input?, snooze?}]`. `snooze` (seconds) reschedules the notification natively — works even when the app is killed |
 
 ### Type-Safe DTOs
 
@@ -56,10 +59,53 @@ LocalNotifications::schedule(new NotificationOptions(
     repeat: RepeatInterval::Daily,
     actions: [
         new NotificationAction(id: 'done', title: 'Done'),
-        new NotificationAction(id: 'snooze', title: 'Snooze'),
+        new NotificationAction(id: 'snooze', title: 'Snooze (5m)', snooze: 300),
     ],
 ));
 ```
+
+## Laravel Notification Channel
+
+Standard Laravel Notification pattern as an alternative to the Facade:
+
+```php
+use Illuminate\Notifications\Notification;
+use Ikromjon\LocalNotifications\Notifications\LocalNotificationChannel;
+use Ikromjon\LocalNotifications\Notifications\LocalNotificationMessage;
+use Ikromjon\LocalNotifications\Notifications\HasLocalNotification;
+use Ikromjon\LocalNotifications\Enums\RepeatInterval;
+
+class DailyReminderNotification extends Notification implements HasLocalNotification
+{
+    public function via($notifiable): array
+    {
+        return [LocalNotificationChannel::class];
+    }
+
+    public function toLocalNotification($notifiable): LocalNotificationMessage
+    {
+        return LocalNotificationMessage::create()
+            ->id('reminder-' . $notifiable->id)
+            ->title('Daily Reminder')
+            ->body('Time to check in!')
+            ->repeat(RepeatInterval::Daily)
+            ->action('done', 'Done')
+            ->action('snooze', 'Snooze (5m)', snooze: 300);
+    }
+}
+
+$user->notify(new DailyReminderNotification());
+```
+
+Fluent methods mirror the schedule parameters: `id`, `title`, `body`, `subtitle`, `delay`, `at`, `repeat`, `repeatIntervalSeconds`, `repeatDays`, `repeatCount`, `sound` (bool or filename string), `soundName`, `badge`, `data`, `image`, `bigText`, `action`.
+
+## Custom Sounds
+
+- Array API: `'soundName' => 'alert.wav'` — fluent: `->sound('alert.wav')` or `->soundName('alert.wav')`.
+- Sound files live in the app's `resources/sounds/` and are bundled at build time.
+- Filename must include an extension; alphanumeric, hyphens, underscores only — paths are rejected by validation.
+- Android: a dedicated notification channel `{channel_id}_sound_{name}` is auto-created per sound (Android O+ requires sound on the channel); falls back to the default channel if the resource is not found.
+- iOS: uses `UNNotificationSound(named:)`.
 
 ## Events
 
@@ -100,7 +146,7 @@ class HandleNotificationTap
 ### JavaScript (Inertia / Vue / React)
 
 ```js
-import { schedule, cancel, Events } from '../../vendor/ikromjon/nativephp-mobile-local-notifications/resources/js/index.js';
+import { schedule, cancel, cancelAll, getPending, update, requestPermission, checkPermission, Events } from '../../vendor/ikromjon/nativephp-mobile-local-notifications/resources/js/index.js';
 import { On } from '#nativephp';
 
 await schedule({ id: 'r1', title: 'Reminder', body: 'Hello', delay: 60 });
@@ -111,7 +157,7 @@ On(Events.NotificationTapped, (payload) => {
 });
 ```
 
-## Configuration (v1.4.0)
+## Configuration
 
 Publish with `php artisan vendor:publish --tag=local-notifications-config`.
 
@@ -185,6 +231,7 @@ This waits for `livewire:navigated` (after components are hydrated), then trigge
 - `repeatDays` creates one sub-alarm per day — `cancel()` and `getPending()` handle aggregation automatically.
 - Notification IDs should be deterministic (e.g. `habit-{id}`) so you can cancel without tracking state.
 - `data` payload is passed through to `NotificationTapped` and `NotificationActionPressed` events.
+- A `snooze` action (seconds) reschedules natively via AlarmManager (Android) / `UNTimeIntervalNotificationTrigger` (iOS) — no app launch required.
 - To ensure `NotificationTapped` events are delivered on cold start, add `<x-local-notifications::init />` to your layout, or call at least one bridge function (e.g. `checkPermission()`) early in the page lifecycle.
 - Action buttons: Visible when the user expands (swipe down) the notification. Limit configurable via `max_actions` (default 3).
 
