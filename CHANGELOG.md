@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.1] - 2026-08-14
+
+### Added
+
+- **Laravel 13 support** — Widened the `illuminate/support` constraint to `^11.0||^12.0||^13.0` so the package installs on Laravel 13 apps instead of silently resolving to v1.9.0 (#22). Laravel 13 requires `nativephp/mobile` v3.3.7+. Following NativePHP's versioning policy, this is a patch release: it only changes Laravel/PHP code, contains no native code changes, and requires no app rebuild.
+- **CI matrix across Laravel versions** — Tests now run against Laravel 11, 12, and 13 on PHP 8.3 and 8.4, so every supported combination is verified on each push.
+
+### Fixed
+
+- **Bridge calls with unencodable payloads** — Payloads that cannot be JSON-encoded are now guarded against instead of failing silently at the bridge boundary.
+- **Leftover debug log** — Removed a stray type-debugging log statement from `parseParams`.
+
+## [1.10.0] - 2026-04-07
+
+### Added
+
+- **Type-safe enums** — Introduced dedicated enums and validation for notification parameters instead of loose strings.
+- **Shared native `Config` utility** — Extracted a shared Config utility on Android, deduplicated `toArray()`, and centralized intent keys and repeat types; iOS constants and keys were centralized the same way.
+
+### Fixed
+
+- **Android lifecycle leak and resource cleanup** — Hardened receivers with proper cleanup, an alarm fallback path, and consistent logging.
+- **Crash-safe JSON parsing** — All `JSONObject(dataJson)` calls across Android receivers are wrapped in try/catch.
+- **Collision-safe IDs** — Notification IDs are generated with `Str::uuid()` (with an explicit `illuminate/support` dependency) instead of ad-hoc values.
+
 ## [1.9.0] - 2026-04-05
 
 ### Added

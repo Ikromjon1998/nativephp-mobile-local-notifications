@@ -121,5 +121,6 @@ public function mount(): void
 ## Requirements
 
 - PHP 8.3+
-- NativePHP Mobile v3+
+- Laravel 11, 12, or 13
+- NativePHP Mobile v3+ (Laravel 13 requires `nativephp/mobile` v3.3.7 or newer)
 - iOS 18.0+ / Android API 29+ (matches NativePHP Mobile baseline)
