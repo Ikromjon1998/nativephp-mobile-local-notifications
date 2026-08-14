@@ -685,6 +685,9 @@ object LocalNotificationsFunctions {
             // Use the existing notification's channel to preserve priority/sound settings
             val effectiveChannelId = activeNotification.notification.channelId ?: channelId
             val rebuiltNotification = android.app.Notification.Builder(context, effectiveChannelId)
+                // Re-posting an active notification must not re-alert — a silent
+                // notification would otherwise play the channel sound on update.
+                .setOnlyAlertOnce(true)
                 .setSmallIcon(activeNotification.notification.smallIcon
                     ?: android.graphics.drawable.Icon.createWithResource(context, context.applicationInfo.icon))
                 .setContentTitle(params.title)

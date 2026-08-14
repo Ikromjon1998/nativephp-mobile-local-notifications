@@ -61,6 +61,15 @@ object PriorityLevel {
     const val DEFAULT = "default"
     const val HIGH = "high"
     const val URGENT = "urgent"
+
+    val ALL = setOf(LOW, DEFAULT, HIGH, URGENT)
+
+    /**
+     * Returns the value when it is a known level, null otherwise, so callers
+     * bypassing PHP validation (e.g. the JS bridge) fall back to the legacy
+     * no-priority behavior instead of creating junk channels.
+     */
+    fun normalize(value: String?): String? = value?.takeIf { it in ALL }
 }
 
 /** Default values shared across the plugin. */

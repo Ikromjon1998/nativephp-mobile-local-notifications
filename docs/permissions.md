@@ -17,6 +17,17 @@ The plugin declares all required permissions automatically via `nativephp.json`.
 - Notification authorization is requested at runtime via `requestPermission()` (alert, sound, badge)
 - Minimum iOS version: 18.0 (NativePHP baseline)
 
+### Entitlements for priority levels
+
+The `priority` scheduling option maps to iOS interruption levels that need app capabilities beyond runtime authorization:
+
+| Priority | Interruption level | Requirement |
+|----------|--------------------|-------------|
+| `high` | `.timeSensitive` | **Time Sensitive Notifications** capability (`com.apple.developer.usernotifications.time-sensitive`) in the app's entitlements |
+| `urgent` | `.critical` | **Critical alerts entitlement** (`com.apple.developer.usernotifications.critical-alerts`) — requires approval from Apple |
+
+Without the Time Sensitive capability, iOS silently delivers `high`/`urgent` notifications as `.active` (regular banner) — no error is raised. Without the critical-alerts entitlement, the plugin detects this at schedule time and downgrades `urgent` to `.timeSensitive` automatically. Add these capabilities to your app's Xcode project/entitlements file when you rely on `high` or `urgent` priorities.
+
 ## Environment Variables
 
 None required. The plugin works entirely on-device with no external services.

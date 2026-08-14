@@ -67,7 +67,7 @@ object NotificationScheduler {
             imageUrl = parameters["image"] as? String,
             bigText = parameters["bigText"] as? String,
             actions = coerceToList(rawActions),
-            priority = parameters["priority"] as? String,
+            priority = PriorityLevel.normalize(parameters["priority"] as? String),
             silent = parameters["silent"] as? Boolean ?: false,
         )
     }
@@ -101,7 +101,7 @@ object NotificationScheduler {
                 ?: existing.optString("bigText", null),
             actions = coerceToList(parameters["actions"])
                 ?: if (existing.has("actions")) existing.optJSONArray("actions")?.let { jsonArrayToActionList(it) } else null,
-            priority = parameters["priority"] as? String
+            priority = PriorityLevel.normalize(parameters["priority"] as? String)
                 ?: existing.optString("priority", null),
             silent = parameters["silent"] as? Boolean
                 ?: existing.optBoolean("silent", false),

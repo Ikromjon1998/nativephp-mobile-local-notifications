@@ -69,7 +69,7 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
 
         var options: UNNotificationPresentationOptions = [.banner, .sound, .badge]
         if priority == PriorityLevel.low {
-            options = [.list]
+            options = [.list, .badge]
         } else if silent {
             options.remove(.sound)
         }
@@ -196,13 +196,22 @@ enum LocalNotificationsFunctions {
             let repeatIntervalSeconds = parameters["repeatIntervalSeconds"] as? Int
             let repeatDays = parameters["repeatDays"] as? [Int]
             let repeatCount = parameters["repeatCount"] as? Int
-            let priority = parameters["priority"] as? String
+            let priority = PriorityLevel.normalize(parameters["priority"] as? String)
             let silent = parameters["silent"] as? Bool ?? false
+
+            // The critical-alerts entitlement cannot be detected via center.add errors —
+            // the system accepts and silently degrades unentitled critical requests —
+            // so resolve the fallback up front from the notification settings.
+            let criticalEnabled = priority == PriorityLevel.urgent
+                && NotificationHelper.criticalAlertsEnabled()
+            if priority == PriorityLevel.urgent && !criticalEnabled {
+                logger.info("Critical alerts entitlement not available; scheduling urgent notification as timeSensitive")
+            }
 
             let content = NotificationHelper.buildContent(
                 id: id, title: title, body: body,
                 subtitle: subtitle, sound: sound, soundName: soundName, badge: badge, data: data,
-                priority: priority, silent: silent
+                priority: priority, silent: silent, criticalEnabled: criticalEnabled
             )
 
             // Action buttons
@@ -241,36 +250,20 @@ enum LocalNotificationsFunctions {
             var result: [String: Any] = [:]
 
             center.add(request) { error in
-                if let error = error, priority == PriorityLevel.urgent {
-                    // .critical requires entitlement; fall back to .timeSensitive
-                    logger.warning("Critical notification failed, retrying with timeSensitive: \(error.localizedDescription, privacy: .public)")
-                    content.interruptionLevel = .timeSensitive
-                    let fallbackRequest = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-                    center.add(fallbackRequest) { fallbackError in
-                        if let fallbackError = fallbackError {
-                            result = ["success": false, "error": fallbackError.localizedDescription]
-                        } else {
-                            result = ["success": true, "id": id]
-                            if let count = repeatCount, count >= 1 {
-                                UserDefaults.standard.set(count, forKey: NotificationKeys.remainingCount(id))
-                            }
-                            LaravelBridge.shared.send?(Events.notificationScheduled, ["id": id, "title": title, "body": body])
-                        }
-                        semaphore.signal()
-                    }
-                } else if let error = error {
+                if let error = error {
                     logger.error("Failed to schedule notification: \(error.localizedDescription, privacy: .public)")
                     result = ["success": false, "error": error.localizedDescription]
-                    semaphore.signal()
                 } else {
                     logger.info("Notification scheduled: \(id, privacy: .public)")
                     result = ["success": true, "id": id]
+
                     if let count = repeatCount, count >= 1 {
                         UserDefaults.standard.set(count, forKey: NotificationKeys.remainingCount(id))
                     }
+
                     LaravelBridge.shared.send?(Events.notificationScheduled, ["id": id, "title": title, "body": body])
-                    semaphore.signal()
                 }
+                semaphore.signal()
             }
 
             semaphore.wait()
@@ -461,14 +454,17 @@ enum LocalNotificationsFunctions {
 
             // Priority and silent: use new values or fall back to existing
             let existingPriority = existingContent.userInfo[UserInfoKeys.priority] as? String
-            let priority = parameters["priority"] as? String ?? existingPriority
+            let priority = PriorityLevel.normalize(parameters["priority"] as? String) ?? existingPriority
             let existingSilent = existingContent.userInfo[UserInfoKeys.silent] as? Bool ?? false
             let silent = parameters["silent"] as? Bool ?? existingSilent
+
+            let criticalEnabled = priority == PriorityLevel.urgent
+                && NotificationHelper.criticalAlertsEnabled()
 
             let newContent = NotificationHelper.buildContent(
                 id: id, title: title, body: body,
                 subtitle: subtitle, sound: sound, soundName: soundName, badge: badge, data: mergedData,
-                priority: priority, silent: silent
+                priority: priority, silent: silent, criticalEnabled: criticalEnabled
             )
 
             // Actions

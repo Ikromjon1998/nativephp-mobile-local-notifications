@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - Unreleased
+
+**Minor release — native code changed.** Per NativePHP's versioning policy, apps must rebuild with `php artisan native:install --force` after updating.
+
+### Added
+
+- **Notification priority** — New `priority` option (`low`, `default`, `high`, `urgent`; `NotificationPriority` enum or strings) mapping to Android channel importance (with dedicated per-priority channels) and iOS interruption levels (`.passive`/`.active`/`.timeSensitive`/`.critical`) plus `relevanceScore`. Omitting `priority` keeps the pre-1.11 high-importance behavior.
+- **Silent delivery** — `silent: true` delivers without sound or vibration (on Android also without the heads-up banner). Independent of priority; preserved across repeats, snoozes, reboots, and updates.
+- **iOS critical-alert entitlement detection** — `urgent` uses `.critical` only when the app holds Apple's critical-alerts entitlement (checked via `criticalAlertSetting` at schedule time, since iOS silently degrades unentitled requests instead of erroring); otherwise it downgrades to `.timeSensitive` automatically.
+
+### Fixed
+
+- **Android: updating an active notification no longer re-alerts** — the rebuilt notification uses `setOnlyAlertOnce(true)` and reuses the original channel, so updating a silent notification stays silent.
+- **Unknown priority values are normalized away** — values that bypass PHP validation (e.g. sent directly from the JS bridge) fall back to the legacy no-priority behavior on both platforms instead of creating junk notification channels.
+
+### Documentation
+
+- iOS entitlement requirements for `high`/`urgent` (Time Sensitive Notifications capability; Apple-granted critical-alerts entitlement), omitted-vs-`default` priority semantics, Android per-priority channel visibility, and a v1.11.0 upgrade guide.
+
 ## [1.10.1] - 2026-08-14
 
 ### Added

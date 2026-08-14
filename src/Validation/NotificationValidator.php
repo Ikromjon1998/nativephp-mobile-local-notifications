@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ikromjon\LocalNotifications\Validation;
 
+use Ikromjon\LocalNotifications\Enums\NotificationPriority;
 use Ikromjon\LocalNotifications\Support\Config;
 
 final class NotificationValidator
@@ -82,10 +83,10 @@ final class NotificationValidator
         }
 
         if (isset($options['priority'])) {
-            $validPriorities = ['low', 'default', 'high', 'urgent'];
+            $validPriorities = array_column(NotificationPriority::cases(), 'value');
             if (! in_array($options['priority'], $validPriorities, true)) {
                 throw new \InvalidArgumentException(
-                    'priority must be one of: low, default, high, urgent.',
+                    'priority must be one of: '.implode(', ', $validPriorities).'.',
                 );
             }
         }

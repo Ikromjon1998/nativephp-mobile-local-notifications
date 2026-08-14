@@ -119,7 +119,8 @@ LocalNotifications::schedule([
     'priority' => 'low',
 ]);
 
-// Silent: shows banner but no sound (useful with any priority)
+// Silent: no sound or vibration. On iOS the banner still shows;
+// on Android silent also suppresses the heads-up banner.
 LocalNotifications::schedule([
     'id' => 'background-sync',
     'title' => 'Sync Complete',
@@ -134,7 +135,16 @@ LocalNotifications::schedule([
 | `low` | `IMPORTANCE_LOW` — shade only, no sound | `.passive` — notification center only |
 | `default` | `IMPORTANCE_DEFAULT` — sound, no heads-up | `.active` — banner + sound |
 | `high` | `IMPORTANCE_HIGH` — heads-up + sound | `.timeSensitive` — banner + sound |
-| `urgent` | `IMPORTANCE_HIGH` — heads-up + sound | `.critical` (falls back to `.timeSensitive` without entitlement) |
+| `urgent` | `IMPORTANCE_HIGH` — heads-up + sound | `.critical` (falls back to `.timeSensitive` without the critical-alerts entitlement) |
+
+**Omitting `priority` keeps the pre-1.11 behavior** — high-importance delivery (heads-up on Android, banner + sound on iOS). `priority: 'default'` is *not* the same as omitting it: it maps to `IMPORTANCE_DEFAULT`/`.active`, which never shows a heads-up banner on Android.
+
+**iOS entitlements:** `high` and `urgent` rely on interruption levels that require app capabilities:
+
+- `.timeSensitive` needs the **Time Sensitive Notifications** capability (`com.apple.developer.usernotifications.time-sensitive`). Without it, iOS silently treats the notification as `.active` — no error is raised.
+- `.critical` additionally requires the **critical alerts entitlement** (`com.apple.developer.usernotifications.critical-alerts`), which must be granted by Apple. The plugin detects its absence at schedule time (via `criticalAlertSetting`) and automatically downgrades `urgent` to `.timeSensitive`.
+
+**Android channels:** priority is implemented with dedicated notification channels (`{channel_id}_priority_{level}`, plus combined priority+sound variants), because channel importance is immutable on Android. Users can see these channels in the system notification settings, and changing a notification's priority posts it under a different channel.
 
 ## Cancel Notifications
 

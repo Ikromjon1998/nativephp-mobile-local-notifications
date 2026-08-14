@@ -154,7 +154,7 @@ describe('schedule', function (): void {
     it('passes priority string to the bridge', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -173,7 +173,7 @@ describe('schedule', function (): void {
     it('converts NotificationPriority enum to string value', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -192,7 +192,7 @@ describe('schedule', function (): void {
     it('passes silent flag to the bridge', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);
@@ -211,7 +211,7 @@ describe('schedule', function (): void {
     it('passes priority and silent together to the bridge', function (): void {
         $capturedData = null;
 
-        stubNativephpCall(function (string $function, string $data) use (&$capturedData) {
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
             $capturedData = json_decode($data, true);
 
             return json_encode(['success' => true]);

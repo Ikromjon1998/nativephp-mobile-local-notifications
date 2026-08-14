@@ -22,7 +22,8 @@ enum NotificationHelper {
         badge: Int?,
         data: [String: Any]?,
         priority: String? = nil,
-        silent: Bool = false
+        silent: Bool = false,
+        criticalEnabled: Bool = false
     ) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = title
@@ -58,9 +59,10 @@ enum NotificationHelper {
                 content.interruptionLevel = .timeSensitive
                 content.relevanceScore = 0.75
             case PriorityLevel.urgent:
-                // .critical requires com.apple.developer.usernotifications.critical-alerts entitlement.
-                // If unavailable, the system may reject the request — caller handles fallback.
-                content.interruptionLevel = .critical
+                // .critical requires the com.apple.developer.usernotifications.critical-alerts
+                // entitlement. The system silently degrades unentitled critical requests
+                // instead of erroring, so downgrade to .timeSensitive up front.
+                content.interruptionLevel = criticalEnabled ? .critical : .timeSensitive
                 content.relevanceScore = 1.0
             default:
                 break
@@ -88,6 +90,21 @@ enum NotificationHelper {
         content.userInfo = userInfo
 
         return content
+    }
+
+    /// Whether the app holds the critical-alerts entitlement (and the user has
+    /// not disabled critical alerts). center.add does not error without it —
+    /// the system silently degrades the request — so this must be checked
+    /// before choosing the .critical interruption level.
+    static func criticalAlertsEnabled(center: UNUserNotificationCenter = .current()) -> Bool {
+        var enabled = false
+        let semaphore = DispatchSemaphore(value: 0)
+        center.getNotificationSettings { settings in
+            enabled = settings.criticalAlertSetting == .enabled
+            semaphore.signal()
+        }
+        semaphore.wait()
+        return enabled
     }
 
     // MARK: - Action Buttons

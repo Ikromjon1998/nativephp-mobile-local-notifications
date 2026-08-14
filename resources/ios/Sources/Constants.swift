@@ -37,6 +37,16 @@ enum PriorityLevel {
     static let `default` = "default"
     static let high = "high"
     static let urgent = "urgent"
+
+    static let all: Set<String> = [low, `default`, high, urgent]
+
+    /// Returns the value when it is a known level, nil otherwise, so callers
+    /// bypassing PHP validation (e.g. the JS bridge) fall back to the legacy
+    /// no-priority behavior instead of propagating junk values.
+    static func normalize(_ value: String?) -> String? {
+        guard let value, all.contains(value) else { return nil }
+        return value
+    }
 }
 
 /// UserDefaults key helpers and notification sub-ID formatters.
