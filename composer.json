@@ -38,6 +38,11 @@
     "config": {
         "allow-plugins": {
             "pestphp/pest-plugin": true
+        },
+        "policy": {
+            "advisories": {
+                "ignore": ["laravel/framework"]
+            }
         }
     },
     "extra": {
