@@ -779,6 +779,34 @@ describe('requestPermission', function (): void {
         expect($result)->toBe(['granted' => false, 'status' => 'pending']);
     });
 
+    it('omits the critical flag by default', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['granted' => true]);
+        });
+
+        $this->notifications->requestPermission();
+
+        expect($capturedData)->not->toHaveKey('critical');
+    });
+
+    it('passes the critical flag when requested', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['granted' => true]);
+        });
+
+        $this->notifications->requestPermission(critical: true);
+
+        expect($capturedData['critical'])->toBeTrue();
+    });
+
     it('returns empty array when bridge returns null', function (): void {
         stubNativephpCallReturnsNull();
 
@@ -822,6 +850,12 @@ describe('checkPermission', function (): void {
 });
 
 describe('update', function (): void {
+    it('rejects reserved ids passed as the update target', function (): void {
+        stubNativephpCall(fn (): string|false => json_encode(['success' => true]));
+
+        $this->notifications->update('task_snooze', ['title' => 'x']);
+    })->throws(InvalidArgumentException::class, 'reserved for internal sub-notifications');
+
     it('calls the bridge with correct function name and merged id', function (): void {
         $capturedFunction = null;
         $capturedData = null;

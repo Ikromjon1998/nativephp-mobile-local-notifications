@@ -752,3 +752,31 @@ describe('NotificationOptions', function (): void {
             ]);
     });
 });
+
+describe('NotificationOptions reserved ids', function (): void {
+    it('throws when the id ends in _snooze', function (): void {
+        (new NotificationOptions(
+            id: 'task_snooze',
+            title: 'Test',
+            body: 'Body',
+        ))->toArray();
+    })->throws(InvalidArgumentException::class, 'reserved for internal sub-notifications');
+
+    it('throws when the id ends in a day-of-week suffix', function (): void {
+        (new NotificationOptions(
+            id: 'habit_day_3',
+            title: 'Test',
+            body: 'Body',
+        ))->toArray();
+    })->throws(InvalidArgumentException::class, 'reserved for internal sub-notifications');
+
+    it('allows ids merely containing the reserved suffixes', function (): void {
+        $options = new NotificationOptions(
+            id: 'task_snooze_reminder',
+            title: 'Test',
+            body: 'Body',
+        );
+
+        expect($options->toArray()['id'])->toBe('task_snooze_reminder');
+    });
+});

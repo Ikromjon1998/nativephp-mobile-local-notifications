@@ -78,6 +78,10 @@ enum NotificationHelper {
             }
         }
         userInfo[UserInfoKeys.notificationId] = id
+        // Persist the sound flag: content.sound is nil for both sound:false and
+        // silent:true, so Update cannot recover the original setting from the
+        // content alone (un-silencing would otherwise permanently lose sound).
+        userInfo[UserInfoKeys.sound] = sound
         if let soundName = soundName {
             userInfo[UserInfoKeys.soundName] = soundName
         }
@@ -343,8 +347,8 @@ enum NotificationHelper {
     /// Extract custom data from userInfo, excluding internal keys.
     /// Internal userInfo keys that should not be included in the custom data payload.
     private static let internalKeys: Set<String> = [
-        UserInfoKeys.notificationId, UserInfoKeys.actionSnooze, UserInfoKeys.soundName,
-        UserInfoKeys.priority, UserInfoKeys.silent
+        UserInfoKeys.notificationId, UserInfoKeys.actionSnooze, UserInfoKeys.sound,
+        UserInfoKeys.soundName, UserInfoKeys.priority, UserInfoKeys.silent
     ]
 
     static func extractCustomData(from userInfo: [AnyHashable: Any]) -> [String: Any] {

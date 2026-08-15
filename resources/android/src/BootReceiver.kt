@@ -100,11 +100,16 @@ class BootReceiver : BroadcastReceiver() {
 
                 // Always use exact alarms — repeating notifications are
                 // self-rescheduled by LocalNotificationReceiver after each delivery
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    adjustedTrigger,
-                    pendingIntent
-                )
+                try {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        adjustedTrigger,
+                        pendingIntent
+                    )
+                } catch (e: SecurityException) {
+                    Log.w(TAG, "setExactAndAllowWhileIdle() denied on boot restore, falling back: ${e.message}")
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, adjustedTrigger, pendingIntent)
+                }
 
                 Log.d(TAG, "Restored notification: $id")
             } catch (e: Exception) {

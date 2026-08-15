@@ -68,7 +68,7 @@ await update('reminder-1', { title: 'Updated!', body: 'New body text' });
 | `cancel(id)` | Notification ID string | `{ success, id?, error? }` |
 | `cancelAll()` | None | `{ success, error? }` |
 | `getPending()` | None | `{ success, notifications?, count?, error? }` |
-| `requestPermission()` | None | `{ granted, status?, error? }` |
+| `requestPermission(options?)` | Optional `{ critical?: boolean }` — request iOS critical-alert authorization (entitled apps only; ignored on Android) | `{ granted, status?, error? }` |
 | `checkPermission()` | None | `{ status, error? }` |
 | `update(id, options)` | Notification ID string, options object | `{ success, id?, error? }` |
 

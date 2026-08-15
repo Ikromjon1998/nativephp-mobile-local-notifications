@@ -62,11 +62,19 @@ class LocalNotifications implements LocalNotificationsInterface
     /**
      * Request permission to show notifications.
      *
+     * Pass $critical = true to also request iOS critical-alert authorization —
+     * required for priority "urgent" to break through Do Not Disturb. Only use
+     * it when the app holds Apple's critical-alerts entitlement. Ignored on
+     * Android.
+     *
      * @return array<string, mixed>
      */
-    public function requestPermission(): array
+    public function requestPermission(bool $critical = false): array
     {
-        return $this->call(BridgeFunction::RequestPermission);
+        return $this->call(
+            BridgeFunction::RequestPermission,
+            $critical ? ['critical' => true] : [],
+        );
     }
 
     /**
@@ -87,6 +95,10 @@ class LocalNotifications implements LocalNotificationsInterface
      */
     public function update(string $id, NotificationOptions|array $options): array
     {
+        // The id parameter bypasses the options array, so validate it
+        // explicitly — reserved sub-notification ids must be rejected here too.
+        NotificationValidator::validate(['id' => $id]);
+
         $data = $options instanceof NotificationOptions
             ? $options->toArray()
             : $this->normalizeOptions($options);

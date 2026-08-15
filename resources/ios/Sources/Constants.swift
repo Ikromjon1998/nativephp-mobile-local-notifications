@@ -15,6 +15,7 @@ enum Events {
 /// These are reserved internal keys that must not collide with user-provided data.
 enum UserInfoKeys {
     static let notificationId = "notification_id"
+    static let sound = "sound"
     static let soundName = "soundName"
     static let actionSnooze = "action_snooze"
     static let priority = "priority"

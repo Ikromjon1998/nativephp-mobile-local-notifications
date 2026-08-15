@@ -192,7 +192,7 @@ object NotificationScheduler {
         val weekMs = AlarmManager.INTERVAL_DAY * 7
 
         for (isoDay in days) {
-            val subId = "${id}_day_$isoDay"
+            val subId = "$id${DayOfWeekId.SEPARATOR}$isoDay"
             subIds.add(subId)
 
             // Convert ISO day (1=Mon..7=Sun) to Java Calendar day (1=Sun..7=Sat)
@@ -495,7 +495,7 @@ object NotificationScheduler {
         return actionsJson
     }
 
-    private fun jsonObjectToMap(obj: JSONObject): MutableMap<String, Any> {
+    fun jsonObjectToMap(obj: JSONObject): MutableMap<String, Any> {
         val map = mutableMapOf<String, Any>()
         for (key in obj.keys()) { map[key] = obj.get(key) }
         return map
@@ -508,7 +508,8 @@ object NotificationScheduler {
                 "id" to a.optString("id"),
                 "title" to a.optString("title"),
                 "destructive" to a.optBoolean("destructive", false),
-                "input" to a.optBoolean("input", false)
+                "input" to a.optBoolean("input", false),
+                "snooze" to a.optInt("snooze", 0)
             )
         }
     }

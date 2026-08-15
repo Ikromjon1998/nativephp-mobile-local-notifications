@@ -80,14 +80,34 @@ object PriorityLevel {
 object SnoozeId {
     const val SUFFIX = "_snooze"
 
-    /** Sub-ID for the snoozed delivery of a notification; idempotent for re-snoozes. */
-    fun forId(id: String): String = strip(id) + SUFFIX
+    /** Sub-ID for the snoozed delivery of a notification; idempotent for
+     *  re-snoozes. Always derived from the developer-facing ID, so snoozing a
+     *  day-of-week sub-delivery ({id}_day_N) attaches the snooze to the parent
+     *  — matching iOS, where the snooze ID comes from the original userInfo ID. */
+    fun forId(id: String): String = PublicId.of(id) + SUFFIX
 
     fun isSnooze(id: String): Boolean = id.endsWith(SUFFIX)
 
-    /** Original notification ID with any snooze suffix removed — event payloads
-     *  always report the ID the developer scheduled. */
+    /** ID with any snooze suffix removed. */
     fun strip(id: String): String = id.removeSuffix(SUFFIX)
+}
+
+/** Sub-ID helpers for day-of-week sub-alarms ({id}_day_N). */
+object DayOfWeekId {
+    const val SEPARATOR = "_day_"
+    private val SUFFIX_REGEX = Regex("$SEPARATOR[1-7]$")
+
+    /** ID with any day-of-week suffix removed. */
+    fun strip(id: String): String = SUFFIX_REGEX.replace(id, "")
+}
+
+/**
+ * Maps any internal sub-ID (snooze side-alarm or day-of-week sub-alarm) back
+ * to the ID the developer scheduled. Event payloads and getPending() must
+ * never expose internal sub-IDs.
+ */
+object PublicId {
+    fun of(id: String): String = DayOfWeekId.strip(SnoozeId.strip(id))
 }
 
 /** Default values shared across the plugin. */

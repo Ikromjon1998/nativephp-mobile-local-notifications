@@ -66,9 +66,11 @@ LocalNotifications::schedule([
     'delay' => 3600,
     'sound' => true,
     'badge' => 1,
-    'data' => ['task_id' => 42, 'priority' => 'high'],
+    'data' => ['task_id' => 42, 'category' => 'reports'],
 ]);
 ```
+
+**Reserved `data` keys:** the plugin stores its own state alongside your custom data, so the keys `notification_id`, `sound`, `soundName`, `priority`, `silent`, and `action_snooze` are reserved — values you put under those keys are overwritten internally and stripped from event payloads on iOS. Pick different key names.
 
 ## Schedule Parameters
 
@@ -142,7 +144,7 @@ LocalNotifications::schedule([
 **iOS entitlements:** `high` and `urgent` rely on interruption levels that require app capabilities:
 
 - `.timeSensitive` needs the **Time Sensitive Notifications** capability (`com.apple.developer.usernotifications.time-sensitive`). Without it, iOS silently treats the notification as `.active` — no error is raised.
-- `.critical` additionally requires the **critical alerts entitlement** (`com.apple.developer.usernotifications.critical-alerts`), which must be granted by Apple. The plugin detects its absence at schedule time (via `criticalAlertSetting`) and automatically downgrades `urgent` to `.timeSensitive`.
+- `.critical` additionally requires the **critical alerts entitlement** (`com.apple.developer.usernotifications.critical-alerts`), which must be granted by Apple, **plus** critical-alert authorization requested at runtime with `requestPermission(critical: true)` (see [Permissions](permissions.md)). If either is missing, the plugin detects it at schedule time (via `criticalAlertSetting`) and automatically downgrades `urgent` to `.timeSensitive`.
 
 **Android channels:** priority is implemented with dedicated notification channels (`{channel_id}_priority_{level}`, plus combined priority+sound variants), because channel importance is immutable on Android. Users can see these channels in the system notification settings, and changing a notification's priority posts it under a different channel.
 
@@ -202,6 +204,10 @@ LocalNotifications::update('reminder-1', new NotificationOptions(
 ```
 
 Returns `['success' => false, 'error' => 'Notification not found: ...']` if the ID doesn't exist.
+
+Updating a notification also refreshes a pending snoozed delivery (see [Action Buttons](action-buttons.md#native-snooze)) and, on Android, a notification that is still visible in the shade — both receive the new content instead of showing what was current when they were delivered or snoozed. When *only* a snoozed delivery is pending (a one-shot that already fired and was snoozed), the update applies its content changes to the snooze but ignores timing options (`delay`, `at`, `repeat`) — the snooze keeps its remaining countdown.
+
+Notification ids ending in `_snooze` or `_day_{1-7}` are rejected by validation — those suffixes are reserved for the plugin's internal snooze and day-of-week sub-notifications.
 
 ## Type-Safe DTO
 

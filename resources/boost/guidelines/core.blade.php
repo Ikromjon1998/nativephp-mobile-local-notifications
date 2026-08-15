@@ -18,7 +18,7 @@ use Ikromjon\LocalNotifications\Facades\LocalNotifications;
 | `cancel($id)` | `string` | `array` | Cancel a notification by ID. Also cancels day-of-week sub-alarms. |
 | `cancelAll()` | — | `array` | Cancel all scheduled notifications. |
 | `getPending()` | — | `array` | List all pending notifications. Day-of-week sub-alarms are aggregated. |
-| `requestPermission()` | — | `array` | Request notification permission (Android 13+, iOS). |
+| `requestPermission($critical = false)` | `bool` | `array` | Request notification permission (Android 13+, iOS). Pass `true` to also request iOS critical-alert authorization (entitled apps only; needed for priority `urgent`). |
 | `checkPermission()` | — | `array` | Check current permission status (`granted`, `denied`, `notDetermined`). |
 | `update($id, $options)` | `string`, `NotificationOptions\|array` | `array` | Update an existing notification's content or timing. |
 

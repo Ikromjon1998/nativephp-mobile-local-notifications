@@ -61,6 +61,8 @@ final readonly class NotificationOptions
             : null;
 
         NotificationValidator::validate([
+            'id' => $this->id,
+            'silent' => $this->silent,
             'repeat' => $this->repeat,
             'repeatIntervalSeconds' => $this->repeatIntervalSeconds,
             'repeatDays' => $this->repeatDays,
