@@ -18,7 +18,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.Calendar
 
 /**
  * BroadcastReceiver that fires local notifications when the AlarmManager triggers.
@@ -29,44 +28,43 @@ class LocalNotificationReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "LocalNotifReceiver"
-    }
 
-    override fun onReceive(context: Context, intent: Intent) {
-        // Handle notification dismiss (user swiped away): clear stored tap payload
-        if (intent.action == IntentActions.DISMISS) {
-            val dismissId = intent.getStringExtra(IntentExtras.NOTIFICATION_ID) ?: return
-            LocalNotificationsFunctions.clearTapPayload(context, dismissId)
-            return
-        }
+        /**
+         * Build and post the notification for [id]. Shared by fresh deliveries
+         * (onReceive) and Update's refresh of an already-visible notification,
+         * so both paths carry the same tap intent, action buttons, styles, and
+         * dismiss handling.
+         *
+         * [dataJson]/[actionsJson] are the pre-serialized forms carried in
+         * intent extras; when null they are derived from [params].
+         * [alertOnce] must be true when re-posting an already-visible
+         * notification so the update does not re-alert.
+         */
+        fun postNotification(
+            context: Context,
+            id: String,
+            params: NotificationParams,
+            baseChannelId: String,
+            effectiveChannelId: String,
+            alertOnce: Boolean = false,
+            dataJson: String? = null,
+            actionsJson: String? = null
+        ) {
+            val title = params.title
+            val body = params.body
+            val sound = params.sound
+            val soundName = params.soundName
+            val subtitle = params.subtitle
+            val imageUrl = params.imageUrl
+            val bigText = params.bigText
+            val priority = params.priority
+            val silent = params.silent
+            val effectiveDataJson = dataJson
+                ?: params.data?.let { JSONObject(it.mapKeys { entry -> entry.key.toString() }).toString() }
+            val effectiveActionsJson = actionsJson
+                ?: params.actions?.let { NotificationScheduler.serializeActions(it).toString() }
 
-        val id = intent.getStringExtra(IntentExtras.NOTIFICATION_ID) ?: return
-        val title = intent.getStringExtra(IntentExtras.TITLE) ?: return
-        val body = intent.getStringExtra(IntentExtras.BODY) ?: return
-
-        // Extend the BroadcastReceiver lifetime so image downloads
-        // and rescheduling can complete without the system killing us.
-        val pendingResult = goAsync()
-        try {
-            val sound = intent.getBooleanExtra(IntentExtras.SOUND, true)
-            val soundName = intent.getStringExtra(IntentExtras.SOUND_NAME)
-            val baseChannelId = intent.getStringExtra(IntentExtras.CHANNEL_ID) ?: Defaults.CHANNEL_ID
-            val dataJson = intent.getStringExtra(IntentExtras.DATA)
-            val subtitle = intent.getStringExtra(IntentExtras.SUBTITLE)
-            val imageUrl = intent.getStringExtra(IntentExtras.IMAGE)
-            val bigText = intent.getStringExtra(IntentExtras.BIG_TEXT)
-            val actionsJson = intent.getStringExtra(IntentExtras.ACTIONS)
-
-            Log.d(TAG, "Notification received: $id - $title, actionsJson=${actionsJson != null} (${actionsJson?.length ?: 0} chars)")
-
-            // Build the notification
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-            // Resolve the effective channel: use a per-sound channel for custom sounds
-            val channelId = if (soundName != null) {
-                ensureSoundChannel(context, notificationManager, baseChannelId, soundName)
-            } else {
-                baseChannelId
-            }
 
             // Launch the app directly when the user taps the notification.
             // Using PendingIntent.getActivity() instead of getBroadcast() because
@@ -76,7 +74,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                 putExtra(IntentExtras.NOTIFICATION_ID, id)
                 putExtra(IntentExtras.NOTIFICATION_TITLE, title)
                 putExtra(IntentExtras.NOTIFICATION_BODY, body)
-                if (dataJson != null) putExtra(IntentExtras.NOTIFICATION_DATA, dataJson)
+                if (effectiveDataJson != null) putExtra(IntentExtras.NOTIFICATION_DATA, effectiveDataJson)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
 
@@ -95,7 +93,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                     putExtra(IntentExtras.NOTIFICATION_ID, id)
                     putExtra(IntentExtras.NOTIFICATION_TITLE, title)
                     putExtra(IntentExtras.NOTIFICATION_BODY, body)
-                    if (dataJson != null) putExtra(IntentExtras.NOTIFICATION_DATA, dataJson)
+                    if (effectiveDataJson != null) putExtra(IntentExtras.NOTIFICATION_DATA, effectiveDataJson)
                 }
                 PendingIntent.getBroadcast(
                     context,
@@ -113,19 +111,28 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                 android.R.drawable.ic_dialog_info
             }
 
-            val builder = NotificationCompat.Builder(context, channelId)
+            val compatPriority = when (priority) {
+                PriorityLevel.LOW -> NotificationCompat.PRIORITY_LOW
+                PriorityLevel.DEFAULT -> NotificationCompat.PRIORITY_DEFAULT
+                PriorityLevel.HIGH -> NotificationCompat.PRIORITY_HIGH
+                PriorityLevel.URGENT -> NotificationCompat.PRIORITY_HIGH
+                else -> NotificationCompat.PRIORITY_HIGH
+            }
+
+            val builder = NotificationCompat.Builder(context, effectiveChannelId)
                 .setSmallIcon(appIcon)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setAutoCancel(true)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setPriority(compatPriority)
                 .setContentIntent(pendingIntent)
+                .setOnlyAlertOnce(alertOnce)
 
             if (subtitle != null) {
                 builder.setSubText(subtitle)
             }
 
-            if (!sound && soundName == null) {
+            if (silent || (!sound && soundName == null)) {
                 builder.setSilent(true)
             }
 
@@ -144,17 +151,17 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                 val style = NotificationCompat.BigTextStyle()
                     .bigText(bigText)
                 builder.setStyle(style)
-            } else if (actionsJson != null) {
+            } else if (effectiveActionsJson != null) {
                 // BigTextStyle required for action buttons to appear on Samsung One UI.
                 // Without an explicit expanded style, Samsung hides action buttons.
                 builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
             }
 
             // Add action buttons if provided
-            if (actionsJson != null) {
-                Log.d(TAG, "Actions JSON for $id: $actionsJson")
+            if (effectiveActionsJson != null) {
+                Log.d(TAG, "Actions JSON for $id: $effectiveActionsJson")
                 try {
-                    val actions = JSONArray(actionsJson)
+                    val actions = JSONArray(effectiveActionsJson)
                     Log.d(TAG, "Parsed ${actions.length()} actions for notification $id")
                     for (i in 0 until minOf(actions.length(), LocalNotificationsFunctions.maxActions)) {
                         val action = actions.getJSONObject(i)
@@ -168,7 +175,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                             this.action = IntentActions.ACTION
                             putExtra(IntentExtras.NOTIFICATION_ID, id)
                             putExtra(IntentExtras.ACTION_ID, actionId)
-                            if (dataJson != null) putExtra(IntentExtras.NOTIFICATION_DATA, dataJson)
+                            if (effectiveDataJson != null) putExtra(IntentExtras.NOTIFICATION_DATA, effectiveDataJson)
                             if (snoozeSecs > 0) {
                                 putExtra(IntentExtras.SNOOZE_SECONDS, snoozeSecs)
                                 putExtra(IntentExtras.TITLE, title)
@@ -179,7 +186,9 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                                 if (subtitle != null) putExtra(IntentExtras.SUBTITLE, subtitle)
                                 if (imageUrl != null) putExtra(IntentExtras.IMAGE, imageUrl)
                                 if (bigText != null) putExtra(IntentExtras.BIG_TEXT, bigText)
-                                if (actionsJson != null) putExtra(IntentExtras.ACTIONS, actionsJson)
+                                putExtra(IntentExtras.ACTIONS, effectiveActionsJson)
+                                if (priority != null) putExtra(IntentExtras.PRIORITY, priority)
+                                if (silent) putExtra(IntentExtras.SILENT, true)
                             }
                         }
 
@@ -224,15 +233,108 @@ class LocalNotificationReceiver : BroadcastReceiver() {
 
             // Store tap payload for warm-start detection.
             // On tap (auto-cancel), this persists. On dismiss (swipe), deleteIntent clears it.
-            LocalNotificationsFunctions.storeTapPayload(context, id, title, body, dataJson)
+            LocalNotificationsFunctions.storeTapPayload(context, id, title, body, effectiveDataJson)
 
             notificationManager.notify(id.hashCode(), builder.build())
+        }
+
+        /**
+         * Downloads an image from a URL. Returns null on failure.
+         * Only allows http:// and https:// schemes to prevent SSRF via file:// or other schemes.
+         */
+        private fun downloadImage(urlString: String): Bitmap? {
+            return try {
+                val url = URL(urlString)
+                val scheme = url.protocol.lowercase()
+                if (scheme != "http" && scheme != "https") {
+                    Log.w(TAG, "Rejected image URL with unsupported scheme: $scheme")
+                    return null
+                }
+                val connection = url.openConnection() as HttpURLConnection
+                connection.connectTimeout = 10_000
+                connection.readTimeout = 10_000
+                connection.doInput = true
+                connection.connect()
+                val bitmap = connection.inputStream.use { BitmapFactory.decodeStream(it) }
+                connection.disconnect()
+                bitmap
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to download image: ${e.message}")
+                null
+            }
+        }
+    }
+
+    override fun onReceive(context: Context, intent: Intent) {
+        // Handle notification dismiss (user swiped away): clear stored tap payload
+        if (intent.action == IntentActions.DISMISS) {
+            val dismissId = intent.getStringExtra(IntentExtras.NOTIFICATION_ID) ?: return
+            LocalNotificationsFunctions.clearTapPayload(context, dismissId)
+            return
+        }
+
+        val id = intent.getStringExtra(IntentExtras.NOTIFICATION_ID) ?: return
+        val title = intent.getStringExtra(IntentExtras.TITLE) ?: return
+        val body = intent.getStringExtra(IntentExtras.BODY) ?: return
+
+        // Extend the BroadcastReceiver lifetime so image downloads
+        // and rescheduling can complete without the system killing us.
+        val pendingResult = goAsync()
+        try {
+            val sound = intent.getBooleanExtra(IntentExtras.SOUND, true)
+            val soundName = intent.getStringExtra(IntentExtras.SOUND_NAME)
+            val baseChannelId = intent.getStringExtra(IntentExtras.CHANNEL_ID) ?: Defaults.CHANNEL_ID
+            val dataJson = intent.getStringExtra(IntentExtras.DATA)
+            val subtitle = intent.getStringExtra(IntentExtras.SUBTITLE)
+            val imageUrl = intent.getStringExtra(IntentExtras.IMAGE)
+            val bigText = intent.getStringExtra(IntentExtras.BIG_TEXT)
+            val actionsJson = intent.getStringExtra(IntentExtras.ACTIONS)
+            val priority = intent.getStringExtra(IntentExtras.PRIORITY)
+            val silent = intent.getBooleanExtra(IntentExtras.SILENT, false)
+
+            Log.d(TAG, "Notification received: $id - $title, actionsJson=${actionsJson != null} (${actionsJson?.length ?: 0} chars)")
+
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            // Resolve the effective channel: priority and sound each require separate channels
+            val channelId = when {
+                priority != null && soundName != null ->
+                    ensurePrioritySoundChannel(context, notificationManager, baseChannelId, priority, soundName)
+                priority != null ->
+                    ensurePriorityChannel(context, notificationManager, baseChannelId, priority)
+                soundName != null ->
+                    ensureSoundChannel(context, notificationManager, baseChannelId, soundName)
+                else -> baseChannelId
+            }
+
+            // data/actions stay in their serialized intent-extra form; params
+            // carries the scalar fields for the shared builder.
+            val params = NotificationParams(
+                id = id,
+                title = title,
+                body = body,
+                sound = sound,
+                soundName = soundName,
+                badge = null,
+                data = null,
+                subtitle = subtitle,
+                imageUrl = imageUrl,
+                bigText = bigText,
+                actions = null,
+                priority = priority,
+                silent = silent,
+            )
+
+            postNotification(
+                context, id, params, baseChannelId, channelId,
+                alertOnce = false, dataJson = dataJson, actionsJson = actionsJson
+            )
 
             // Dispatch NotificationReceived event if the app is active
             val activity = LocalNotificationsFunctions.ActivityHolder.get()
             if (activity != null) {
                 val payload = JSONObject().apply {
-                    put("id", id)
+                    put("id", PublicId.of(id))
                     put("title", title)
                     put("body", body)
                     if (dataJson != null) {
@@ -271,7 +373,7 @@ class LocalNotificationReceiver : BroadcastReceiver() {
                 // Self-reschedule the next occurrence for repeating notifications.
                 // This replaces setRepeating() which is unreliable on modern Android.
                 val nextCount = if (remainingCount > 1) remainingCount - 1 else -1
-                rescheduleNext(context, id, title, body, sound, soundName, baseChannelId, repeatMs, repeatType, dataJson, subtitle, imageUrl, bigText, actionsJson, nextCount)
+                rescheduleNext(context, id, title, body, sound, soundName, baseChannelId, repeatMs, repeatType, dataJson, subtitle, imageUrl, bigText, actionsJson, nextCount, priority, silent)
             }
         } finally {
             pendingResult.finish()
@@ -298,7 +400,9 @@ class LocalNotificationReceiver : BroadcastReceiver() {
         imageUrl: String?,
         bigText: String?,
         actionsJson: String?,
-        remainingCount: Int = -1
+        remainingCount: Int = -1,
+        priority: String? = null,
+        silent: Boolean = false
     ) {
         // For calendar-based repeats (monthly/yearly), use Calendar to compute
         // the next trigger. For fixed intervals, simply add repeatMs.
@@ -325,6 +429,8 @@ class LocalNotificationReceiver : BroadcastReceiver() {
             if (imageUrl != null) putExtra(IntentExtras.IMAGE, imageUrl)
             if (bigText != null) putExtra(IntentExtras.BIG_TEXT, bigText)
             if (actionsJson != null) putExtra(IntentExtras.ACTIONS, actionsJson)
+            if (priority != null) putExtra(IntentExtras.PRIORITY, priority)
+            if (silent) putExtra(IntentExtras.SILENT, true)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
@@ -407,28 +513,81 @@ class LocalNotificationReceiver : BroadcastReceiver() {
     }
 
     /**
-     * Downloads an image from a URL. Returns null on failure.
-     * Only allows http:// and https:// schemes to prevent SSRF via file:// or other schemes.
+     * Create (or re-use) a notification channel with a specific priority/importance level.
+     * Channel ID format: {baseChannelId}_priority_{level}.
      */
-    private fun downloadImage(urlString: String): Bitmap? {
-        return try {
-            val url = URL(urlString)
-            val scheme = url.protocol.lowercase()
-            if (scheme != "http" && scheme != "https") {
-                Log.w(TAG, "Rejected image URL with unsupported scheme: $scheme")
-                return null
+    private fun ensurePriorityChannel(
+        context: Context,
+        manager: NotificationManager,
+        baseChannelId: String,
+        priority: String
+    ): String {
+        val priorityChannelId = "${baseChannelId}_priority_$priority"
+        if (manager.getNotificationChannel(priorityChannelId) != null) {
+            return priorityChannelId
+        }
+
+        val importance = priorityToImportance(priority)
+
+        val channel = NotificationChannel(priorityChannelId, "Notifications ($priority)", importance).apply {
+            description = "Notifications with $priority priority"
+            if (priority == PriorityLevel.LOW) {
+                setSound(null, null)
+                enableVibration(false)
+            } else {
+                enableVibration(true)
             }
-            val connection = url.openConnection() as HttpURLConnection
-            connection.connectTimeout = 10_000
-            connection.readTimeout = 10_000
-            connection.doInput = true
-            connection.connect()
-            val bitmap = connection.inputStream.use { BitmapFactory.decodeStream(it) }
-            connection.disconnect()
-            bitmap
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to download image: ${e.message}")
-            null
+        }
+        manager.createNotificationChannel(channel)
+        return priorityChannelId
+    }
+
+    /**
+     * Create (or re-use) a notification channel with both a specific priority and custom sound.
+     * Channel ID format: {baseChannelId}_priority_{level}_sound_{name}.
+     */
+    private fun ensurePrioritySoundChannel(
+        context: Context,
+        manager: NotificationManager,
+        baseChannelId: String,
+        priority: String,
+        soundName: String
+    ): String {
+        val name = soundName.substringBeforeLast(".")
+        val channelId = "${baseChannelId}_priority_${priority}_sound_$name"
+        if (manager.getNotificationChannel(channelId) != null) {
+            return channelId
+        }
+
+        val resId = context.resources.getIdentifier(name, "raw", context.packageName)
+        if (resId == 0) {
+            Log.w(TAG, "Custom sound resource not found: $name. Falling back to priority-only channel.")
+            return ensurePriorityChannel(context, manager, baseChannelId, priority)
+        }
+
+        val importance = priorityToImportance(priority)
+        val soundUri = Uri.parse("android.resource://${context.packageName}/raw/$name")
+        val audioAttributes = AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .build()
+
+        val channel = NotificationChannel(channelId, "Notifications ($priority, $name)", importance).apply {
+            description = "Notifications with $priority priority and custom sound: $name"
+            setSound(soundUri, audioAttributes)
+            enableVibration(priority != PriorityLevel.LOW)
+        }
+        manager.createNotificationChannel(channel)
+        return channelId
+    }
+
+    private fun priorityToImportance(priority: String): Int {
+        return when (priority) {
+            PriorityLevel.LOW -> NotificationManager.IMPORTANCE_LOW
+            PriorityLevel.DEFAULT -> NotificationManager.IMPORTANCE_DEFAULT
+            PriorityLevel.HIGH -> NotificationManager.IMPORTANCE_HIGH
+            PriorityLevel.URGENT -> NotificationManager.IMPORTANCE_HIGH
+            else -> NotificationManager.IMPORTANCE_DEFAULT
         }
     }
 }

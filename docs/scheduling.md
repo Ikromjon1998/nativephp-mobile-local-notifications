@@ -66,9 +66,11 @@ LocalNotifications::schedule([
     'delay' => 3600,
     'sound' => true,
     'badge' => 1,
-    'data' => ['task_id' => 42, 'priority' => 'high'],
+    'data' => ['task_id' => 42, 'category' => 'reports'],
 ]);
 ```
+
+**Reserved `data` keys:** the plugin stores its own state alongside your custom data, so the keys `notification_id`, `sound`, `soundName`, `priority`, `silent`, and `action_snooze` are reserved — values you put under those keys are overwritten internally and stripped from event payloads on iOS. Pick different key names.
 
 ## Schedule Parameters
 
@@ -91,8 +93,60 @@ LocalNotifications::schedule([
 | `image` | string | No | Image URL (http/https only) to display in the notification |
 | `bigText` | string | No | Expanded body text shown when notification is expanded |
 | `actions` | array | No | Action buttons (limit set by `config('local-notifications.max_actions')`, default 3), each with `id`, `title`, optional `destructive`, `input`, and `snooze` (seconds) |
+| `priority` | NotificationPriority\|string | No | `low`, `default`, `high`, `urgent`. Controls importance and interruption level |
+| `silent` | bool | No | Deliver without sound or vibration, regardless of other settings |
 
 Either `delay` or `at` should be provided. If neither is set, the notification fires after 1 second.
+
+## Priority & Silent Notifications
+
+Control how urgently a notification is presented:
+
+```php
+use Ikromjon\LocalNotifications\Enums\NotificationPriority;
+
+// Urgent: heads-up/banner on both platforms
+LocalNotifications::schedule([
+    'id' => 'critical-alert',
+    'title' => 'Server Down',
+    'body' => 'Production server is not responding',
+    'priority' => NotificationPriority::Urgent,
+]);
+
+// Low: appears in notification shade/center only, no banner or sound
+LocalNotifications::schedule([
+    'id' => 'daily-summary',
+    'title' => 'Daily Summary',
+    'body' => 'You completed 5 tasks today',
+    'priority' => 'low',
+]);
+
+// Silent: no sound or vibration. On iOS the banner still shows;
+// on Android silent also suppresses the heads-up banner.
+LocalNotifications::schedule([
+    'id' => 'background-sync',
+    'title' => 'Sync Complete',
+    'body' => 'Your data is up to date',
+    'priority' => 'high',
+    'silent' => true,
+]);
+```
+
+| Priority | Android | iOS |
+|----------|---------|-----|
+| `low` | `IMPORTANCE_LOW` — shade only, no sound | `.passive` — notification center only |
+| `default` | `IMPORTANCE_DEFAULT` — sound, no heads-up | `.active` — banner + sound |
+| `high` | `IMPORTANCE_HIGH` — heads-up + sound | `.timeSensitive` — banner + sound |
+| `urgent` | `IMPORTANCE_HIGH` — heads-up + sound | `.critical` (falls back to `.timeSensitive` without the critical-alerts entitlement) |
+
+**Omitting `priority` keeps the pre-1.11 behavior** — high-importance delivery (heads-up on Android, banner + sound on iOS). `priority: 'default'` is *not* the same as omitting it: it maps to `IMPORTANCE_DEFAULT`/`.active`, which never shows a heads-up banner on Android.
+
+**iOS entitlements:** `high` and `urgent` rely on interruption levels that require app capabilities:
+
+- `.timeSensitive` needs the **Time Sensitive Notifications** capability (`com.apple.developer.usernotifications.time-sensitive`). Without it, iOS silently treats the notification as `.active` — no error is raised.
+- `.critical` additionally requires the **critical alerts entitlement** (`com.apple.developer.usernotifications.critical-alerts`), which must be granted by Apple, **plus** critical-alert authorization requested at runtime with `requestPermission(critical: true)` (see [Permissions](permissions.md)). If either is missing, the plugin detects it at schedule time (via `criticalAlertSetting`) and automatically downgrades `urgent` to `.timeSensitive`.
+
+**Android channels:** priority is implemented with dedicated notification channels (`{channel_id}_priority_{level}`, plus combined priority+sound variants), because channel importance is immutable on Android. Users can see these channels in the system notification settings, and changing a notification's priority posts it under a different channel.
 
 ## Cancel Notifications
 
@@ -110,6 +164,8 @@ LocalNotifications::cancelAll();
 $result = LocalNotifications::getPending();
 // Returns: ['success' => true, 'notifications' => '[...]', 'count' => 3]
 ```
+
+Day-of-week sub-alarms are aggregated into one entry per notification. A pending snooze (see [Action Buttons](action-buttons.md#native-snooze)) is listed as its own entry under the original notification id with `"snoozed": true` — so a repeating notification that has been snoozed appears twice: once for the repeat schedule and once for the snoozed delivery.
 
 ## Check Permission Status
 
@@ -148,6 +204,10 @@ LocalNotifications::update('reminder-1', new NotificationOptions(
 ```
 
 Returns `['success' => false, 'error' => 'Notification not found: ...']` if the ID doesn't exist.
+
+Updating a notification also refreshes a pending snoozed delivery (see [Action Buttons](action-buttons.md#native-snooze)) and, on Android, a notification that is still visible in the shade — both receive the new content instead of showing what was current when they were delivered or snoozed. When *only* a snoozed delivery is pending (a one-shot that already fired and was snoozed), the update applies its content changes to the snooze but ignores timing options (`delay`, `at`, `repeat`) — the snooze keeps its remaining countdown.
+
+Notification ids ending in `_snooze` or `_day_{1-7}` are rejected by validation — those suffixes are reserved for the plugin's internal snooze and day-of-week sub-notifications.
 
 ## Type-Safe DTO
 

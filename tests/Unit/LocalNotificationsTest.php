@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Ikromjon\LocalNotifications\Data\NotificationOptions;
+use Ikromjon\LocalNotifications\Enums\NotificationPriority;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
 use Ikromjon\LocalNotifications\LocalNotifications;
 
@@ -148,6 +149,84 @@ describe('schedule', function (): void {
             ->and($capturedData['actions'][0])->toBe(['id' => 'reply', 'title' => 'Reply', 'input' => true])
             ->and($capturedData['actions'][1])->toBe(['id' => 'snooze', 'title' => 'Snooze'])
             ->and($capturedData['actions'][2])->toBe(['id' => 'delete', 'title' => 'Delete', 'destructive' => true]);
+    });
+
+    it('passes priority string to the bridge', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'priority-test',
+            'title' => 'Priority Test',
+            'body' => 'Body',
+            'priority' => 'high',
+        ]);
+
+        expect($capturedData['priority'])->toBe('high');
+    });
+
+    it('converts NotificationPriority enum to string value', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'enum-priority',
+            'title' => 'Enum Priority',
+            'body' => 'Body',
+            'priority' => NotificationPriority::Urgent,
+        ]);
+
+        expect($capturedData['priority'])->toBe('urgent');
+    });
+
+    it('passes silent flag to the bridge', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'silent-test',
+            'title' => 'Silent Test',
+            'body' => 'Body',
+            'silent' => true,
+        ]);
+
+        expect($capturedData['silent'])->toBeTrue();
+    });
+
+    it('passes priority and silent together to the bridge', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['success' => true]);
+        });
+
+        $this->notifications->schedule([
+            'id' => 'priority-silent',
+            'title' => 'Priority Silent',
+            'body' => 'Body',
+            'priority' => 'high',
+            'silent' => true,
+        ]);
+
+        expect($capturedData['priority'])->toBe('high')
+            ->and($capturedData['silent'])->toBeTrue();
     });
 
     it('returns empty array when bridge returns null', function (): void {
@@ -700,6 +779,34 @@ describe('requestPermission', function (): void {
         expect($result)->toBe(['granted' => false, 'status' => 'pending']);
     });
 
+    it('omits the critical flag by default', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['granted' => true]);
+        });
+
+        $this->notifications->requestPermission();
+
+        expect($capturedData)->not->toHaveKey('critical');
+    });
+
+    it('passes the critical flag when requested', function (): void {
+        $capturedData = null;
+
+        stubNativephpCall(function (string $function, string $data) use (&$capturedData): string|false {
+            $capturedData = json_decode($data, true);
+
+            return json_encode(['granted' => true]);
+        });
+
+        $this->notifications->requestPermission(critical: true);
+
+        expect($capturedData['critical'])->toBeTrue();
+    });
+
     it('returns empty array when bridge returns null', function (): void {
         stubNativephpCallReturnsNull();
 
@@ -743,6 +850,12 @@ describe('checkPermission', function (): void {
 });
 
 describe('update', function (): void {
+    it('rejects reserved ids passed as the update target', function (): void {
+        stubNativephpCall(fn (): string|false => json_encode(['success' => true]));
+
+        $this->notifications->update('task_snooze', ['title' => 'x']);
+    })->throws(InvalidArgumentException::class, 'reserved for internal sub-notifications');
+
     it('calls the bridge with correct function name and merged id', function (): void {
         $capturedFunction = null;
         $capturedData = null;

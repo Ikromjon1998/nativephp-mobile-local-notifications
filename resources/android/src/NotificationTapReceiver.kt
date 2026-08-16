@@ -26,7 +26,7 @@ class NotificationTapReceiver : BroadcastReceiver() {
 
         // Build the event payload
         val payload = JSONObject().apply {
-            put("id", id)
+            put("id", PublicId.of(id))
             put("title", title)
             put("body", body)
             if (dataJson != null) {

@@ -1,5 +1,21 @@
 # Upgrading
 
+## From v1.10.x to v1.11.0
+
+### Rebuild required
+
+v1.11.0 changes native (Swift/Kotlin) code to add notification priority and silent delivery. Rebuild your app after updating:
+
+```bash
+php artisan native:install --force
+```
+
+### Priority & silent (new features, no breaking changes)
+
+- Notifications scheduled without `priority`/`silent` behave exactly as before — high-importance delivery with heads-up on Android. Note that `priority: 'default'` is *lower* than this legacy behavior (no heads-up); only set it deliberately.
+- **iOS:** `priority: 'high'` and `'urgent'` need the Time Sensitive Notifications capability in your app's entitlements; `urgent` uses critical alerts only with Apple's critical-alerts entitlement and otherwise downgrades to time-sensitive automatically. See [permissions](permissions.md).
+- **Android:** once you use priorities, users will see additional notification channels (e.g. "Notifications (high)") in system settings — channel importance is immutable on Android, so each priority level requires its own channel.
+
 ## From v1.7.x to v1.8.0
 
 ### Native Snooze

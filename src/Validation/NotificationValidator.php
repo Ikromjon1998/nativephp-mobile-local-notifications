@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ikromjon\LocalNotifications\Validation;
 
+use Ikromjon\LocalNotifications\Enums\NotificationPriority;
 use Ikromjon\LocalNotifications\Support\Config;
 
 final class NotificationValidator
@@ -17,6 +18,14 @@ final class NotificationValidator
      */
     public static function validate(array $options): void
     {
+        if (isset($options['id']) && is_string($options['id'])
+            && (str_ends_with($options['id'], '_snooze') || preg_match('/_day_[1-7]$/', $options['id']) === 1)
+        ) {
+            throw new \InvalidArgumentException(
+                'Notification id must not end with "_snooze" or "_day_{1-7}" — these suffixes are reserved for internal sub-notifications (snooze and day-of-week alarms).',
+            );
+        }
+
         $hasRepeat = isset($options['repeat']);
         $hasRepeatIntervalSeconds = isset($options['repeatIntervalSeconds']);
         $hasRepeatDays = isset($options['repeatDays']);
@@ -77,6 +86,23 @@ final class NotificationValidator
             if (! is_string($soundName) || ! preg_match('/^[\w\-]+\.\w+$/', $soundName)) {
                 throw new \InvalidArgumentException(
                     'soundName must be a filename with extension (e.g. "alert.wav"). Only alphanumeric characters, hyphens, and underscores are allowed.',
+                );
+            }
+        }
+
+        if (isset($options['silent']) && ! is_bool($options['silent'])) {
+            // A non-bool truthy value would diverge across platforms (silent on
+            // iOS, audible on Android), so reject it outright.
+            throw new \InvalidArgumentException(
+                'silent must be a boolean.',
+            );
+        }
+
+        if (isset($options['priority'])) {
+            $validPriorities = array_column(NotificationPriority::cases(), 'value');
+            if (! in_array($options['priority'], $validPriorities, true)) {
+                throw new \InvalidArgumentException(
+                    'priority must be one of: '.implode(', ', $validPriorities).'.',
                 );
             }
         }

@@ -26,6 +26,8 @@ data class NotificationParams(
     val imageUrl: String?,
     val bigText: String?,
     val actions: List<*>?,
+    val priority: String?,
+    val silent: Boolean,
 )
 
 /**
@@ -65,6 +67,8 @@ object NotificationScheduler {
             imageUrl = parameters["image"] as? String,
             bigText = parameters["bigText"] as? String,
             actions = coerceToList(rawActions),
+            priority = PriorityLevel.normalize(parameters["priority"] as? String),
+            silent = parameters["silent"] as? Boolean ?: false,
         )
     }
 
@@ -97,6 +101,10 @@ object NotificationScheduler {
                 ?: existing.optString("bigText", null),
             actions = coerceToList(parameters["actions"])
                 ?: if (existing.has("actions")) existing.optJSONArray("actions")?.let { jsonArrayToActionList(it) } else null,
+            priority = PriorityLevel.normalize(parameters["priority"] as? String)
+                ?: existing.optString("priority", null),
+            silent = parameters["silent"] as? Boolean
+                ?: existing.optBoolean("silent", false),
         )
     }
 
@@ -184,7 +192,7 @@ object NotificationScheduler {
         val weekMs = AlarmManager.INTERVAL_DAY * 7
 
         for (isoDay in days) {
-            val subId = "${id}_day_$isoDay"
+            val subId = "$id${DayOfWeekId.SEPARATOR}$isoDay"
             subIds.add(subId)
 
             // Convert ISO day (1=Mon..7=Sun) to Java Calendar day (1=Sun..7=Sat)
@@ -252,6 +260,8 @@ object NotificationScheduler {
             } else {
                 Log.d(TAG, "scheduleAlarm: no actions for $id")
             }
+            if (params.priority != null) putExtra(IntentExtras.PRIORITY, params.priority)
+            if (params.silent) putExtra(IntentExtras.SILENT, true)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
@@ -331,6 +341,8 @@ object NotificationScheduler {
                 if (params.imageUrl != null) put("image", params.imageUrl)
                 if (params.bigText != null) put("bigText", params.bigText)
                 if (params.actions != null) put("actions", serializeActions(params.actions))
+                if (params.priority != null) put("priority", params.priority)
+                if (params.silent) put("silent", true)
             }
 
             prefs.edit()
@@ -483,7 +495,7 @@ object NotificationScheduler {
         return actionsJson
     }
 
-    private fun jsonObjectToMap(obj: JSONObject): MutableMap<String, Any> {
+    fun jsonObjectToMap(obj: JSONObject): MutableMap<String, Any> {
         val map = mutableMapOf<String, Any>()
         for (key in obj.keys()) { map[key] = obj.get(key) }
         return map
@@ -496,7 +508,8 @@ object NotificationScheduler {
                 "id" to a.optString("id"),
                 "title" to a.optString("title"),
                 "destructive" to a.optBoolean("destructive", false),
-                "input" to a.optBoolean("input", false)
+                "input" to a.optBoolean("input", false),
+                "snooze" to a.optInt("snooze", 0)
             )
         }
     }

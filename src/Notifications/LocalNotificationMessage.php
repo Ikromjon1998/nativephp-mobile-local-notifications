@@ -6,6 +6,7 @@ namespace Ikromjon\LocalNotifications\Notifications;
 
 use Ikromjon\LocalNotifications\Data\NotificationAction;
 use Ikromjon\LocalNotifications\Data\NotificationOptions;
+use Ikromjon\LocalNotifications\Enums\NotificationPriority;
 use Ikromjon\LocalNotifications\Enums\RepeatInterval;
 use Illuminate\Support\Str;
 
@@ -47,6 +48,10 @@ class LocalNotificationMessage
 
     /** @var array<int, NotificationAction>|null */
     protected ?array $actions = null;
+
+    protected NotificationPriority|string|null $priority = null;
+
+    protected ?bool $silent = null;
 
     public function __construct()
     {
@@ -183,6 +188,20 @@ class LocalNotificationMessage
         return $this;
     }
 
+    public function priority(NotificationPriority|string $priority): self
+    {
+        $this->priority = $priority;
+
+        return $this;
+    }
+
+    public function silent(bool $silent = true): self
+    {
+        $this->silent = $silent;
+
+        return $this;
+    }
+
     public function action(string $id, string $title, bool $destructive = false, bool $input = false, ?int $snooze = null): self
     {
         $this->actions ??= [];
@@ -214,6 +233,8 @@ class LocalNotificationMessage
             bigText: $this->bigText,
             actions: $this->actions,
             soundName: $this->soundName,
+            priority: $this->priority,
+            silent: $this->silent,
         );
     }
 

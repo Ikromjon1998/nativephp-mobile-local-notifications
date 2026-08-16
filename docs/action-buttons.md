@@ -36,6 +36,15 @@ The maximum number of actions per notification is set by `config('local-notifica
 
 Action buttons can include a `snooze` parameter (in seconds) that reschedules the notification natively — **the app does not need to be open**. When the user presses a snooze action, the notification is dismissed, rescheduled via AlarmManager (Android) or UNTimeIntervalNotificationTrigger (iOS), and reappears after the specified delay.
 
+The snooze is scheduled as a **separate one-shot side-alarm** (internally `{id}_snooze`), so:
+
+- **Snoozing a repeating notification never interrupts its repeat chain** — the next regular occurrence still fires on schedule.
+- Events for the snoozed delivery (`NotificationReceived`, `NotificationTapped`, `NotificationActionPressed`) report the **original notification id** you scheduled.
+- `getPending()` lists a pending snooze under the original id with `snoozed: true`.
+- `cancel(id)` cancels the pending snooze along with the notification itself.
+- On Android the snooze is persisted, so it survives a device reboot; on iOS the system keeps it automatically.
+- Snoozing an already-snoozed notification simply replaces the pending snooze (they never stack).
+
 ```php
 use Ikromjon\LocalNotifications\Facades\LocalNotifications;
 use Ikromjon\LocalNotifications\Notifications\LocalNotificationMessage;

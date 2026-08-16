@@ -40,9 +40,11 @@ interface LocalNotificationsInterface
     /**
      * Request permission to show notifications.
      *
+     * @param  bool  $critical  Also request iOS critical-alert authorization
+     *                          (requires the critical-alerts entitlement; ignored on Android)
      * @return array<string, mixed>
      */
-    public function requestPermission(): array;
+    public function requestPermission(bool $critical = false): array;
 
     /**
      * Check current notification permission status.

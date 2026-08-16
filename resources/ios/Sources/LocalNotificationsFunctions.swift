@@ -63,8 +63,19 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         let customData = NotificationHelper.extractCustomData(from: userInfo)
         if !customData.isEmpty { payload["data"] = customData }
 
+        // Adjust presentation based on priority and silent flag
+        let priority = userInfo[UserInfoKeys.priority] as? String
+        let silent = userInfo[UserInfoKeys.silent] as? Bool ?? false
+
+        var options: UNNotificationPresentationOptions = [.banner, .sound, .badge]
+        if priority == PriorityLevel.low {
+            options = [.list, .badge]
+        } else if silent {
+            options.remove(.sound)
+        }
+
         sendOrQueue(eventClass: eventClass, payload: payload)
-        completionHandler([.banner, .sound, .badge])
+        completionHandler(options)
     }
 
     func userNotificationCenter(
@@ -114,6 +125,11 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     }
 
     /// Reschedule a notification after a snooze delay using UNTimeIntervalNotificationTrigger.
+    /// Schedules under a dedicated "{id}_snooze" identifier so the snooze is a
+    /// one-shot side request: re-using the original identifier would replace a
+    /// pending repeating request and kill its repeat chain. The content's
+    /// userInfo keeps the original notificationId, so events for the snoozed
+    /// delivery still report the ID the developer scheduled.
     private func rescheduleSnooze(
         id: String,
         content: UNNotificationContent,
@@ -123,23 +139,28 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
             logger.error("Failed to create mutable copy of notification content")
             return
         }
-        // Ensure sound plays on the snoozed notification
-        if newContent.sound == nil {
+        // Ensure sound plays on the snoozed notification — unless it was
+        // explicitly scheduled as silent.
+        let silent = newContent.userInfo[UserInfoKeys.silent] as? Bool ?? false
+        if newContent.sound == nil && !silent {
             newContent.sound = .default
         }
+
+        // Snoozing an already-snoozed notification re-uses the same sub-ID.
+        let snoozeId = SnoozeId.forId(id)
 
         let trigger = UNTimeIntervalNotificationTrigger(
             timeInterval: TimeInterval(snoozeSecs), repeats: false
         )
         let request = UNNotificationRequest(
-            identifier: id, content: newContent, trigger: trigger
+            identifier: snoozeId, content: newContent, trigger: trigger
         )
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
                 logger.error("Snooze reschedule failed: \(error.localizedDescription, privacy: .public)")
             } else {
-                logger.info("Snooze rescheduled: \(id, privacy: .public) in \(snoozeSecs)s")
+                logger.info("Snooze rescheduled: \(snoozeId, privacy: .public) in \(snoozeSecs)s")
             }
         }
     }
@@ -185,10 +206,22 @@ enum LocalNotificationsFunctions {
             let repeatIntervalSeconds = parameters["repeatIntervalSeconds"] as? Int
             let repeatDays = parameters["repeatDays"] as? [Int]
             let repeatCount = parameters["repeatCount"] as? Int
+            let priority = PriorityLevel.normalize(parameters["priority"] as? String)
+            let silent = parameters["silent"] as? Bool ?? false
+
+            // The critical-alerts entitlement cannot be detected via center.add errors —
+            // the system accepts and silently degrades unentitled critical requests —
+            // so resolve the fallback up front from the notification settings.
+            let criticalEnabled = priority == PriorityLevel.urgent
+                && NotificationHelper.criticalAlertsEnabled()
+            if priority == PriorityLevel.urgent && !criticalEnabled {
+                logger.info("Critical alerts entitlement not available; scheduling urgent notification as timeSensitive")
+            }
 
             let content = NotificationHelper.buildContent(
                 id: id, title: title, body: body,
-                subtitle: subtitle, sound: sound, soundName: soundName, badge: badge, data: data
+                subtitle: subtitle, sound: sound, soundName: soundName, badge: badge, data: data,
+                priority: priority, silent: silent, criticalEnabled: criticalEnabled
             )
 
             // Action buttons
@@ -260,17 +293,17 @@ enum LocalNotificationsFunctions {
 
             let center = UNUserNotificationCenter.current()
 
-            // Cancel direct ID
-            center.removePendingNotificationRequests(withIdentifiers: [id])
-            center.removeDeliveredNotifications(withIdentifiers: [id])
-            UserDefaults.standard.removeObject(forKey: NotificationKeys.remainingCount(id))
-
-            // Cancel any day-of-week sub-IDs
+            // Cancel direct ID, any pending snooze side-request, and day-of-week
+            // sub-IDs. The snooze ID is always derived from the original ID
+            // (rescheduleSnooze reads userInfo's notificationId, which is the
+            // parent even for day sub-requests), so one snooze ID suffices.
             let subIds = (1...7).map { NotificationKeys.daySubId(id, isoDay: $0) }
-            center.removePendingNotificationRequests(withIdentifiers: subIds)
-            center.removeDeliveredNotifications(withIdentifiers: subIds)
-            for subId in subIds {
-                UserDefaults.standard.removeObject(forKey: NotificationKeys.remainingCount(subId))
+            let allIds = [id] + subIds + [SnoozeId.forId(id)]
+
+            center.removePendingNotificationRequests(withIdentifiers: allIds)
+            center.removeDeliveredNotifications(withIdentifiers: allIds)
+            for identifier in allIds {
+                UserDefaults.standard.removeObject(forKey: NotificationKeys.remainingCount(identifier))
             }
 
             logger.info("Notification cancelled: \(id, privacy: .public)")
@@ -320,8 +353,12 @@ enum LocalNotificationsFunctions {
                         }
                     } else {
                         var notification: [String: Any] = [
-                            "id": id, "title": request.content.title, "body": request.content.body
+                            "id": SnoozeId.strip(id), "title": request.content.title, "body": request.content.body
                         ]
+                        if SnoozeId.isSnooze(id) {
+                            // Report snoozed deliveries under the ID the developer scheduled.
+                            notification["snoozed"] = true
+                        }
 
                         if let trigger = request.trigger as? UNCalendarNotificationTrigger {
                             notification["repeats"] = trigger.repeats
@@ -400,19 +437,27 @@ enum LocalNotificationsFunctions {
 
             let daySubRequests = allRequests.filter { $0.identifier.hasPrefix("\(id)\(NotificationKeys.daySeparator)") }
             let directRequest = allRequests.first { $0.identifier == id }
+            // A snoozed delivery is a side-request under {id}_snooze — it must be
+            // findable (a fired-then-snoozed one-shot has no other pending
+            // request) and refreshed, or it fires with stale content.
+            let snoozeRequest = allRequests.first { $0.identifier == SnoozeId.forId(id) }
             let isDayOfWeek = !daySubRequests.isEmpty
 
-            guard directRequest != nil || isDayOfWeek else {
+            guard directRequest != nil || isDayOfWeek || snoozeRequest != nil else {
                 return ["success": false, "error": "Notification not found: \(id)"]
             }
 
-            let baseRequest = isDayOfWeek ? daySubRequests.first! : directRequest!
+            let baseRequest = directRequest ?? daySubRequests.first ?? snoozeRequest!
             let existingContent = baseRequest.content
 
             // Merge parameters with existing content
             let title = parameters["title"] as? String ?? existingContent.title
             let body = parameters["body"] as? String ?? existingContent.body
-            let existingSound = existingContent.sound != nil
+            // content.sound is nil for both sound:false and silent:true, so
+            // prefer the persisted flag; fall back to the content for
+            // notifications scheduled before the flag existed.
+            let existingSound = existingContent.userInfo[UserInfoKeys.sound] as? Bool
+                ?? (existingContent.sound != nil)
             let sound = parameters["sound"] as? Bool ?? existingSound
             let existingSoundName = existingContent.userInfo[UserInfoKeys.soundName] as? String
             let soundName = parameters["soundName"] as? String ?? existingSoundName
@@ -429,9 +474,19 @@ enum LocalNotificationsFunctions {
                 if !existing.isEmpty { mergedData = existing }
             }
 
+            // Priority and silent: use new values or fall back to existing
+            let existingPriority = existingContent.userInfo[UserInfoKeys.priority] as? String
+            let priority = PriorityLevel.normalize(parameters["priority"] as? String) ?? existingPriority
+            let existingSilent = existingContent.userInfo[UserInfoKeys.silent] as? Bool ?? false
+            let silent = parameters["silent"] as? Bool ?? existingSilent
+
+            let criticalEnabled = priority == PriorityLevel.urgent
+                && NotificationHelper.criticalAlertsEnabled()
+
             let newContent = NotificationHelper.buildContent(
                 id: id, title: title, body: body,
-                subtitle: subtitle, sound: sound, soundName: soundName, badge: badge, data: mergedData
+                subtitle: subtitle, sound: sound, soundName: soundName, badge: badge, data: mergedData,
+                priority: priority, silent: silent, criticalEnabled: criticalEnabled
             )
 
             // Actions
@@ -494,6 +549,8 @@ enum LocalNotificationsFunctions {
                     if let rs = newRepeatIntervalSeconds { mergedParams["repeatIntervalSeconds"] = rs }
                     if let rd = newRepeatDays { mergedParams["repeatDays"] = rd }
                     if let rc = newRepeatCount { mergedParams["repeatCount"] = rc }
+                    if let p = priority { mergedParams["priority"] = p }
+                    if silent { mergedParams["silent"] = true }
                     if let c = config { mergedParams["_config"] = c }
 
                     let scheduleResult = try Schedule().execute(parameters: mergedParams)
@@ -525,18 +582,17 @@ enum LocalNotificationsFunctions {
                         }
                     }
                 }
-            } else {
+            } else if let directRequest = directRequest {
                 // Single notification update
-                let requestId = baseRequest.identifier
-                center.removePendingNotificationRequests(withIdentifiers: [requestId])
-                center.removeDeliveredNotifications(withIdentifiers: [requestId])
+                center.removePendingNotificationRequests(withIdentifiers: [id])
+                center.removeDeliveredNotifications(withIdentifiers: [id])
 
                 let trigger: UNNotificationTrigger = timingChanged
                     ? NotificationHelper.buildTrigger(
                         delay: newDelay, at: newAt,
                         repeatInterval: newRepeat, repeatIntervalSeconds: newRepeatIntervalSeconds
                     )
-                    : baseRequest.trigger ?? UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+                    : directRequest.trigger ?? UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
 
                 let newRequest = UNNotificationRequest(identifier: id, content: newContent, trigger: trigger)
                 let semAdd = DispatchSemaphore(value: 0)
@@ -555,8 +611,30 @@ enum LocalNotificationsFunctions {
                 if let count = newRepeatCount, count >= 1 {
                     UserDefaults.standard.set(count, forKey: NotificationKeys.remainingCount(id))
                 }
-                if requestId != id {
-                    UserDefaults.standard.removeObject(forKey: NotificationKeys.remainingCount(requestId))
+            }
+
+            // Refresh a pending snoozed delivery with the new content, keeping
+            // its own identifier so it stays a one-shot side-request. Re-adding
+            // the original time-interval trigger would restart its full interval
+            // from now, so rebuild a trigger from the remaining time instead.
+            if let snoozeRequest = snoozeRequest {
+                let remaining = (snoozeRequest.trigger as? UNTimeIntervalNotificationTrigger)?
+                    .nextTriggerDate()?.timeIntervalSinceNow
+                let refreshedSnooze = UNNotificationRequest(
+                    identifier: snoozeRequest.identifier, content: newContent,
+                    trigger: UNTimeIntervalNotificationTrigger(
+                        timeInterval: max(1, remaining ?? 1), repeats: false
+                    )
+                )
+                let semSnooze = DispatchSemaphore(value: 0)
+                var snoozeError: Error?
+                center.add(refreshedSnooze) { error in
+                    snoozeError = error
+                    semSnooze.signal()
+                }
+                semSnooze.wait()
+                if let error = snoozeError {
+                    logger.error("Failed to refresh snoozed delivery: \(error.localizedDescription, privacy: .public)")
                 }
             }
 
@@ -575,7 +653,16 @@ enum LocalNotificationsFunctions {
             let semaphore = DispatchSemaphore(value: 0)
             var result: [String: Any] = [:]
 
-            center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            // Critical-alert authorization must be requested explicitly or
+            // criticalAlertSetting never becomes .enabled and priority "urgent"
+            // can never reach .critical. Opt-in only: apps without the
+            // critical-alerts entitlement should not request it.
+            var options: UNAuthorizationOptions = [.alert, .sound, .badge]
+            if parameters["critical"] as? Bool == true {
+                options.insert(.criticalAlert)
+            }
+
+            center.requestAuthorization(options: options) { granted, error in
                 if let error = error {
                     logger.error("Permission request error: \(error.localizedDescription, privacy: .public)")
                     result = ["granted": false, "error": error.localizedDescription]

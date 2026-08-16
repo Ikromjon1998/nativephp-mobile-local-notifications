@@ -14,6 +14,8 @@ The plugin dispatches events for the full notification lifecycle. You can listen
 | `PermissionGranted` | _(none)_ |
 | `PermissionDenied` | _(none)_ |
 
+Events for a **snoozed delivery** or a **day-of-week sub-alarm** always report the original id you scheduled — the internal `{id}_snooze` and `{id}_day_N` sub-ids are never exposed, so listeners can match on the original id.
+
 ## Livewire
 
 Use the `#[OnNative]` attribute in your Livewire components. Parameter names must match the payload keys — Livewire 3 and 4 both map dispatched payload keys to named method parameters.

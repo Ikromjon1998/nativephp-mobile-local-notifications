@@ -50,6 +50,8 @@ class BootReceiver : BroadcastReceiver() {
                 val channelId = if (info.has("channelId")) info.getString("channelId") else Defaults.CHANNEL_ID
 
                 val soundName = if (info.has("soundName")) info.getString("soundName") else null
+                val priority = if (info.has("priority")) info.getString("priority") else null
+                val silent = info.optBoolean("silent", false)
 
                 val notifyIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
                     action = IntentActions.NOTIFY
@@ -67,6 +69,8 @@ class BootReceiver : BroadcastReceiver() {
                     if (info.has("image")) putExtra(IntentExtras.IMAGE, info.getString("image"))
                     if (info.has("bigText")) putExtra(IntentExtras.BIG_TEXT, info.getString("bigText"))
                     info.optJSONArray("actions")?.let { putExtra(IntentExtras.ACTIONS, it.toString()) }
+                    if (priority != null) putExtra(IntentExtras.PRIORITY, priority)
+                    if (silent) putExtra(IntentExtras.SILENT, true)
                 }
 
                 val pendingIntent = PendingIntent.getBroadcast(
@@ -96,11 +100,16 @@ class BootReceiver : BroadcastReceiver() {
 
                 // Always use exact alarms — repeating notifications are
                 // self-rescheduled by LocalNotificationReceiver after each delivery
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    adjustedTrigger,
-                    pendingIntent
-                )
+                try {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        adjustedTrigger,
+                        pendingIntent
+                    )
+                } catch (e: SecurityException) {
+                    Log.w(TAG, "setExactAndAllowWhileIdle() denied on boot restore, falling back: ${e.message}")
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, adjustedTrigger, pendingIntent)
+                }
 
                 Log.d(TAG, "Restored notification: $id")
             } catch (e: Exception) {

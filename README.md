@@ -45,7 +45,9 @@ LocalNotifications::schedule([
 - Repeat count limits (fire N times then stop)
 - Rich content: images, subtitles, and expanded text
 - Action buttons with text input support (configurable limit, default 3)
-- Native snooze (reschedules without opening the app)
+- Native snooze (reschedules without opening the app, never interrupts repeat schedules)
+- Priority control (low, default, high, urgent) with platform-native importance mapping
+- Silent delivery mode (no sound/vibration)
 - Custom sounds, badges, and data payloads
 - Cancel individual or all notifications
 - List pending notifications

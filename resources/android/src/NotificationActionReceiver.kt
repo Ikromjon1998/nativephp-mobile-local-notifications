@@ -1,8 +1,6 @@
 package com.nativephp.localnotifications
 
-import android.app.AlarmManager
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -36,7 +34,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
         // Build the event payload
         val payload = JSONObject().apply {
-            put("notificationId", notificationId)
+            put("notificationId", PublicId.of(notificationId))
             put("actionId", actionId)
             if (dataJson != null) {
                 try {
@@ -89,10 +87,15 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
     /**
      * Reschedule the notification via AlarmManager for a snooze delay.
-     * Re-uses the same notification ID so the snoozed notification replaces the original.
+     * Uses a dedicated "{id}_snooze" sub-ID so the snooze is a one-shot side
+     * alarm: it never overwrites the original notification's PendingIntent
+     * (snoozing a repeating notification must not kill its repeat chain) and
+     * its post-fire cleanup removes only the snooze entry. The snooze is
+     * persisted so it appears in getPending() and survives a reboot via
+     * BootReceiver.
      */
     private fun rescheduleSnooze(context: Context, intent: Intent, snoozeSecs: Int) {
-        val id = intent.getStringExtra(IntentExtras.NOTIFICATION_ID) ?: return
+        val originalId = intent.getStringExtra(IntentExtras.NOTIFICATION_ID) ?: return
         val title = intent.getStringExtra(IntentExtras.TITLE) ?: return
         val body = intent.getStringExtra(IntentExtras.BODY) ?: return
         val sound = intent.getBooleanExtra(IntentExtras.SOUND, true)
@@ -103,40 +106,44 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val imageUrl = intent.getStringExtra(IntentExtras.IMAGE)
         val bigText = intent.getStringExtra(IntentExtras.BIG_TEXT)
         val actionsJson = intent.getStringExtra(IntentExtras.ACTIONS)
+        val priority = intent.getStringExtra(IntentExtras.PRIORITY)
+        val silent = intent.getBooleanExtra(IntentExtras.SILENT, false)
+
+        // Snoozing an already-snoozed notification re-uses the same sub-ID.
+        val snoozeId = SnoozeId.forId(originalId)
 
         val triggerMs = System.currentTimeMillis() + (snoozeSecs * 1000L)
 
-        val rescheduleIntent = Intent(context, LocalNotificationReceiver::class.java).apply {
-            action = IntentActions.NOTIFY
-            putExtra(IntentExtras.NOTIFICATION_ID, id)
-            putExtra(IntentExtras.TITLE, title)
-            putExtra(IntentExtras.BODY, body)
-            putExtra(IntentExtras.SOUND, sound)
-            if (soundName != null) putExtra(IntentExtras.SOUND_NAME, soundName)
-            putExtra(IntentExtras.CHANNEL_ID, channelId)
-            // No repeat — snooze is a one-shot reschedule
-            putExtra(IntentExtras.REPEAT_MS, 0L)
-            if (dataJson != null) putExtra(IntentExtras.DATA, dataJson)
-            if (subtitle != null) putExtra(IntentExtras.SUBTITLE, subtitle)
-            if (imageUrl != null) putExtra(IntentExtras.IMAGE, imageUrl)
-            if (bigText != null) putExtra(IntentExtras.BIG_TEXT, bigText)
-            if (actionsJson != null) putExtra(IntentExtras.ACTIONS, actionsJson)
-        }
-
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            id.hashCode(),
-            rescheduleIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val params = NotificationParams(
+            id = snoozeId,
+            title = title,
+            body = body,
+            sound = sound,
+            soundName = soundName,
+            badge = null,
+            data = dataJson?.let {
+                try {
+                    NotificationScheduler.jsonObjectToMap(JSONObject(it))
+                } catch (e: org.json.JSONException) {
+                    null
+                }
+            },
+            subtitle = subtitle,
+            imageUrl = imageUrl,
+            bigText = bigText,
+            actions = actionsJson?.let { NotificationScheduler.coerceToList(it) },
+            priority = priority,
+            silent = silent,
         )
 
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            triggerMs,
-            pendingIntent
-        )
+        // Delegate to the shared scheduler: one source of truth for the NOTIFY
+        // intent extras and the exact-alarm SecurityException fallback (the
+        // exact-alarm permission can be revoked by the user on Android 12+).
+        NotificationScheduler.scheduleAlarm(context, snoozeId, params, triggerMs, 0L, null, null, channelId)
+        // Persist so getPending() lists the snoozed alarm and BootReceiver
+        // restores it if the device reboots before it fires.
+        NotificationScheduler.saveNotificationInfo(context, snoozeId, params, triggerMs, 0L, null, null, channelId)
 
-        Log.d(TAG, "Rescheduled snooze for $id: fires in ${snoozeSecs}s")
+        Log.d(TAG, "Rescheduled snooze for $originalId as $snoozeId: fires in ${snoozeSecs}s")
     }
 }

@@ -41,6 +41,8 @@ object IntentExtras {
     const val NOTIFICATION_DATA = "notification_data"
     const val ACTION_ID = "action_id"
     const val SNOOZE_SECONDS = "snooze_seconds"
+    const val PRIORITY = "priority"
+    const val SILENT = "silent"
 }
 
 /** Repeat interval type strings matching the PHP RepeatInterval enum. */
@@ -51,6 +53,61 @@ object RepeatType {
     const val WEEKLY = "weekly"
     const val MONTHLY = "monthly"
     const val YEARLY = "yearly"
+}
+
+/** Priority level strings matching the PHP NotificationPriority enum. */
+object PriorityLevel {
+    const val LOW = "low"
+    const val DEFAULT = "default"
+    const val HIGH = "high"
+    const val URGENT = "urgent"
+
+    val ALL = setOf(LOW, DEFAULT, HIGH, URGENT)
+
+    /**
+     * Returns the value when it is a known level, null otherwise, so callers
+     * bypassing PHP validation (e.g. the JS bridge) fall back to the legacy
+     * no-priority behavior instead of creating junk channels.
+     */
+    fun normalize(value: String?): String? = value?.takeIf { it in ALL }
+}
+
+/**
+ * Sub-ID helpers for snooze side-alarms ({id}_snooze). A snooze must be a
+ * separate one-shot alarm: reusing the original ID would overwrite a repeating
+ * notification's PendingIntent and kill its repeat chain.
+ */
+object SnoozeId {
+    const val SUFFIX = "_snooze"
+
+    /** Sub-ID for the snoozed delivery of a notification; idempotent for
+     *  re-snoozes. Always derived from the developer-facing ID, so snoozing a
+     *  day-of-week sub-delivery ({id}_day_N) attaches the snooze to the parent
+     *  — matching iOS, where the snooze ID comes from the original userInfo ID. */
+    fun forId(id: String): String = PublicId.of(id) + SUFFIX
+
+    fun isSnooze(id: String): Boolean = id.endsWith(SUFFIX)
+
+    /** ID with any snooze suffix removed. */
+    fun strip(id: String): String = id.removeSuffix(SUFFIX)
+}
+
+/** Sub-ID helpers for day-of-week sub-alarms ({id}_day_N). */
+object DayOfWeekId {
+    const val SEPARATOR = "_day_"
+    private val SUFFIX_REGEX = Regex("$SEPARATOR[1-7]$")
+
+    /** ID with any day-of-week suffix removed. */
+    fun strip(id: String): String = SUFFIX_REGEX.replace(id, "")
+}
+
+/**
+ * Maps any internal sub-ID (snooze side-alarm or day-of-week sub-alarm) back
+ * to the ID the developer scheduled. Event payloads and getPending() must
+ * never expose internal sub-IDs.
+ */
+object PublicId {
+    fun of(id: String): String = DayOfWeekId.strip(SnoozeId.strip(id))
 }
 
 /** Default values shared across the plugin. */

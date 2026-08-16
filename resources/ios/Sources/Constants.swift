@@ -15,8 +15,11 @@ enum Events {
 /// These are reserved internal keys that must not collide with user-provided data.
 enum UserInfoKeys {
     static let notificationId = "notification_id"
+    static let sound = "sound"
     static let soundName = "soundName"
     static let actionSnooze = "action_snooze"
+    static let priority = "priority"
+    static let silent = "silent"
 }
 
 /// Repeat interval type strings matching the PHP RepeatInterval enum.
@@ -27,6 +30,42 @@ enum RepeatType {
     static let weekly = "weekly"
     static let monthly = "monthly"
     static let yearly = "yearly"
+}
+
+/// Priority level strings matching the PHP NotificationPriority enum.
+enum PriorityLevel {
+    static let low = "low"
+    static let `default` = "default"
+    static let high = "high"
+    static let urgent = "urgent"
+
+    static let all: Set<String> = [low, `default`, high, urgent]
+
+    /// Returns the value when it is a known level, nil otherwise, so callers
+    /// bypassing PHP validation (e.g. the JS bridge) fall back to the legacy
+    /// no-priority behavior instead of propagating junk values.
+    static func normalize(_ value: String?) -> String? {
+        guard let value, all.contains(value) else { return nil }
+        return value
+    }
+}
+
+/// Sub-ID helpers for snooze side-requests ({id}_snooze). A snooze must be a
+/// separate one-shot request: reusing the original identifier would replace a
+/// pending repeating request and kill its repeat chain.
+enum SnoozeId {
+    static let suffix = "_snooze"
+
+    /// Identifier for the snoozed delivery of a notification; idempotent for re-snoozes.
+    static func forId(_ id: String) -> String { strip(id) + suffix }
+
+    static func isSnooze(_ id: String) -> Bool { id.hasSuffix(suffix) }
+
+    /// Original notification ID with any snooze suffix removed — event payloads
+    /// always report the ID the developer scheduled.
+    static func strip(_ id: String) -> String {
+        id.hasSuffix(suffix) ? String(id.dropLast(suffix.count)) : id
+    }
 }
 
 /// UserDefaults key helpers and notification sub-ID formatters.

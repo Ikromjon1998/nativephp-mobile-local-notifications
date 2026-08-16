@@ -134,8 +134,10 @@ object LocalNotificationsFunctions {
     fun storeTapPayload(context: Context, id: String, title: String, body: String, dataJson: String?) {
         synchronized(PrefsKeys.lock) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            // Keyed by the raw (possibly _snooze/_day_N) ID for active-notification
+            // matching; the payload itself reports the ID the developer scheduled.
             val payload = JSONObject().apply {
-                put("id", id)
+                put("id", PublicId.of(id))
                 put("title", title)
                 put("body", body)
                 if (dataJson != null) {
@@ -242,7 +244,7 @@ object LocalNotificationsFunctions {
 
             if (id != null && title != null && body != null) {
                 val payload = JSONObject().apply {
-                    put("id", id)
+                    put("id", PublicId.of(id))
                     put("title", title)
                     put("body", body)
                     if (dataJson != null) {
@@ -288,6 +290,15 @@ object LocalNotificationsFunctions {
             dispatchEvent(activity, eventClass, payloadStr)
             injectNavigationReplay(activity, eventClass, payloadStr)
         }
+    }
+
+    /** Cancel a notification's pending snooze side-alarm ({id}_snooze), if any. */
+    private fun cancelSnoozeSubAlarm(context: Context, id: String) {
+        if (SnoozeId.isSnooze(id)) return
+        val snoozeId = SnoozeId.forId(id)
+        NotificationScheduler.cancelAlarm(context, snoozeId)
+        NotificationScheduler.removeNotificationInfo(context, snoozeId)
+        clearTapPayload(context, snoozeId)
     }
 
     private fun detectTappedNotifications(activity: FragmentActivity) {
@@ -399,6 +410,9 @@ object LocalNotificationsFunctions {
                     clearTapPayload(context, id)
                     Log.d(TAG, "✅ Notification cancelled: $id")
                 }
+                // A pending snooze is a side alarm under {id}_snooze — cancelling
+                // the notification must cancel its snoozed delivery too.
+                cancelSnoozeSubAlarm(context, id)
                 mapOf("success" to true, "id" to id)
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Error cancelling notification: ${e.message}", e)
@@ -458,7 +472,13 @@ object LocalNotificationsFunctions {
                 for (id in allIds) {
                     if (id in subIdSet) continue
                     val infoJson = prefs.getString(PrefsKeys.notificationInfo(id), null) ?: continue
-                    notifications.put(JSONObject(infoJson))
+                    val info = JSONObject(infoJson)
+                    if (SnoozeId.isSnooze(id)) {
+                        // Report snoozed deliveries under the ID the developer scheduled.
+                        info.put("id", PublicId.of(id))
+                        info.put("snoozed", true)
+                    }
+                    notifications.put(info)
                 }
 
                 for (parentId in parentIds) {
@@ -470,7 +490,7 @@ object LocalNotificationsFunctions {
 
                     val days = JSONArray()
                     for (subId in subIds) {
-                        val dayStr = subId.substringAfterLast("_day_")
+                        val dayStr = subId.substringAfterLast(DayOfWeekId.SEPARATOR)
                         days.put(dayStr.toIntOrNull() ?: continue)
                     }
                     parentInfo.put("repeatDays", days)
@@ -557,7 +577,16 @@ object LocalNotificationsFunctions {
 
             val subIds = NotificationScheduler.getRepeatDaysSubIds(context, id)
             val lookupId = if (subIds != null) subIds.firstOrNull() ?: id else id
-            val existingJson = prefs.getString(PrefsKeys.notificationInfo(lookupId), null)
+            val directJson = prefs.getString(PrefsKeys.notificationInfo(lookupId), null)
+            // A fired-then-snoozed one-shot has no info of its own anymore —
+            // only the {id}_snooze side-alarm remains. It must still be
+            // updatable (content-only), or the snooze fires with stale content.
+            val snoozeOnlyJson = if (directJson == null && subIds == null) {
+                prefs.getString(PrefsKeys.notificationInfo(SnoozeId.forId(id)), null)
+            } else {
+                null
+            }
+            val existingJson = directJson ?: snoozeOnlyJson
                 ?: return mapOf("success" to false, "error" to "Notification not found: $id")
 
             return try {
@@ -610,7 +639,7 @@ object LocalNotificationsFunctions {
                     val mergedParams = buildMergedScheduleParams(id, params, parameters, newDelay, newAt, newRepeat, newRepeatIntervalSeconds, newRepeatDays, newRepeatCount)
                     val scheduleResult = Schedule(activity).execute(mergedParams)
                     if (scheduleResult["success"] != true) return scheduleResult
-                } else {
+                } else if (directJson != null) {
                     // Single notification update
                     val existingRemainingCount = if (existing.has("remainingCount")) existing.optInt("remainingCount") else null
 
@@ -641,6 +670,10 @@ object LocalNotificationsFunctions {
                     refreshDeliveredNotification(context, id, params)
                 }
 
+                // A snoozed delivery lives under {id}_snooze with content frozen at
+                // delivery time — apply the update there too, or it fires stale.
+                refreshSnoozeState(context, id, params)
+
                 Log.d(TAG, "✅ Notification updated: $id")
                 NotificationScheduler.dispatchNotificationEvent(
                     activity, Events.NOTIFICATION_UPDATED,
@@ -666,6 +699,8 @@ object LocalNotificationsFunctions {
             if (params.imageUrl != null) merged["image"] = params.imageUrl
             if (params.bigText != null) merged["bigText"] = params.bigText
             if (params.actions != null) merged["actions"] = params.actions
+            if (params.priority != null) merged["priority"] = params.priority
+            if (params.silent) merged["silent"] = params.silent
             if (delay != null) merged["delay"] = delay
             if (at != null) merged["at"] = at
             if (repeat != null) merged["repeat"] = repeat
@@ -680,22 +715,37 @@ object LocalNotificationsFunctions {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val activeNotification = notificationManager.activeNotifications.firstOrNull { it.id == id.hashCode() } ?: return
 
-            val rebuiltNotification = android.app.Notification.Builder(context, channelId)
-                .setSmallIcon(activeNotification.notification.smallIcon
-                    ?: android.graphics.drawable.Icon.createWithResource(context, context.applicationInfo.icon))
-                .setContentTitle(params.title)
-                .setContentText(params.body)
-                .apply {
-                    if (params.subtitle != null) setSubText(params.subtitle)
-                    if (!params.bigText.isNullOrBlank()) {
-                        setStyle(android.app.Notification.BigTextStyle().bigText(params.bigText))
-                    }
-                    setAutoCancel(true)
-                }
-                .build()
-
-            notificationManager.notify(id.hashCode(), rebuiltNotification)
+            // Use the existing notification's channel to preserve priority/sound
+            // settings. Delegate to the shared builder so the re-posted
+            // notification keeps its tap intent, action buttons, and styles;
+            // alertOnce prevents a re-alert (e.g. a silent notification would
+            // otherwise play the channel sound on update).
+            val effectiveChannelId = activeNotification.notification.channelId ?: channelId
+            LocalNotificationReceiver.postNotification(
+                context, id, params, channelId, effectiveChannelId, alertOnce = true
+            )
             Log.d(TAG, "Refreshed delivered notification: $id")
+        }
+
+        /**
+         * Apply updated content to the {id}_snooze side-alarm: re-post a visible
+         * snoozed delivery and replace a still-pending snooze alarm in place
+         * (same request code + FLAG_UPDATE_CURRENT), keeping its trigger time.
+         */
+        private fun refreshSnoozeState(context: Context, id: String, params: NotificationParams) {
+            val snoozeId = SnoozeId.forId(id)
+            refreshDeliveredNotification(context, snoozeId, params)
+
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val infoJson = prefs.getString(PrefsKeys.notificationInfo(snoozeId), null) ?: return
+            val info = JSONObject(infoJson)
+            val snoozeParams = params.copy(id = snoozeId)
+            val snoozeChannelId = info.optString("channelId", channelId)
+            val triggerTimeMs = info.optLong("triggerTimeMs")
+
+            NotificationScheduler.scheduleAlarm(context, snoozeId, snoozeParams, triggerTimeMs, 0L, null, null, snoozeChannelId)
+            NotificationScheduler.saveNotificationInfo(context, snoozeId, snoozeParams, triggerTimeMs, 0L, null, null, snoozeChannelId)
+            Log.d(TAG, "Refreshed pending snooze: $snoozeId")
         }
     }
 }

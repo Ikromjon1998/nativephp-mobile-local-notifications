@@ -61,7 +61,9 @@ async function bridgeCall(method, params = {}) {
  * @param {string} [options.subtitle] - Subtitle text
  * @param {string} [options.image] - Image URL (http/https only)
  * @param {string} [options.bigText] - Expanded body text
- * @param {Array<{id: string, title: string, destructive?: boolean, input?: boolean}>} [options.actions] - Action buttons (max 3)
+ * @param {Array<{id: string, title: string, destructive?: boolean, input?: boolean, snooze?: number}>} [options.actions] - Action buttons (max 3); snooze reschedules natively after N seconds
+ * @param {string} [options.priority] - Notification priority: 'low', 'default', 'high', 'urgent'. Omitted = legacy high-importance behavior
+ * @param {boolean} [options.silent] - Deliver without sound or vibration (on Android also without heads-up banner)
  * @returns {Promise<{success: boolean, id?: string, error?: string}>}
  */
 export async function schedule(options = {}) {
@@ -99,10 +101,14 @@ export async function getPending() {
 /**
  * Request notification permission (Android 13+, iOS).
  *
+ * @param {Object} [options]
+ * @param {boolean} [options.critical] - Also request iOS critical-alert authorization
+ *     (requires the critical-alerts entitlement; ignored on Android). Needed for
+ *     priority 'urgent' to deliver as a critical alert.
  * @returns {Promise<{granted: boolean, status?: string, error?: string}>}
  */
-export async function requestPermission() {
-    return bridgeCall('LocalNotifications.RequestPermission');
+export async function requestPermission(options = {}) {
+    return bridgeCall('LocalNotifications.RequestPermission', options);
 }
 
 /**
@@ -134,7 +140,9 @@ export async function checkPermission() {
  * @param {string} [options.subtitle] - Subtitle text
  * @param {string} [options.image] - Image URL
  * @param {string} [options.bigText] - Expanded body text
- * @param {Array<{id: string, title: string, destructive?: boolean, input?: boolean}>} [options.actions] - Action buttons
+ * @param {Array<{id: string, title: string, destructive?: boolean, input?: boolean, snooze?: number}>} [options.actions] - Action buttons
+ * @param {string} [options.priority] - Notification priority: 'low', 'default', 'high', 'urgent'. Omitted = legacy high-importance behavior
+ * @param {boolean} [options.silent] - Deliver without sound or vibration (on Android also without heads-up banner)
  * @returns {Promise<{success: boolean, id?: string, error?: string}>}
  */
 export async function update(id, options = {}) {

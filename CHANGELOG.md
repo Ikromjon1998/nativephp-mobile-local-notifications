@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - Unreleased
+
+**Minor release — native code changed.** Per NativePHP's versioning policy, apps must rebuild with `php artisan native:install --force` after updating.
+
+### Added
+
+- **Notification priority** — New `priority` option (`low`, `default`, `high`, `urgent`; `NotificationPriority` enum or strings) mapping to Android channel importance (with dedicated per-priority channels) and iOS interruption levels (`.passive`/`.active`/`.timeSensitive`/`.critical`) plus `relevanceScore`. Omitting `priority` keeps the pre-1.11 high-importance behavior.
+- **Silent delivery** — `silent: true` delivers without sound or vibration (on Android also without the heads-up banner). Independent of priority; preserved across repeats, snoozes, reboots, and updates.
+- **iOS critical-alert entitlement detection** — `urgent` uses `.critical` only when the app holds Apple's critical-alerts entitlement (checked via `criticalAlertSetting` at schedule time, since iOS silently degrades unentitled requests instead of erroring); otherwise it downgrades to `.timeSensitive` automatically.
+- **`requestPermission(critical: true)`** — opt-in request for iOS critical-alert authorization. Without it `criticalAlertSetting` never becomes enabled and `urgent` could never actually deliver as `.critical`, even in entitled apps. Ignored on Android; only call it when the app holds the critical-alerts entitlement. Note for custom implementors: `LocalNotificationsInterface::requestPermission()` gained the `bool $critical = false` parameter, so classes implementing the interface must add it.
+- **Reserved `data` keys documented** — `notification_id`, `sound`, `soundName`, `priority`, `silent`, and `action_snooze` are used internally and must not be used as custom `data` keys (`sound` is newly reserved in this release to persist the sound flag across updates on iOS).
+- **Reserved id validation** — notification ids ending in `_snooze` or `_day_{1-7}` are now rejected: those suffixes are reserved for internal sub-notifications, and colliding ids were silently cancelled or reported under the wrong id.
+- **`silent` is validated as a boolean** — a non-bool truthy value (e.g. `1`) previously passed through and behaved oppositely per platform (silent on iOS, audible on Android).
+
+### Fixed
+
+- **Snooze press no longer risks crashing the app (Android)** — the snooze reschedule now goes through the shared scheduler, which falls back to an inexact alarm when the user has revoked the "Alarms & reminders" permission (Android 12+) instead of throwing an uncaught `SecurityException` in the broadcast receiver.
+- **`update()` now reaches snoozed deliveries** — a pending `{id}_snooze` side-alarm/request previously kept its delivery-time content, and updating a fired-then-snoozed one-shot returned "Notification not found". Both platforms now refresh the snoozed delivery with the updated content while preserving its remaining snooze countdown (timing options are ignored when only a snooze is pending).
+- **Day-of-week snooze reports the original id (Android)** — snoozing a `repeatDays` occurrence leaked the internal `{id}_day_N` sub-id through `getPending()` and event payloads (iOS already reported the parent id); cancelling with that leaked id could destroy the real weekly sub-alarm. Snoozes now always attach to the parent id, and event payloads strip both internal suffixes.
+- **Android: updating a visible notification keeps it functional** — the refreshed notification previously lost its tap intent, action buttons, and dismiss handling (tapping did nothing). The refresh now reuses the same builder as fresh deliveries.
+- **iOS: un-silencing via `update(silent: false)` restores the default sound** — the sound flag is now persisted in `userInfo`; previously it was derived from the content, which is soundless while silent, so the sound was permanently lost.
+- **Android: action buttons keep their snooze duration after `update()`** — merging stored actions dropped the `snooze` field, turning snooze buttons into plain buttons on the next delivery.
+
+- **Snoozing a repeating notification no longer kills its repeat chain** — on both platforms, snooze reused the original alarm/request identity: on Android the snooze PendingIntent overwrote the pending repeat alarm (and its post-fire cleanup erased the persisted repeat entry, breaking reboot recovery too); on iOS re-adding with the same identifier replaced the pending repeating request. Snoozes are now separate one-shot `{id}_snooze` side-alarms: repeat chains are untouched, events report the original id, `getPending()` lists the snooze with `snoozed: true`, `cancel()` covers it, and on Android it is persisted for reboot recovery. Thanks to Zeshan Ziya ([@zeshanziya](https://github.com/zeshanziya)) for finding the bug and the core of the Android fix.
+- **iOS: snoozing a silent notification stays silent** — the snoozed delivery no longer force-defaults the sound when the notification was scheduled with `silent: true`.
+- **Android: updating an active notification no longer re-alerts** — the rebuilt notification uses `setOnlyAlertOnce(true)` and reuses the original channel, so updating a silent notification stays silent.
+- **Unknown priority values are normalized away** — values that bypass PHP validation (e.g. sent directly from the JS bridge) fall back to the legacy no-priority behavior on both platforms instead of creating junk notification channels.
+
+### Documentation
+
+- iOS entitlement requirements for `high`/`urgent` (Time Sensitive Notifications capability; Apple-granted critical-alerts entitlement), omitted-vs-`default` priority semantics, Android per-priority channel visibility, and a v1.11.0 upgrade guide.
+
 ## [1.10.1] - 2026-08-14
 
 ### Added

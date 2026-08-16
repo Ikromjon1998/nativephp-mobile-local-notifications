@@ -243,6 +243,30 @@ describe('soundName validation', function (): void {
     })->throws(InvalidArgumentException::class, 'filename with extension');
 });
 
+describe('priority validation', function (): void {
+    it('allows valid priority values', function (): void {
+        foreach (['low', 'default', 'high', 'urgent'] as $priority) {
+            expect(fn () => NotificationValidator::validate([
+                'priority' => $priority,
+            ]))->not->toThrow(InvalidArgumentException::class);
+        }
+    });
+
+    it('throws for invalid priority value', function (): void {
+        NotificationValidator::validate(['priority' => 'critical']);
+    })->throws(InvalidArgumentException::class, 'priority must be one of: low, default, high, urgent');
+
+    it('allows missing priority', function (): void {
+        expect(fn () => NotificationValidator::validate([]))->not->toThrow(InvalidArgumentException::class);
+    });
+
+    it('allows null priority', function (): void {
+        expect(fn () => NotificationValidator::validate([
+            'priority' => null,
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
+});
+
 describe('actions validation', function (): void {
     it('throws when actions exceed default max of 3', function (): void {
         NotificationValidator::validate([
@@ -328,4 +352,62 @@ describe('actions validation', function (): void {
             ],
         ]);
     })->throws(InvalidArgumentException::class, 'at most 1 action button');
+});
+
+describe('silent validation', function (): void {
+    it('allows boolean silent values', function (): void {
+        expect(fn () => NotificationValidator::validate([
+            'silent' => true,
+        ]))->not->toThrow(InvalidArgumentException::class);
+
+        expect(fn () => NotificationValidator::validate([
+            'silent' => false,
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
+
+    it('allows null silent', function (): void {
+        expect(fn () => NotificationValidator::validate([
+            'silent' => null,
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
+
+    it('throws for integer silent', function (): void {
+        NotificationValidator::validate(['silent' => 1]);
+    })->throws(InvalidArgumentException::class, 'silent must be a boolean');
+
+    it('throws for string silent', function (): void {
+        NotificationValidator::validate(['silent' => 'true']);
+    })->throws(InvalidArgumentException::class, 'silent must be a boolean');
+});
+
+describe('reserved id validation', function (): void {
+    it('throws for ids ending in _snooze', function (): void {
+        NotificationValidator::validate(['id' => 'task_snooze']);
+    })->throws(InvalidArgumentException::class, 'reserved for internal sub-notifications');
+
+    it('throws for ids ending in a day-of-week suffix', function (): void {
+        NotificationValidator::validate(['id' => 'habit_day_3']);
+    })->throws(InvalidArgumentException::class, 'reserved for internal sub-notifications');
+
+    it('allows ids merely containing the reserved suffixes', function (): void {
+        expect(fn () => NotificationValidator::validate([
+            'id' => 'task_snooze_reminder',
+        ]))->not->toThrow(InvalidArgumentException::class);
+
+        expect(fn () => NotificationValidator::validate([
+            'id' => 'habit_day_3_check',
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
+
+    it('allows a day-like suffix outside the 1-7 range', function (): void {
+        expect(fn () => NotificationValidator::validate([
+            'id' => 'report_day_9',
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
+
+    it('allows ordinary ids', function (): void {
+        expect(fn () => NotificationValidator::validate([
+            'id' => 'daily-checkin',
+        ]))->not->toThrow(InvalidArgumentException::class);
+    });
 });
