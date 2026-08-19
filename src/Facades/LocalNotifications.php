@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\Facade;
  * @method static array<string, mixed> requestPermission(bool $critical = false)
  * @method static array<string, mixed> checkPermission()
  * @method static array<string, mixed> update(string $id, NotificationOptions|array<string, mixed> $options)
+ * @method static \Ikromjon\LocalNotifications\LocalNotifications transformUsing(callable(array<string, mixed>): array<string, mixed> $transformer)
+ * @method static \Ikromjon\LocalNotifications\LocalNotifications flushTransformers()
  *
  * @see \Ikromjon\LocalNotifications\LocalNotifications
  */

@@ -15,6 +15,14 @@ use Ikromjon\LocalNotifications\Validation\NotificationValidator;
 class LocalNotifications implements LocalNotificationsInterface
 {
     /**
+     * Registered payload transformers, applied in order to the content of
+     * schedule() and update() calls immediately before dispatch.
+     *
+     * @var array<int, callable(array<string, mixed>): array<string, mixed>>
+     */
+    protected array $transformers = [];
+
+    /**
      * Schedule a local notification.
      *
      * @param  NotificationOptions|array<string, mixed>  $options
@@ -26,7 +34,7 @@ class LocalNotifications implements LocalNotificationsInterface
             ? $options->toArray()
             : $this->normalizeOptions($options);
 
-        return $this->call(BridgeFunction::Schedule, $data);
+        return $this->call(BridgeFunction::Schedule, $this->applyTransformers($data));
     }
 
     /**
@@ -105,7 +113,60 @@ class LocalNotifications implements LocalNotificationsInterface
 
         $data['id'] = $id;
 
-        return $this->call(BridgeFunction::Update, $data);
+        return $this->call(BridgeFunction::Update, $this->applyTransformers($data));
+    }
+
+    /**
+     * Register a payload transformer.
+     *
+     * The callback receives the fully-normalized notification payload — title,
+     * body, subtitle, bigText, actions, and so on — immediately before it is
+     * dispatched to the native layer, and returns the payload to send. It is
+     * the extension point for cross-cutting content changes such as
+     * localization: translate the text once here instead of at every call site.
+     *
+     * Transformers run in registration order, each receiving the previous one's
+     * output (a pipeline). They apply only to schedule() and update() — the
+     * content-bearing calls — and never receive the internal `_config` block.
+     * They run after validation and are meant for content: avoid altering
+     * structural fields such as `id`, `at`, or `repeat`, which are not
+     * re-validated afterwards.
+     *
+     * @param  callable(array<string, mixed>): array<string, mixed>  $transformer
+     */
+    public function transformUsing(callable $transformer): self
+    {
+        $this->transformers[] = $transformer;
+
+        return $this;
+    }
+
+    /**
+     * Remove all registered payload transformers.
+     */
+    public function flushTransformers(): self
+    {
+        $this->transformers = [];
+
+        return $this;
+    }
+
+    /**
+     * Run the registered transformers over a notification payload.
+     *
+     * Applied to schedule() and update() content before `_config` is injected,
+     * so transformers only ever see the developer-facing payload.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function applyTransformers(array $data): array
+    {
+        foreach ($this->transformers as $transformer) {
+            $data = $transformer($data);
+        }
+
+        return $data;
     }
 
     /**
