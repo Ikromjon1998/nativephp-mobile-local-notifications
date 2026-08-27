@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Ikromjon\LocalNotifications\Contracts\LocalNotificationsInterface;
 use Ikromjon\LocalNotifications\LocalNotifications;
 
 beforeEach(function (): void {
@@ -230,6 +231,27 @@ describe('transformUsing', function (): void {
         $result = $this->notifications->transformUsing(fn (array $payload): array => $payload);
 
         expect($result)->toBe($this->notifications);
+    });
+
+    it('is reachable through the container-bound contract', function (): void {
+        $captured = null;
+        captureBridgePayload($captured);
+
+        $notifications = app(LocalNotificationsInterface::class);
+
+        $notifications->transformUsing(function (array $payload): array {
+            $payload['title'] = 'via-contract';
+
+            return $payload;
+        });
+
+        $notifications->schedule([
+            'id' => 'contract',
+            'title' => 'original',
+            'body' => 'Body',
+        ]);
+
+        expect($captured['title'])->toBe('via-contract');
     });
 });
 

@@ -72,6 +72,11 @@ await update('reminder-1', { title: 'Updated!', body: 'New body text' });
 | `checkPermission()` | None | `{ status, error? }` |
 | `update(id, options)` | Notification ID string, options object | `{ success, id?, error? }` |
 
+> **These calls bypass PHP.** They post straight to NativePHP's native bridge, so PHP-side
+> payload transformers (see [Localization](localization.md)) and the package's PHP validation
+> do not apply. Translate strings in JavaScript before calling, or schedule through a route of
+> your own if you rely on transformers.
+
 ## Listening to Events
 
 Use the NativePHP `On()` function with the plugin's `Events` constants:

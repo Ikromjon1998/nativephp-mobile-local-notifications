@@ -136,6 +136,7 @@ LocalNotifications::transformUsing(function (array $payload): array {
 - The transformed payload is re-validated, so a transformer cannot bypass reserved id suffixes, the `max_actions` limit, or the other constraints.
 - Works with any backend (translation API, DeepL, glossary lookup) — the callback is ordinary PHP.
 - `flushTransformers()` clears all registered transformers (useful in tests).
+- **Transformers are PHP-only.** The JavaScript API posts to `/_native/api/call`, which reaches the native bridge without passing through this package's PHP class — no transformer and no PHP-side validation applies. Schedule via a Laravel route if JS callers need them.
 
 See `docs/localization.md`.
 

@@ -74,12 +74,32 @@ The same hook works with any translation backend — a translation API, DeepL, a
 |----------|--------|
 | **When it runs** | Immediately before the payload is dispatched to the native layer, **after** validation. |
 | **What it receives** | The developer-facing payload array (`id`, `title`, `body`, `actions`, …). It never sees the internal `_config` block. |
-| **Which calls** | Only `schedule()` and `update()` — the content-bearing calls. `cancel()`, `getPending()`, permission calls are untouched. |
+| **Which calls** | Only the PHP `schedule()` and `update()` — the content-bearing calls. `cancel()`, `getPending()`, permission calls are untouched, and so is the JavaScript API (below). |
 | **Multiple transformers** | Applied in registration order; each receives the previous one's output (a pipeline). |
 | **Return value** | Must return the payload array to send. |
 | **Validation** | The payload is validated at the call site *and again* after the transformers run. |
 
 Transformers are intended for **content**. Their output is re-validated before dispatch, so a transformer cannot produce a payload the call site would have been rejected for: a reserved `id` suffix, more action buttons than `max_actions` allows, an invalid `priority`, and so on throw `InvalidArgumentException` out of the `schedule()` or `update()` call rather than reaching the device. Structural fields such as `at`, `repeat`, and `repeatDays` are still better changed at the call site, where the intent is visible next to the schedule.
+
+## Transformers do not reach the JavaScript API
+
+Transformers are a PHP-side hook, and the [JavaScript API](javascript-api.md) does not pass through PHP. Its `schedule()` posts to NativePHP's `/_native/api/call` endpoint, which hands the parameters straight to the native bridge — this package's PHP class is never involved, so no transformer runs (and no PHP-side validation applies either).
+
+If you schedule from Vue, React, or Inertia and want your transformers applied, post to a route of your own and schedule from the controller:
+
+```php
+// routes/web.php
+Route::post('/notifications', function (Request $request) {
+    return LocalNotifications::schedule([
+        'id'    => $request->string('id'),
+        'title' => 'notifications.welcome.title',   // transformers run here
+        'body'  => 'notifications.welcome.body',
+        'delay' => 10,
+    ]);
+});
+```
+
+Otherwise, translate in JavaScript before calling `schedule()` — the strings are sent as-is.
 
 ## Not just for translation
 

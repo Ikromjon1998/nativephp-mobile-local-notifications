@@ -60,4 +60,21 @@ interface LocalNotificationsInterface
      * @return array<string, mixed>
      */
     public function update(string $id, NotificationOptions|array $options): array;
+
+    /**
+     * Register a payload transformer.
+     *
+     * The callback receives the notification payload immediately before it is
+     * dispatched to the native layer and returns the payload to send. It runs
+     * for schedule() and update() only, in registration order, and its output
+     * is re-validated. The primary use is localization.
+     *
+     * @param  callable(array<string, mixed>): array<string, mixed>  $transformer
+     */
+    public function transformUsing(callable $transformer): self;
+
+    /**
+     * Remove all registered payload transformers.
+     */
+    public function flushTransformers(): self;
 }
