@@ -21,6 +21,8 @@ use Ikromjon\LocalNotifications\Facades\LocalNotifications;
 | `requestPermission($critical = false)` | `bool` | `array` | Request notification permission (Android 13+, iOS). Pass `true` to also request iOS critical-alert authorization (entitled apps only; needed for priority `urgent`). |
 | `checkPermission()` | — | `array` | Check current permission status (`granted`, `denied`, `notDetermined`). |
 | `update($id, $options)` | `string`, `NotificationOptions\|array` | `array` | Update an existing notification's content or timing. |
+| `transformUsing($callback)` | `callable(array): array` | `$this` | Register a payload transformer applied to every `schedule()`/`update()` payload before dispatch (e.g. localization). |
+| `flushTransformers()` | — | `$this` | Remove all registered payload transformers. |
 
 ### Schedule Parameters
 
@@ -108,6 +110,34 @@ Fluent methods mirror the schedule parameters: `id`, `title`, `body`, `subtitle`
 - Filename must include an extension; alphanumeric, hyphens, underscores only — paths are rejected by validation.
 - Android: a dedicated notification channel `{channel_id}_sound_{name}` is auto-created per sound (Android O+ requires sound on the channel); falls back to the default channel if the resource is not found.
 - iOS: uses `UNNotificationSound(named:)`.
+
+## Localization
+
+Notification text is rendered by the OS, often while the app is closed — there is no DOM and no JavaScript at delivery time, so content must be finalized in PHP at schedule time. Client-side (browser) translation cannot reach it.
+
+- **Call site (simplest):** pass Laravel translations directly — `'title' => __('notifications.welcome.title')`. Resolved against the current locale at the moment you schedule.
+- **Everywhere at once:** register a payload transformer, typically in a service provider's `boot()`:
+
+```php
+LocalNotifications::transformUsing(function (array $payload): array {
+    foreach (['title', 'body', 'subtitle', 'bigText'] as $field) {
+        if (isset($payload[$field])) {
+            $payload[$field] = __($payload[$field]);
+        }
+    }
+
+    return $payload;
+});
+```
+
+- Transformers receive the developer-facing payload immediately before dispatch, run in registration order (a pipeline), and never see the internal `_config` block.
+- They apply to `schedule()` and `update()` only — `cancel()`, `getPending()`, and permission calls are untouched.
+- Guard optional fields with `isset()`: `update()` payloads carry only the fields being changed, so `title` and friends may be absent.
+- The transformed payload is re-validated, so a transformer cannot bypass reserved id suffixes, the `max_actions` limit, or the other constraints.
+- Works with any backend (translation API, DeepL, glossary lookup) — the callback is ordinary PHP.
+- `flushTransformers()` clears all registered transformers (useful in tests).
+
+See `docs/localization.md`.
 
 ## Events
 

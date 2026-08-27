@@ -128,9 +128,9 @@ class LocalNotifications implements LocalNotificationsInterface
      * Transformers run in registration order, each receiving the previous one's
      * output (a pipeline). They apply only to schedule() and update() — the
      * content-bearing calls — and never receive the internal `_config` block.
-     * They run after validation and are meant for content: avoid altering
-     * structural fields such as `id`, `at`, or `repeat`, which are not
-     * re-validated afterwards.
+     * The transformed payload is re-validated before dispatch, so a transformer
+     * is held to the same rules as the call site: reserved id suffixes, the
+     * action limit, and every other constraint still apply.
      *
      * @param  callable(array<string, mixed>): array<string, mixed>  $transformer
      */
@@ -155,16 +155,27 @@ class LocalNotifications implements LocalNotificationsInterface
      * Run the registered transformers over a notification payload.
      *
      * Applied to schedule() and update() content before `_config` is injected,
-     * so transformers only ever see the developer-facing payload.
+     * so transformers only ever see the developer-facing payload. The result is
+     * re-validated: a transformer runs after the call site has been validated,
+     * so without this it could smuggle through a reserved id suffix or a fourth
+     * action button that the same payload would have been rejected for.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
+     *
+     * @throws \InvalidArgumentException
      */
     protected function applyTransformers(array $data): array
     {
+        if ($this->transformers === []) {
+            return $data;
+        }
+
         foreach ($this->transformers as $transformer) {
             $data = $transformer($data);
         }
+
+        NotificationValidator::validate($data);
 
         return $data;
     }

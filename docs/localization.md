@@ -77,8 +77,9 @@ The same hook works with any translation backend — a translation API, DeepL, a
 | **Which calls** | Only `schedule()` and `update()` — the content-bearing calls. `cancel()`, `getPending()`, permission calls are untouched. |
 | **Multiple transformers** | Applied in registration order; each receives the previous one's output (a pipeline). |
 | **Return value** | Must return the payload array to send. |
+| **Validation** | The payload is validated at the call site *and again* after the transformers run. |
 
-Transformers are intended for **content**. They run after validation and their output is **not** re-validated, so avoid changing structural fields such as `id`, `at`, `repeat`, or `repeatDays` inside one — change those at the call site instead.
+Transformers are intended for **content**. Their output is re-validated before dispatch, so a transformer cannot produce a payload the call site would have been rejected for: a reserved `id` suffix, more action buttons than `max_actions` allows, an invalid `priority`, and so on throw `InvalidArgumentException` out of the `schedule()` or `update()` call rather than reaching the device. Structural fields such as `at`, `repeat`, and `repeatDays` are still better changed at the call site, where the intent is visible next to the schedule.
 
 ## Not just for translation
 
@@ -86,8 +87,12 @@ Because a transformer receives the whole payload, it's a general seam for any cr
 
 ```php
 LocalNotifications::transformUsing(function (array $payload): array {
-    // Force a house-style prefix on every title.
-    $payload['title'] = '🔔 '.$payload['title'];
+    // Force a house-style prefix on every title. Guard the field —
+    // update() payloads carry only what you are changing, so `title`
+    // may be absent.
+    if (isset($payload['title'])) {
+        $payload['title'] = '🔔 '.$payload['title'];
+    }
 
     // Guarantee an analytics tag on every notification.
     $payload['data'] = array_merge($payload['data'] ?? [], ['source' => 'app']);

@@ -177,6 +177,55 @@ describe('transformUsing', function (): void {
         expect($runs)->toBe(0);
     });
 
+    it('re-validates the transformed payload', function (): void {
+        stubNativephpCall(fn (): string => json_encode(['success' => true]));
+
+        $this->notifications->transformUsing(function (array $payload): array {
+            $payload['id'] .= '_snooze';
+
+            return $payload;
+        });
+
+        $this->notifications->schedule([
+            'id' => 'reminder',
+            'title' => 'Title',
+            'body' => 'Body',
+        ]);
+    })->throws(InvalidArgumentException::class, 'reserved for internal sub-notifications');
+
+    it('re-validates transformed update() payloads', function (): void {
+        stubNativephpCall(fn (): string => json_encode(['success' => true]));
+
+        $this->notifications->transformUsing(function (array $payload): array {
+            $payload['id'] .= '_day_3';
+
+            return $payload;
+        });
+
+        $this->notifications->update('habit', ['title' => 'Updated']);
+    })->throws(InvalidArgumentException::class, 'reserved for internal sub-notifications');
+
+    it('rejects a transformer that pushes the payload past the action limit', function (): void {
+        stubNativephpCall(fn (): string => json_encode(['success' => true]));
+
+        $this->notifications->transformUsing(function (array $payload): array {
+            $payload['actions'] = [
+                ['id' => 'a', 'title' => 'A'],
+                ['id' => 'b', 'title' => 'B'],
+                ['id' => 'c', 'title' => 'C'],
+                ['id' => 'd', 'title' => 'D'],
+            ];
+
+            return $payload;
+        });
+
+        $this->notifications->schedule([
+            'id' => 'too-many-actions',
+            'title' => 'Title',
+            'body' => 'Body',
+        ]);
+    })->throws(InvalidArgumentException::class, 'at most 3 action buttons');
+
     it('returns the instance for fluent chaining', function (): void {
         $result = $this->notifications->transformUsing(fn (array $payload): array => $payload);
 
