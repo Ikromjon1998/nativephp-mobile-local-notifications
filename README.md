@@ -54,6 +54,7 @@ LocalNotifications::schedule([
 - Update existing notifications
 - Permission management (Android 13+, iOS)
 - Laravel Notification channel support
+- Localization via Laravel translations, with an optional payload transformer hook to translate everywhere at once
 - Survives device reboot (Android)
 - Events for notification lifecycle (scheduled, received, tapped, action pressed)
 - Cold-start tap event auto-flush via Blade component
@@ -71,6 +72,7 @@ LocalNotifications::schedule([
 | [Custom Sounds](docs/custom-sounds.md) | Custom sound files per notification |
 | [Action Buttons](docs/action-buttons.md) | Tap actions, text input, native snooze |
 | [Laravel Notification Channel](docs/laravel-notification-channel.md) | Standard `$user->notify()` pattern |
+| [Localization](docs/localization.md) | Translate notifications with Laravel translations or a payload transformer hook |
 | [JavaScript API](docs/javascript-api.md) | Full API for Vue, React, and Inertia apps |
 | [Permissions](docs/permissions.md) | Android and iOS permission requirements |
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |

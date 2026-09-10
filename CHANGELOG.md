@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**Pure PHP — no native code changed.** No rebuild (`native:install --force`) is required to update.
+
+### Added
+
+- **Payload transformers** — `LocalNotifications::transformUsing(callable $transformer)` registers a callback that receives the notification payload (title, body, subtitle, bigText, actions, …) immediately before dispatch and returns the payload to send. Transformers run in registration order (a pipeline), apply only to `schedule()` and `update()`, and never see the internal `_config` block. The transformed payload is re-validated before dispatch, so a transformer is held to the same rules as the call site (reserved id suffixes, the `max_actions` limit, and so on). `flushTransformers()` clears them. Both methods are part of `LocalNotificationsInterface`, so they work through the container-bound contract as well as the facade — anyone implementing that interface directly must add them. Transformers are PHP-side only: the JavaScript API reaches the native bridge without passing through PHP, so they do not apply there. The primary use is localization — translate content once instead of at every call site — but the hook is a general seam for any cross-cutting payload change. See [docs/localization.md](docs/localization.md).
+- **Localization guide** — new [Localization](docs/localization.md) doc covering translating notifications with Laravel's `__()` at schedule time and centralizing it with a transformer, plus why notification content must be finalized server-side.
+
 ## [1.11.0] - 2026-08-16
 
 **Minor release — native code changed.** Per NativePHP's versioning policy, apps must rebuild with `php artisan native:install --force` after updating.
