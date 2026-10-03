@@ -4,7 +4,7 @@
 
 ### Rebuild required
 
-v1.12.0 changes native Swift code and the plugin manifest. Rebuild your app after updating:
+v1.12.0 changes native Swift and Kotlin code and the plugin manifest. Rebuild your app after updating:
 
 ```bash
 php artisan native:install --force
@@ -17,6 +17,13 @@ Tapping a notification while the app is not running now delivers `NotificationTa
 If you worked around the loss, for example by storing the notification id yourself and reading it on launch, the same tap may now be handled twice. Remove the workaround.
 
 Native snooze also works with the app closed now: pressing a snooze action reschedules the notification without the app being opened.
+
+### Android: reboots and `data`
+
+Two things that the documentation described but that did not work on Android now do:
+
+- Notifications scheduled before a device restart are delivered after it.
+- The `data` you pass to `schedule()` arrives in `NotificationReceived` and `NotificationTapped`. Before, it was always `null` on Android. If your handlers treated a missing `data` as normal on Android, they will now receive it.
 
 ## From v1.10.x to v1.11.0
 
