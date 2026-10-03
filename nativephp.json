@@ -76,7 +76,8 @@
     },
 
     "ios": {
-        "min_version": "18.0"
+        "min_version": "18.0",
+        "init_function": "LocalNotificationDelegate.ensureRegistered"
     },
 
     "events": [

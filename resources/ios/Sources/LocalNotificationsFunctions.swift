@@ -15,6 +15,14 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     private var pendingEvents: [(eventClass: String, payload: [String: Any])] = []
     private let pendingQueue = DispatchQueue(label: "com.nativephp.localnotifications.pending")
 
+    /// False until the app has made its first bridge call. On a cold start iOS
+    /// reports the tap during launch, before any page or component exists to
+    /// hear it, so events wait in `pendingEvents` until then.
+    private var isBridgeReady = false
+
+    /// Registered as the manifest's `init_function`, so it runs during app
+    /// launch. iOS only hands the launch response (the tap that started the
+    /// app) to a delegate that is already set when launching finishes.
     static func ensureRegistered() {
         if !isRegistered {
             UNUserNotificationCenter.current().delegate = shared
@@ -23,23 +31,31 @@ class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func sendOrQueue(eventClass: String, payload: [String: Any]) {
-        if let send = LaravelBridge.shared.send {
-            send(eventClass, payload)
-        } else {
-            pendingQueue.sync {
-                pendingEvents.append((eventClass: eventClass, payload: payload))
-                logger.debug("Queued pending event: \(eventClass, privacy: .public), queue size: \(self.pendingEvents.count)")
+        // `LaravelBridge.shared.send` alone does not say the app can receive
+        // events: NativePHP v3 leaves it nil until the WebView exists, but v4
+        // sets it from launch.
+        let send: ((String, [String: Any?]) -> Void)? = pendingQueue.sync {
+            if isBridgeReady, let send = LaravelBridge.shared.send {
+                return send
             }
+            pendingEvents.append((eventClass: eventClass, payload: payload))
+            logger.debug("Queued pending event: \(eventClass, privacy: .public), queue size: \(self.pendingEvents.count)")
+            return nil
         }
+        send?(eventClass, payload)
     }
 
     func dispatchPendingEvents() {
+        // Leave the queue untouched while there is nowhere to send to.
+        guard let send = LaravelBridge.shared.send else { return }
+
         var events: [(eventClass: String, payload: [String: Any])] = []
         pendingQueue.sync {
+            isBridgeReady = true
             events = pendingEvents
             pendingEvents.removeAll()
         }
-        guard !events.isEmpty, let send = LaravelBridge.shared.send else { return }
+        guard !events.isEmpty else { return }
         logger.debug("Dispatching \(events.count) pending event(s)")
         for event in events {
             send(event.eventClass, event.payload)

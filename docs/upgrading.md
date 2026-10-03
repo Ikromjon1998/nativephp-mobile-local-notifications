@@ -1,5 +1,21 @@
 # Upgrading
 
+## From v1.11.x to v1.12.0
+
+### Rebuild required
+
+v1.12.0 changes native Swift code and the plugin manifest. Rebuild your app after updating:
+
+```bash
+php artisan native:install --force
+```
+
+### iOS cold-start taps now arrive
+
+Tapping a notification while the app is not running now delivers `NotificationTapped` on iOS. Before, the app opened and the event was lost. How you receive it is unchanged: keep `<x-local-notifications::init />` in your layout and the listener on your landing page — see [Getting Started](getting-started.md#cold-start-tap-events).
+
+If you worked around the loss, for example by storing the notification id yourself and reading it on launch, the same tap may now be handled twice. Remove the workaround.
+
 ## From v1.10.x to v1.11.0
 
 ### Rebuild required

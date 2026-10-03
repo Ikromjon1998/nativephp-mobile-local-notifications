@@ -14,6 +14,8 @@
 
 4. **Named parameter mismatch** — Livewire maps payload keys to parameter names. `public function onTapped(array $data)` only gets the `data` key, not the full payload. Use `public function onTapped(string $id = '', string $title = '', string $body = '', array $data = [])`.
 
+5. **iOS with a plugin version before 1.12.0** — Older versions registered the iOS notification delegate too late, so iOS dropped the tap that launched the app before the plugin was listening. Update the plugin and rebuild with `php artisan native:install --force`.
+
 ## Notifications Not Showing on Android
 
 **Symptom:** `schedule()` succeeds but no notification appears.

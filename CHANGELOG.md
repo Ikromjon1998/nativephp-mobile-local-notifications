@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**Native code changed.** Per NativePHP's versioning policy this ships as a minor release, and apps must rebuild with `php artisan native:install --force` after updating.
+
+### Fixed
+
+- **iOS: `NotificationTapped` lost on cold start** — Tapping a notification while the app was not running opened the app but never delivered the event, on NativePHP for Mobile v3 and v4 alike. Two things were wrong:
+  - The plugin registered its `UNUserNotificationCenter` delegate on the first bridge call. iOS hands the tap that launched the app only to a delegate that is already set when launching finishes, so the response was dropped before the plugin was listening. The delegate is now registered during app launch through the manifest's `ios.init_function`.
+  - Events that arrive before the app can receive them are queued, but the check for that was `LaravelBridge.shared.send == nil`. NativePHP v3 leaves `send` nil until the WebView exists; v4 sets it from launch, so on v4 nothing was ever queued and the event was sent before any page existed. Events are now queued until the app makes its first bridge call, whatever the NativePHP version.
+
+  How you receive the event is unchanged: it is delivered on the first bridge call, which `<x-local-notifications::init />` makes once the page is ready.
+
 ## [1.11.1] - 2026-10-03
 
 ### Added
