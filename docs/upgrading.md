@@ -16,6 +16,8 @@ Tapping a notification while the app is not running now delivers `NotificationTa
 
 If you worked around the loss, for example by storing the notification id yourself and reading it on launch, the same tap may now be handled twice. Remove the workaround.
 
+Native snooze also works with the app closed now: pressing a snooze action reschedules the notification without the app being opened.
+
 ## From v1.10.x to v1.11.0
 
 ### Rebuild required
