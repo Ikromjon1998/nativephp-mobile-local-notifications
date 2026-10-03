@@ -62,7 +62,7 @@ object NotificationScheduler {
             sound = if (soundName != null) true else (parameters["sound"] as? Boolean ?: defaultSound),
             soundName = soundName,
             badge = (parameters["badge"] as? Number)?.toInt(),
-            data = parameters["data"] as? Map<*, *>,
+            data = coerceToMap(parameters["data"]),
             subtitle = parameters["subtitle"] as? String,
             imageUrl = parameters["image"] as? String,
             bigText = parameters["bigText"] as? String,
@@ -91,7 +91,7 @@ object NotificationScheduler {
                 ?: existing.optString("soundName", null),
             badge = (parameters["badge"] as? Number)?.toInt()
                 ?: if (existing.has("badge")) existing.optInt("badge") else null,
-            data = parameters["data"] as? Map<*, *>
+            data = coerceToMap(parameters["data"])
                 ?: if (existing.has("data")) jsonObjectToMap(existing.getJSONObject("data")) else null,
             subtitle = parameters["subtitle"] as? String
                 ?: existing.optString("subtitle", null),
@@ -456,6 +456,28 @@ object NotificationScheduler {
             } catch (_: Exception) { null }
             else -> {
                 Log.w(TAG, "coerceToList: unexpected type ${raw.javaClass.name}")
+                null
+            }
+        }
+    }
+
+    /**
+     * Coerce a bridge parameter into a Map. The bridge hands nested JSON
+     * objects over as JSONObject rather than Map, so a plain `as? Map` cast
+     * silently turns them into null.
+     */
+    fun coerceToMap(raw: Any?): Map<*, *>? {
+        return when (raw) {
+            null, JSONObject.NULL -> null
+            is Map<*, *> -> raw
+            is JSONObject -> jsonObjectToMap(raw)
+            // An empty PHP array encodes as [], which carries no data.
+            is JSONArray -> null
+            is String -> try {
+                jsonObjectToMap(JSONObject(raw))
+            } catch (_: Exception) { null }
+            else -> {
+                Log.w(TAG, "coerceToMap: unexpected type ${raw.javaClass.name}")
                 null
             }
         }
