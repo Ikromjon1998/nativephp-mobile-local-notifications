@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.1] - 2026-10-03
+
+### Added
+
+- **NativePHP for Mobile v4 support** — Widened the `nativephp/mobile` constraint to `^3.0 || ^4.0` so the package installs on apps running NativePHP for Mobile v4 instead of blocking the upgrade (#24). The plugin has no PHP-level coupling to `nativephp/mobile`: it imports no `Native\Mobile\*` class, reaches the native layer only through the global `nativephp_call()` (guarded by `function_exists`), and registers its bridge through the `nativephp.json` manifest. All three contracts are unchanged in v4 — the `nativephp_call()` signature is identical, v4's manifest validation adds only optional keys (`platforms`, `components`), and the `resources/android/src` / `resources/ios/Sources` layout is still what v4 compiles. Following NativePHP's versioning policy, this is a patch release: it changes only the Composer constraint, contains no PHP or native code changes, and requires no app rebuild. Thanks to Hoceine EL IDRISSI ([@HoceineEl](https://github.com/HoceineEl)).
+- **v4 on PHP 8.3 and 8.4** — `nativephp/mobile` 4.0–4.4 require PHP 8.4; 4.5.0 restored PHP 8.3 support. This package supports PHP 8.3+, so an app on PHP 8.3 resolves `nativephp/mobile` 4.5 or later unless it pins v3.
+
+### Changed
+
+- **CI tests v3 and v4 explicitly** — The test matrix gained a `nativephp/mobile` axis (`^3.0`, `^4.0`), run on PHP 8.3 and 8.4 across Laravel 11–13. Before, each job installed whichever major Composer resolved by default; since `nativephp/mobile` 4.5.0 that is v4 on every job, which left v3 untested.
+
 ## [1.11.0] - 2026-08-16
 
 **Minor release — native code changed.** Per NativePHP's versioning policy, apps must rebuild with `php artisan native:install --force` after updating.

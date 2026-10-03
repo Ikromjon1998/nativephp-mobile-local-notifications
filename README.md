@@ -32,7 +32,7 @@ LocalNotifications::schedule([
 
 | Plugin | What it does | Requires |
 |--------|-------------|----------|
-| **nativephp/mobile-dialog** | Toast/snackbar messages (in-app only, disappear when app closes) | Nothing |
+| **nativephp/mobile-dialog** (the core `Dialog` API in v4) | Toast/snackbar messages (in-app only, disappear when app closes) | Nothing |
 | **nativephp/mobile-firebase** | Push notifications from a server via FCM/APNs | Firebase project, server, internet |
 | **This plugin** | Local notifications scheduled on-device | Nothing — works offline |
 

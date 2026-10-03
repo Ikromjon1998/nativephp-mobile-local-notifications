@@ -2,7 +2,7 @@
 
 # Local Notifications Plugin — AI Guidelines
 
-**Compatibility:** PHP 8.3+, Laravel 11/12/13, NativePHP Mobile v3 (Laravel 13 requires `nativephp/mobile` >= 3.3.7).
+**Compatibility:** PHP 8.3+, Laravel 11/12/13, NativePHP Mobile v3 or v4 (Laravel 13 requires `nativephp/mobile` >= 3.3.7).
 
 ## Facade
 
