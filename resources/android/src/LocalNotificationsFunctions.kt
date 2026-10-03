@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.webkit.WebView
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.nativephp.mobile.bridge.BridgeFunction
@@ -109,9 +110,28 @@ object LocalNotificationsFunctions {
         }
     }
 
+    /**
+     * The activity's WebView, if it already has one.
+     *
+     * NativePHP v4 can run an app with no WebView at all and only creates one
+     * when getWebView() is called, so asking for it here would start Chromium
+     * in an app that never needed it. v4 adds getWebViewOrNull() for exactly
+     * this; it is looked up by name because v3's interface does not have it.
+     * v3 always has a WebView, so getWebView() is safe there.
+     */
+    private fun existingWebView(activity: FragmentActivity): WebView? {
+        val provider = activity as? WebViewProvider ?: return null
+        val orNull = try {
+            provider.javaClass.getMethod("getWebViewOrNull")
+        } catch (_: NoSuchMethodException) {
+            return provider.getWebView()
+        }
+        return orNull.invoke(provider) as? WebView
+    }
+
     private fun injectLivewireInitFallback(activity: FragmentActivity, event: String, payloadJson: String) {
         try {
-            val webView = (activity as? WebViewProvider)?.getWebView() ?: return
+            val webView = existingWebView(activity) ?: return
             val eventForJs = event.replace("\\", "\\\\")
             val js = """
                 (function() {
@@ -208,7 +228,7 @@ object LocalNotificationsFunctions {
 
     private fun injectNavigationReplay(activity: FragmentActivity, event: String, payloadJson: String) {
         try {
-            val webView = (activity as? WebViewProvider)?.getWebView() ?: return
+            val webView = existingWebView(activity) ?: return
             val eventForJs = event.replace("\\", "\\\\")
             val js = """
                 (function() {
