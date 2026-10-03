@@ -70,13 +70,19 @@
             },
             {
                 "name": ".BootReceiver",
-                "exported": true
+                "exported": true,
+                "intent_filters": [
+                    {
+                        "action": "android.intent.action.BOOT_COMPLETED"
+                    }
+                ]
             }
         ]
     },
 
     "ios": {
-        "min_version": "18.0"
+        "min_version": "18.0",
+        "init_function": "LocalNotificationDelegate.ensureRegistered"
     },
 
     "events": [

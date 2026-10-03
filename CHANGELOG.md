@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-10-04
+
+**Minor release — native code changed.** Per NativePHP's versioning policy, apps must rebuild with `php artisan native:install --force` after updating.
+
+### Fixed
+
+- **iOS: `NotificationTapped` lost on cold start** — Tapping a notification while the app was not running opened the app but never delivered the event, on NativePHP for Mobile v3 and v4 alike. Two things were wrong:
+  - The plugin registered its `UNUserNotificationCenter` delegate on the first bridge call. iOS hands the tap that launched the app only to a delegate that is already set when launching finishes, so the response was dropped before the plugin was listening. The delegate is now registered during app launch through the manifest's `ios.init_function`.
+  - Events that arrive before the app can receive them are queued, but the check for that was `LaravelBridge.shared.send == nil`. NativePHP v3 leaves `send` nil until the WebView exists; v4 sets it from launch, so on v4 nothing was ever queued and the event was sent before any page existed. Events are now queued until the app makes its first bridge call, whatever the NativePHP version.
+
+  How you receive the event is unchanged: it is delivered on the first bridge call, which `<x-local-notifications::init />` makes once the page is ready.
+- **iOS: native snooze did nothing while the app was not running** — Same cause. With no delegate registered at launch, pressing a snooze action on a notification with the app closed never reached the plugin, so the notification was not rescheduled. It now comes back after the snooze delay without the app being opened.
+- **Android: scheduled notifications were lost after a reboot** — `BootReceiver` re-creates the alarms after a restart, but its manifest entry had no `BOOT_COMPLETED` intent filter, so Android never called it. The filter was dropped from `nativephp.json` before 1.0.0. It is back, and a notification scheduled before a reboot is delivered after it.
+- **Android: custom `data` was dropped** — The bridge hands nested JSON objects over as `JSONObject`, and the scheduler read `data` with a `Map` cast that quietly produced null. `NotificationReceived` and `NotificationTapped` therefore always carried `data: null` on Android. They now carry the same `data` as on iOS.
+- **Android: a WebView was started in NativePHP v4 native-UI apps** — Every event the plugin dispatches is also replayed for Livewire, and to do that the plugin asked NativePHP for the activity's WebView. A v4 app built only from native screens has no WebView until something asks for one, so the first notification event started Chromium in an app that never needed it. The plugin now uses the WebView only when one already exists. Events reach native screens through `#[On]` either way.
+
 ## [1.11.1] - 2026-10-03
 
 ### Added
