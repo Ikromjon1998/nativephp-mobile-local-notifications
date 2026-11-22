@@ -1,5 +1,28 @@
 # Upgrading
 
+## Unreleased: NativePHP 3.3.11+ / 4.6.1+ required
+
+### Update NativePHP with the plugin
+
+`nativephp/mobile` 3.3.11 and 4.6.1 fix security advisory GHSA-83jv-8h7x-287p. Native events reach PHP through `POST /_native/api/events`, which now constructs only event classes that implement `Native\Mobile\Events\Contracts\DispatchableFromNative`. The plugin's events implement that interface, and it does not exist in earlier NativePHP releases, so the plugin now requires `nativephp/mobile` `^3.3.11|^4.6.1`. Update both in one step and rebuild:
+
+```bash
+# NativePHP for Mobile v3
+composer require ikromjon/nativephp-mobile-local-notifications "nativephp/mobile:^3.3.11" -W
+
+# NativePHP for Mobile v4
+composer require ikromjon/nativephp-mobile-local-notifications "nativephp/mobile:^4.6.1" -W
+
+php artisan native:install --force
+```
+
+`-W` lets Composer update NativePHP's own dependencies along with it. The rebuild is for NativePHP's native changes: the plugin's Swift and Kotlin code did not change. From 3.3.12 and 4.8.0 the rebuilt app also signs its native events.
+
+### What changes
+
+- **Laravel listeners receive the events again.** On NativePHP 3.3.11+ and 4.6.1+, `Event::listen` listeners and event subscribers stopped receiving every event of this plugin, because none implemented the marker. They now do. Livewire `#[OnNative]`, JavaScript `On(...)` and NativePHP 4 `#[On]` handlers were never affected and need no change.
+- **`NotificationActionPressed` has `snoozed` and `snoozeSeconds`.** They are set when a native snooze button is pressed (`false` and `null` otherwise). On NativePHP v3 a snooze press used to make the event fail to construct, so listeners never saw it. A Livewire handler can receive the two values by adding `bool $snoozed = false, ?int $snoozeSeconds = null` parameters.
+
 ## From v1.10.x to v1.11.0
 
 ### Rebuild required

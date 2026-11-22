@@ -43,6 +43,47 @@ jobs:
       - name: Run tests
         run: vendor/bin/pest --coverage --min=90
 
+  # Pins the nativephp/mobile releases the events contract depends on: the
+  # oldest that accept DispatchableFromNative events (3.3.11 and 4.6.1, with
+  # every other dependency at its lowest allowed version too) and the newest
+  # 3.3.x and 4.8.x, which also sign native events. The job above keeps its
+  # check names and covers the PHP and Laravel versions.
+  nativephp:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nativephp: '3.3.11'
+            dependencies: lowest
+          - nativephp: '3.3.*'
+            dependencies: highest
+          - nativephp: '4.6.1'
+            dependencies: lowest
+          - nativephp: '4.8.*'
+            dependencies: highest
+
+    name: NativePHP ${{ matrix.nativephp }} - ${{ matrix.dependencies }} dependencies
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Install dependencies
+        run: composer update --with "nativephp/mobile:${{ matrix.nativephp }}" ${{ matrix.dependencies == 'lowest' && '--prefer-lowest --prefer-stable' || '' }} --no-interaction --prefer-dist
+
+      - name: Show the installed nativephp/mobile
+        run: composer show nativephp/mobile
+
+      - name: Run tests
+        run: vendor/bin/pest
+
   lint-native:
     runs-on: ubuntu-latest
     name: Native Code Lint
