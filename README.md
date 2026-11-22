@@ -76,6 +76,22 @@ LocalNotifications::schedule([
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
 | [Upgrading](docs/upgrading.md) | Migration guides between versions |
 
+## Upgrading
+
+The plugin requires `nativephp/mobile` 3.3.11+ (v3) or 4.6.1+ (v4). Those releases only deliver native events that implement `DispatchableFromNative` to Laravel listeners, and the plugin's events implement it. Update NativePHP and the plugin together, then rebuild the native project:
+
+```bash
+# NativePHP for Mobile v3
+composer require ikromjon/nativephp-mobile-local-notifications "nativephp/mobile:^3.3.11" -W
+
+# NativePHP for Mobile v4
+composer require ikromjon/nativephp-mobile-local-notifications "nativephp/mobile:^4.6.1" -W
+
+php artisan native:install --force
+```
+
+See [docs/upgrading.md](docs/upgrading.md) for what changes and for earlier versions.
+
 ## Example App
 
 **[Daily Habits](https://github.com/Ikromjon1998/daily-habits)** is a full, open-source mobile app built with this plugin. It demonstrates scheduling, action buttons, snooze, custom sounds, the Laravel Notification channel, and a notification debug panel with 9 test scenarios.

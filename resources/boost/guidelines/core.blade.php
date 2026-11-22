@@ -2,7 +2,7 @@
 
 # Local Notifications Plugin — AI Guidelines
 
-**Compatibility:** PHP 8.3+, Laravel 11/12/13, NativePHP Mobile v3 or v4 (Laravel 13 requires `nativephp/mobile` >= 3.3.7).
+**Compatibility:** PHP 8.3+, Laravel 11/12/13, NativePHP Mobile v3 (>= 3.3.11) or v4 (>= 4.6.1).
 
 ## Facade
 
@@ -117,7 +117,7 @@ Fluent methods mirror the schedule parameters: `id`, `title`, `body`, `subtitle`
 | `NotificationUpdated` | `id`, `title`, `body` | Notification successfully updated |
 | `NotificationReceived` | `id`, `title`, `body`, `data?` | Notification delivered to device |
 | `NotificationTapped` | `id`, `title`, `body`, `data?` | User tapped the notification |
-| `NotificationActionPressed` | `notificationId`, `actionId`, `data?`, `inputText?` | User pressed an action button |
+| `NotificationActionPressed` | `notificationId`, `actionId`, `data?`, `inputText?`, `snoozed`, `snoozeSeconds?` | User pressed an action button |
 | `PermissionGranted` | — | Permission granted |
 | `PermissionDenied` | — | Permission denied |
 

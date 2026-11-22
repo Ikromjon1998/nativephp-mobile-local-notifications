@@ -73,7 +73,7 @@ LocalNotificationMessage::create()
     ->action('snooze10', 'Snooze 10m', snooze: 600);
 ```
 
-The `NotificationActionPressed` event payload includes `snoozed: true` and `snoozeSeconds: 300` when a snooze action is pressed, so your app can track snooze usage. The event is stored as a pending event and flushed when the user next opens the app.
+The `NotificationActionPressed` event payload includes `snoozed: true` and `snoozeSeconds: 300` when a snooze action is pressed, so your app can track snooze usage. Laravel listeners read them as `$event->snoozed` and `$event->snoozeSeconds`. The event is stored as a pending event and flushed when the user next opens the app.
 
 ## Type-Safe DTO
 

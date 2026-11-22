@@ -10,7 +10,7 @@ The plugin dispatches events for the full notification lifecycle. You can listen
 | `NotificationReceived` | `id`, `title`, `body`, `data` |
 | `NotificationTapped` | `id`, `title`, `body`, `data` |
 | `NotificationUpdated` | `id`, `title`, `body` |
-| `NotificationActionPressed` | `notificationId`, `actionId`, `data`, `inputText` |
+| `NotificationActionPressed` | `notificationId`, `actionId`, `data`, `inputText`, `snoozed`, `snoozeSeconds` |
 | `PermissionGranted` | _(none)_ |
 | `PermissionDenied` | _(none)_ |
 
@@ -67,16 +67,19 @@ public function onPermissionDenied(): void
 }
 
 #[OnNative(NotificationActionPressed::class)]
-public function onActionPressed(string $notificationId = '', string $actionId = '', ?array $data = null, ?string $inputText = null): void
+public function onActionPressed(string $notificationId = '', string $actionId = '', ?array $data = null, ?string $inputText = null, bool $snoozed = false, ?int $snoozeSeconds = null): void
 {
     // Action button pressed
     // $inputText is set when the action has 'input' => true
+    // $snoozed and $snoozeSeconds are set when the action has a 'snooze' duration
 }
 ```
 
 ## Laravel Event Listeners
 
 For apps using native UI (EDGE components) or any context without Livewire, register standard Laravel event listeners. Events are dispatched to the PHP backend regardless of the frontend stack.
+
+Every event implements `Native\Mobile\Events\Contracts\DispatchableFromNative`, which NativePHP 3.3.11+ and 4.6.1+ require before they hand a native event to Laravel listeners. With an older plugin version on those NativePHP releases, listeners receive nothing — see [Upgrading](upgrading.md).
 
 ```php
 // app/Listeners/HandleNotificationTap.php
